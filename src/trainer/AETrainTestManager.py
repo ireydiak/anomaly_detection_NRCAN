@@ -9,7 +9,7 @@ from tqdm import tqdm
 from datamanager.DataManager import DataManager
 
 
-class AETrainTestManager(object):
+class AETrainTestManager():
     """
     Class used to train and test model given model and query strategy
     """

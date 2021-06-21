@@ -19,7 +19,7 @@ from utils.utils import check_dir, optimizer_setup
 
 from model.AutoEncoder import AutoEncoder as AE
 from model.DAGMM import DAGMM
-from datamanager.KDDDataset import KDDDataset
+from datamanager.KDD10Dataset import KDD10Dataset
 from datamanager.DataManager import DataManager
 from trainer.AETrainTestManager import AETrainTestManager
 from trainer.DAGMMTrainTestManager import DAGMMTrainTestManager
@@ -49,7 +49,7 @@ def argument_parser():
     parser.add_argument('--lr', type=float, default=0.0001,
                         help='Learning rate')
     parser.add_argument('--p-threshold', type=float, default=80,
-                       help='percentile threshold for the energy ')
+                        help='percentile threshold for the energy ')
     parser.add_argument('--lambda-energy', type=float, default=0.1,
                         help='loss energy factor')
     parser.add_argument('--lambda-p', type=float, default=0.005,
@@ -57,6 +57,9 @@ def argument_parser():
     parser.add_argument('--save_path', type=str, default="./", help='The path where the output will be stored,'
                                                                     'model weights as well as the figures of '
                                                                     'experiments')
+    parser.add_argument('--dataset-path', type=str, default='',
+                        help='Path to selected dataset (must be a CSV friendly-format. Leave empty to download')
+
     return parser.parse_args()
 
 
@@ -73,9 +76,9 @@ if __name__ == "__main__":
 
     # Loading the data
     if args.dataset == 'kdd':
-        dataset = KDDDataset(path='../data/kddcup_data_10_percent_corrected.csv')
+        dataset = KDD10Dataset(args.dataset_path)
     elif args.dataset == 'nslkdd':
-        dataset = NSLKDDDataset(path='../data/NSL-KDD/KDDTrain.txt')
+        dataset = NSLKDDDataset(path='/home/jcverdier/Documents/Datasets/NSL-KDD/KDDTrain+.txt')
     else:
         raise Exception("This dataset is not available for experiment at present")
 
@@ -84,7 +87,7 @@ if __name__ == "__main__":
     # split data in train and test sets
     train_set, test_set = dataset.one_class_split_train_test(test_perc=0.5, label=0)
     # test_set = NSLKDDDataset(path='../data/NSL-KDD/KDDTest.txt')
-    dm = DataManager(train_set, test_set, batch_size=batch_size, validation=0.000001)
+    dm = DataManager(train_set, test_set, batch_size=batch_size, validation=1e-6)
 
     # safely create save path
     check_dir(args.save_path)
@@ -94,16 +97,13 @@ if __name__ == "__main__":
     elif args.optimizer == 'Adam':
         optimizer_factory = optimizer_setup(optim.Adam, lr=learning_rate)
 
-    model = DAGMM(dataset.get_shape()[1],
-                  [60, 30, 10, 1],
-                  fa='tanh',
-                  gmm_layers=[10, 2]
-                  )
+    model = DAGMM(
+        dataset.get_shape()[1], [dataset.get_shape()[1], 60, 30, 10, 1], fa='tanh', gmm_layers=None
+    )
 
-    model_trainer = DAGMMTrainTestManager(model=model,
-                                          dm=dm,
-                                          optimizer_factory=optimizer_factory,
-                                          )
+    model_trainer = DAGMMTrainTestManager(
+        model=model, dm=dm, optimizer_factory=optimizer_factory,
+    )
 
     metrics = model_trainer.train(num_epochs)
     _, _, _, _, test_z, test_label, energy = model_trainer.evaluate_on_test_set(p_threshold)

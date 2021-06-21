@@ -10,7 +10,7 @@ from datamanager.DataManager import DataManager
 from sklearn.metrics import precision_recall_fscore_support as prf, accuracy_score
 
 
-class DAGMMTrainTestManager(object):
+class DAGMMTrainTestManager():
     """
     Class used to train and test model given model and query strategy
     """
@@ -55,6 +55,7 @@ class DAGMMTrainTestManager(object):
 
         # Create pytorch's train data_loader
         train_loader = self.dm.get_train_set()
+
         # train num_epochs times
         for epoch in range(num_epochs):
             print("Epoch: {} of {}".format(epoch + 1, num_epochs))
@@ -65,20 +66,21 @@ class DAGMMTrainTestManager(object):
                 train_accuracies = []
                 for i, data in enumerate(train_loader, 0):
                     # transfer tensors to selected device
-                    train_inputs, _ = data[0].to(self.device), data[1].to(self.device)
+                    train_inputs, _ = data[0].to(self.device).float(), data[1].to(self.device).float()
 
                     # zero the parameter gradients
                     self.optimizer.zero_grad()
 
                     # forward pass
-                    code, x_hat, cosim, z_error, gamma = self.model(train_inputs)
-                    phi, mu, cov_mat = self.model.compute_params(z_error, gamma)
-                    energy_result, pen_cov_mat = self.model.estimate_sample_energy(z_error, phi, mu, cov_mat,
-                                                                                   device=self.device)
+                    z_c, x_prime, _, z_r, gamma_hat = self.model(train_inputs)
+                    phi, mu, cov_mat = self.model.compute_params(z_r, gamma_hat)
+                    energy_result, pen_cov_mat = self.model.estimate_sample_energy(
+                        z_r, phi, mu, cov_mat, device=self.device
+                    )
 
-                    loss = self.model.compute_loss(train_inputs, x_hat, energy_result, pen_cov_mat)
+                    loss = self.model.compute_loss(train_inputs, x_prime, energy_result, pen_cov_mat)
 
-                    # # Use autograd to compute the backward pass.
+                    # Use autograd to compute the backward pass.
                     loss.backward()
 
                     # updates the weights using gradient descent
@@ -94,14 +96,13 @@ class DAGMMTrainTestManager(object):
                     t.update()
 
             # evaluate the model on validation data after each epoch
+            # TODO: Add other metrics to plot (F1-score, AUC)
             mean_train_loss = np.mean(train_losses)
             metrics['train_loss'].append(mean_train_loss)
-            # TODO
-            # Add other metrics to plot
 
         return metrics
 
-    def train(self, num_epochs, save_metrics=True, save_path='./', free_up_mem=True):
+    def train(self, num_epochs: int, save_metrics=True, save_path='./', free_up_mem=True):
         """
         Train the model until reaching complete_data_ratio of labeled instances
         """
@@ -160,7 +161,7 @@ class DAGMMTrainTestManager(object):
 
             for i, data in enumerate(train_loader, 0):
                 # transfer tensors to selected device
-                train_inputs, _ = data[0].to(self.device), data[1].to(self.device)
+                train_inputs, _ = data[0].float().to(self.device), data[1].float().to(self.device)
 
                 # forward pass
                 code, x_hat, cosim, z, gamma = self.model(train_inputs)
@@ -191,7 +192,7 @@ class DAGMMTrainTestManager(object):
 
             for i, data in enumerate(train_loader, 0):
                 # transfer tensors to selected device
-                train_inputs, train_inputs_labels = data[0].to(self.device), data[1]
+                train_inputs, train_inputs_labels = data[0].float().to(self.device), data[1]
 
                 # forward pass
                 code, x_hat, cosim, z, gamma = self.model(train_inputs)
