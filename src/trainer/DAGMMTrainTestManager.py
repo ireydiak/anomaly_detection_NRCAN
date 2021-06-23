@@ -1,30 +1,30 @@
-# -*- coding:utf-8 -*-
-import gc
 import warnings
 from typing import Callable, Type
-
 import numpy as np
 import torch
 from tqdm import tqdm
-from datamanager.DataManager import DataManager
+from src.datamanager.DataManager import DataManager
 from sklearn.metrics import precision_recall_fscore_support as prf, accuracy_score
+import torch.nn as nn
 
 
-class DAGMMTrainTestManager():
+class DAGMMTrainTestManager:
     """
     Class used to train and test model given model and query strategy
     """
 
-    def __init__(self, model,
+    def __init__(self, model: nn.Module,
                  dm: DataManager,
                  optimizer_factory: Callable[[torch.nn.Module], torch.optim.Optimizer],
                  use_cuda=True):
         """
-        Args:
-            model: model to train
-            optimizer_factory: A callable to create the optimizer. see optimizer function
-            below for more details
-            use_cuda: to Use the gpu to train the model
+
+        Parameters
+        ----------
+        model: An implementation of `nn.Module` representing the model to train
+        dm: The DataManager
+        optimizer_factory: A callable to create the optimizer. see optimizer function
+        use_cuda: Set to true to use a gpu during training
         """
         device_name = 'cuda:0' if use_cuda else 'cpu'
         if use_cuda and not torch.cuda.is_available():
@@ -41,12 +41,15 @@ class DAGMMTrainTestManager():
         self.use_cuda = use_cuda
         self.metric_values = {}
 
-    def training_iteration(self, num_epochs):
+    def training_iteration(self, num_epochs: int):
         """
-        Train the model for num_epochs times on given data
-        Args:
-            num_epochs: number of times to train the model
+        Trains the model for `num_epochs` iterations
+
+        Parameters
+        ----------
+        num_epochs: An integer representing the number of training iteration
         """
+
         # Initialize metrics container
         metrics = {'train_loss': [],
                    'train_accuracy': [],
@@ -141,16 +144,8 @@ class DAGMMTrainTestManager():
         function that evaluate the model on the test set every iteration of the
         active learning process
         """
-        losses = []
-        accuracies = []
-        codings = []
-        codings_label = []
-        losses_item = []
         test_loader = self.dm.get_test_set()
-        N = 0
-        gamma_sum = 0
-        mu_sum = 0
-        cov_mat_sum = 0
+        N = gamma_sum = mu_sum = cov_mat_sum = 0
 
         # Change the model to evaluation mode
         self.model.eval()
@@ -161,10 +156,10 @@ class DAGMMTrainTestManager():
 
             for i, data in enumerate(train_loader, 0):
                 # transfer tensors to selected device
-                train_inputs, _ = data[0].float().to(self.device), data[1].float().to(self.device)
+                train_inputs = data[0].float().to(self.device)
 
                 # forward pass
-                code, x_hat, cosim, z, gamma = self.model(train_inputs)
+                code, x_prime, cosim, z, gamma = self.model(train_inputs)
                 phi, mu, cov_mat = self.model.compute_params(z, gamma)
 
                 batch_gamma_sum = gamma.sum(axis=0)
@@ -172,7 +167,6 @@ class DAGMMTrainTestManager():
                 gamma_sum += batch_gamma_sum
                 mu_sum += mu * batch_gamma_sum.unsqueeze(-1)  # keep sums of the numerator only
                 cov_mat_sum += cov_mat * batch_gamma_sum.unsqueeze(-1).unsqueeze(-1)  # keep sums of the numerator only
-
                 N += train_inputs.shape[0]
 
             train_phi = gamma_sum / N
@@ -195,37 +189,29 @@ class DAGMMTrainTestManager():
                 train_inputs, train_inputs_labels = data[0].float().to(self.device), data[1]
 
                 # forward pass
-                code, x_hat, cosim, z, gamma = self.model(train_inputs)
-                sample_energy, pen_cov_mat = self.model.estimate_sample_energy(z,
-                                                                               train_phi,
-                                                                               train_mu,
-                                                                               train_cov,
-                                                                               average_it=False,
-                                                                               device=self.device)
+                code, x_prime, cosim, z, gamma = self.model(train_inputs)
+                sample_energy, pen_cov_mat = self.model.estimate_sample_energy(
+                    z, train_phi, train_mu, train_cov, average_it=False, device=self.device
+                )
 
                 train_energy.append(sample_energy.cpu().numpy())
                 train_z.append(z.cpu().numpy())
                 train_labels.append(train_inputs_labels.numpy())
 
             train_energy = np.concatenate(train_energy, axis=0)
-            train_z = np.concatenate(train_z, axis=0)
-            train_labels = np.concatenate(train_labels, axis=0)
 
             test_energy = []
             test_labels = []
             test_z = []
 
             for data in test_loader:
-                test_inputs, label_inputs = data[0].to(self.device), data[1]
+                test_inputs, label_inputs = data[0].float().to(self.device), data[1]
 
                 # forward pass
-                code, x_hat, cosim, z, gamma = self.model(test_inputs)
-                sample_energy, pen_cov_mat = self.model.estimate_sample_energy(z,
-                                                                               train_phi,
-                                                                               train_mu,
-                                                                               train_cov,
-                                                                               average_it=False,
-                                                                               device=self.device)
+                code, x_prime, cosim, z, gamma = self.model(test_inputs)
+                sample_energy, pen_cov_mat = self.model.estimate_sample_energy(
+                    z, train_phi, train_mu, train_cov, average_it=False, device=self.device
+                )
                 test_energy.append(sample_energy.cpu().numpy())
                 test_z.append(z.cpu().numpy())
                 test_labels.append(label_inputs.numpy())
@@ -235,7 +221,6 @@ class DAGMMTrainTestManager():
             test_labels = np.concatenate(test_labels, axis=0)
 
             combined_energy = np.concatenate([train_energy, test_energy], axis=0)
-            combined_labels = np.concatenate([train_labels, test_labels], axis=0)
 
             thresh = np.percentile(combined_energy, energy_threshold)
             print("Threshold :", thresh)
@@ -247,46 +232,11 @@ class DAGMMTrainTestManager():
             accuracy = accuracy_score(gt, pred)
             precision, recall, f_score, support = prf(gt, pred, average='binary')
 
-            print("Accuracy : {:0.4f}, Precision : {:0.4f}, Recall : {:0.4f}, F-score : {:0.4f}".format(accuracy,
-                                                                                                        precision,
-                                                                                                        recall,
-                                                                                                        f_score))
+            print("Accuracy : {:0.4f}, Precision : {:0.4f}, Recall : {:0.4f}, F-score : {:0.4f}".format(
+                accuracy, precision, recall, f_score)
+            )
             # switch back to train mode
             self.model.train()
             return accuracy, precision, recall, f_score, test_z, test_labels, combined_energy
 
 
-def accuracy(outputs, labels):
-    """
-    Computes the accuracy of the model
-    Args:
-        outputs: outputs predicted by the model
-        labels: real outputs of the data
-    Returns:
-        Accuracy of the model
-    """
-    predicted = outputs.argmax(dim=1)
-    correct = (predicted == labels).sum().item()
-    return correct / labels.size(0)
-
-
-def optimizer_setup(optimizer_class: Type[torch.optim.Optimizer], **hyperparameters) -> \
-        Callable[[torch.nn.Module], torch.optim.Optimizer]:
-    """
-    Creates a factory method that can instanciate optimizer_class with the given
-    hyperparameters.
-
-    Why this? torch.optim.Optimizer takes the model's parameters as an argument.
-    Thus we cannot pass an Optimizer to the CNNBase constructor.
-
-    Args:
-        optimizer_class: optimizer used to train the model
-        **hyperparameters: hyperparameters for the model
-        Returns:
-            function to setup the optimizer
-    """
-
-    def f(model):
-        return optimizer_class(model.parameters(), **hyperparameters)
-
-    return f

@@ -15,8 +15,8 @@ class AutoEncoder(nn.Module):
         # https://sites.cs.ucsb.edu/~bzong/doc/iclr18-dagmm.pdf.
         enc_layers = enc_layers or [(input_size, 60, nn.Tanh()), (60, 30, nn.Tanh()), (30, 10, nn.Tanh()), (10, 1, None)]
         dec_layers = dec_layers or [(1, 10, nn.Tanh()), (10, 30, nn.Tanh()), (30, 60, nn.Tanh()), (60, input_size, None)]
-        self.code_shape = enc_layers[-1][1]
 
+        self.code_shape = enc_layers[-1][1]
         self.encoder = self._make_linear(enc_layers)
         self.decoder = self._make_linear(dec_layers)
 

@@ -9,21 +9,13 @@ Authors: D'Jeff Kanda
 
 import argparse
 import torch.optim as optim
-import torch.nn as nn
-import copy
-
-from datamanager.GenericDataset import GenericDataset
 from datamanager.NSLKDDDataset import NSLKDDDataset
 from utils.utils import check_dir, optimizer_setup
-# from TrainTestManager import TrainTestManager, optimizer_setup
-
-from model.AutoEncoder import AutoEncoder as AE
-from model.DAGMM import DAGMM
+from src.model.DAGMM import DAGMM
 from datamanager.KDD10Dataset import KDD10Dataset
 from datamanager.DataManager import DataManager
-from trainer.AETrainTestManager import AETrainTestManager
 from trainer.DAGMMTrainTestManager import DAGMMTrainTestManager
-from viz.viz import plot_losses, plot_2D_latent, plot_1D_latent_vs_loss, plot_3D_latent, plot_energy_percentile
+from viz.viz import plot_3D_latent, plot_energy_percentile
 
 
 def argument_parser():
@@ -78,11 +70,9 @@ if __name__ == "__main__":
     if args.dataset == 'kdd':
         dataset = KDD10Dataset(args.dataset_path)
     elif args.dataset == 'nslkdd':
-        dataset = NSLKDDDataset(path='/home/jcverdier/Documents/Datasets/NSL-KDD/KDDTrain+.txt')
+        dataset = NSLKDDDataset(args.dataset_path)
     else:
         raise Exception("This dataset is not available for experiment at present")
-
-    # normal_data = dataset.get_data_index_by_label(label=0)
 
     # split data in train and test sets
     train_set, test_set = dataset.one_class_split_train_test(test_perc=0.5, label=0)
@@ -98,7 +88,7 @@ if __name__ == "__main__":
         optimizer_factory = optimizer_setup(optim.Adam, lr=learning_rate)
 
     model = DAGMM(
-        dataset.get_shape()[1], [dataset.get_shape()[1], 60, 30, 10, 1], fa='tanh', gmm_layers=None
+        dataset.get_shape()[1]
     )
 
     model_trainer = DAGMMTrainTestManager(
@@ -110,28 +100,3 @@ if __name__ == "__main__":
 
     plot_3D_latent(test_z, test_label)
     plot_energy_percentile(energy)
-
-    # print(dataset.get_shape())
-    # model = AE(dataset.get_shape()[1], [60, 30, 10, 2], fa='tanh')
-    #
-    # model_trainer = AETrainTestManager(model=model,
-    #                                    dm=dm,
-    #                                    loss_fn=nn.MSELoss(reduction='none'),
-    #                                    optimizer_factory=optimizer_factory,
-    #                                    )
-    #
-    # metrics = model_trainer.train(200)
-    # codes, labels, loss, losses_items = model_trainer.evaluate_on_test_set()
-    # # train_loss
-    # plot_losses(metrics['train_loss'], metrics['val_loss'])
-    # plot_2D_latent(codes, labels)
-    # # plot_1D_latent_vs_loss(codes, labels, losses_items)
-    #
-    # print('Test one')
-    # codes, labels, loss, losses_items = model_trainer.evaluate_on_test_set()
-    # # train_loss
-    # plot_losses(metrics['train_loss'], metrics['val_loss'])
-    # plot_2D_latent(codes, labels)
-    # # plot_1D_latent_vs_loss(codes, labels, losses_items)
-
-    # Test DAGMM

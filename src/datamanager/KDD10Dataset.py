@@ -1,11 +1,11 @@
 import os
-
 import torch
 from torch.utils.data import Dataset, Subset
 from torch.utils.data.dataset import T_co
 import pandas as pd
 import numpy as np
 from sklearn.preprocessing import MinMaxScaler
+
 NPZ_FILENAME = 'kdd10_train.npz'
 BASE_PATH = '../data'
 
@@ -14,6 +14,7 @@ class KDD10Dataset(Dataset):
     """
     This class is used to load KDD Cup 10% dataset as a pytorch Dataset
     """
+
     def __init__(self, path='../data/kdd10_train'):
         self.path = path
 
@@ -81,59 +82,6 @@ class KDD10Dataset(Dataset):
         indices = np.array([i for i in range(self.n)])
         return indices[self.y == label]
 
-    def _load_data(self, path):
-        column_names = ['duration', 'protocol_type', 'service', 'flag', 'src_bytes', 'dst_bytes', 'land',
-                                'wrong_fragment', 'urgent', 'hot', 'num_failed_logins', 'logged_in', 'num_compromised',
-                                'root_shell', 'su_attempted', 'num_root', 'num_file_creations', 'num_shells',
-                                'num_access_files', 'num_outbound_cmds', 'is_host_login', 'is_guest_login', 'count',
-                                'srv_count', 'serror_rate', 'srv_serror_rate', 'rerror_rate', 'srv_rerror_rate',
-                                'same_srv_rate', 'diff_srv_rate', 'srv_diff_host_rate', 'dst_host_count',
-                                'dst_host_srv_count', 'dst_host_same_srv_rate', 'dst_host_diff_srv_rate',
-                                'dst_host_same_src_port_rate', 'dst_host_srv_diff_host_rate', 'dst_host_serror_rate',
-                                'dst_host_srv_serror_rate', 'dst_host_rerror_rate', 'dst_host_srv_rerror_rate', 'type']
-
-        df = pd.read_csv(path, header=None, names=column_names)
-
-        # regroup all the abnormal data to attack
-        df['type'] = df['type'].map(lambda x: 0 if x == 'normal.' else 1)
-
-        # transform categorical variables to one hot
-        one_hot_protocol = pd.get_dummies(df["protocol_type"])
-        one_hot_service = pd.get_dummies(df["service"])
-        one_hot_flag = pd.get_dummies(df["flag"])
-
-        df = df.drop("protocol_type", axis=1)
-        df = df.drop("service", axis=1)
-        df = df.drop("flag", axis=1)
-
-        df = pd.concat([one_hot_protocol, one_hot_service, one_hot_flag, df], axis=1)
-
-        proportions = df["type"].value_counts()
-        print(f'Counts per class:\n {proportions}\n')
-        print("Anomaly Percentage", proportions[0] / proportions.sum())
-
-        cols_to_norm = ["duration", "src_bytes", "dst_bytes", "wrong_fragment", "urgent",
-                        "hot", "num_failed_logins", "num_compromised", "num_root",
-                        "num_file_creations", "num_shells", "num_access_files", "count", "srv_count",
-                        "serror_rate", "srv_serror_rate", "rerror_rate", "srv_rerror_rate", "same_srv_rate",
-                        "diff_srv_rate", "srv_diff_host_rate", "dst_host_count", "dst_host_srv_count",
-                        "dst_host_same_srv_rate",
-                        "dst_host_diff_srv_rate", "dst_host_same_src_port_rate", "dst_host_srv_diff_host_rate",
-                        "dst_host_serror_rate", "dst_host_srv_serror_rate", "dst_host_rerror_rate",
-                        "dst_host_srv_rerror_rate"]
-
-        # Normalize data
-        min_cols = df.loc[df["type"] == 0, cols_to_norm].min()
-        max_cols = df.loc[df["type"] == 0, cols_to_norm].max()
-
-        df.loc[:, cols_to_norm] = (df[cols_to_norm] - min_cols) / (max_cols - min_cols)
-
-        kdd_numpy = np.array(df, dtype="float32")
-
-        np.savez('../data/kdd_cup.npz', kdd=kdd_numpy)
-
-        return kdd_numpy
-
     def split_train_test(self, test_perc=.2, seed=None):
         if seed:
             torch.manual_seed(seed)
@@ -152,8 +100,10 @@ class KDD10Dataset(Dataset):
         shuffled_idx = torch.randperm(len(label_data_index)).long()
         train_set = Subset(self, label_data_index[shuffled_idx[num_test_sample:]])
 
-        remaining_index = np.concatenate([label_data_index[shuffled_idx[:num_test_sample]],
-                                          self.get_data_index_by_label(label=0 if label == 1 else 1)])
+        remaining_index = np.concatenate(
+            [label_data_index[shuffled_idx[:num_test_sample]],
+             self.get_data_index_by_label(label=0 if label == 1 else 1)]
+        )
 
         print(f'Size of data with label ={label} :', 100 * len(label_data_index) / self.n)
 

@@ -13,23 +13,6 @@ class NSLKDDDataset(Dataset):
     This class is used to load KDD Cup dataset as a pytorch Dataset
     """
 
-    def import_raw(self, path):
-        url_base = "http://kdd.ics.uci.edu/databases/kddcup99"
-        url_info = f"{url_base}/kddcup.names"
-        df_info = pd.read_csv(url_info, sep=":", skiprows=1, index_col=False, names=["colname", "type"])
-        colnames = df_info.colname.values
-        coltypes = np.where(df_info["type"].str.contains("continuous"), "float", "str")
-        colnames = np.append(colnames, ["status"])
-        coltypes = np.append(coltypes, ["str"])
-        df = pd.read_csv(path, names=colnames, index_col=False,
-                         dtype=dict(zip(colnames, coltypes)))
-        return df
-
-    def preprocess(self, df: pd.DataFrame):
-        X = pd.get_dummies(df.iloc[:, :-1]).values
-        y = np.where(df.status == "normal.", 1, 0)
-        return df
-
     def __init__(self, path='../data/kddcup_data'):
         self.path = path
 
