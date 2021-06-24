@@ -38,6 +38,7 @@ def argument_parser():
     parser.add_argument('--model', type=str, default="DAGMM",
                         choices=["AE", "DAGMM", "MLAD"])
     parser.add_argument('--dataset', type=str, default="nslkdd", choices=["kdd", "nslkdd", "hsherbrooke"])
+    parser.add_argument('--dataset-path', type=str)
     parser.add_argument('--batch_size', type=int, default=1024,
                         help='The size of the training batch')
     parser.add_argument('--optimizer', type=str, default="Adam", choices=["Adam", "SGD", "RMSProp"],
@@ -70,16 +71,15 @@ if __name__ == "__main__":
     lambda_1 = args.lambda_energy
     lambda_2 = args.lambda_p
     p_threshold = args.p_threshold
+    dataset_path = args.dataset_path
 
     # Loading the data
     if args.dataset == 'kdd':
-        dataset = KDDDataset(path='../data/kddcup_data_10_percent_corrected.csv')
+        dataset = KDDDataset(path=dataset_path)
     elif args.dataset == 'nslkdd':
-        dataset = NSLKDDDataset(path='../data/NSL-KDD/KDDTrain.txt')
+        dataset = NSLKDDDataset(path=dataset_path)
     else:
         raise Exception("This dataset is not available for experiment at present")
-
-    # normal_data = dataset.get_data_index_by_label(label=0)
 
     # split data in train and test sets
     train_set, test_set = dataset.one_class_split_train_test(test_perc=0.5, label=0)

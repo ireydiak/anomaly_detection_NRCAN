@@ -13,15 +13,16 @@ class KDDDataset(Dataset):
     This class is used to load KDD Cup dataset as a pytorch Dataset
     """
 
-    def __init__(self, path='../data/kddcup_data'):
+    def __init__(self, path=None):
         self.path = path
 
         # load data
-        if os.path.exists('../data/kdd_cup.npz'):
+        if path:
+            data = self._load_data(path)
+        elif os.path.exists('../data/kdd_cup.npz'):
             data = np.load('../data/kdd_cup.npz')['kdd']
         else:
-            data = self._load_data(path)
-
+            raise RuntimeError("Please provide a valid path to the dataset")
         self.X, self.y = data[:, :-1], data[:, -1]
 
         # Normalize data
@@ -80,12 +81,7 @@ class KDDDataset(Dataset):
         cols_to_norm = ["duration", "src_bytes", "dst_bytes", "wrong_fragment", "urgent",
                         "hot", "num_failed_logins", "num_compromised", "num_root",
                         "num_file_creations", "num_shells", "num_access_files", "count", "srv_count",
-                        "serror_rate", "srv_serror_rate", "rerror_rate", "srv_rerror_rate", "same_srv_rate",
-                        "diff_srv_rate", "srv_diff_host_rate", "dst_host_count", "dst_host_srv_count",
-                        "dst_host_same_srv_rate",
-                        "dst_host_diff_srv_rate", "dst_host_same_src_port_rate", "dst_host_srv_diff_host_rate",
-                        "dst_host_serror_rate", "dst_host_srv_serror_rate", "dst_host_rerror_rate",
-                        "dst_host_srv_rerror_rate"]
+                        "dst_host_count", "dst_host_srv_count"]
 
         # Normalize data
         min_cols = df.loc[df["type"] == 0, cols_to_norm].min()
