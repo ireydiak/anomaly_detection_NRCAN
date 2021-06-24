@@ -30,6 +30,7 @@ def argument_parser():
     parser.add_argument('--model', type=str, default="DAGMM",
                         choices=["AE", "DAGMM", "MLAD"])
     parser.add_argument('--dataset', type=str, default="nslkdd", choices=["kdd", "nslkdd", "hsherbrooke"])
+    parser.add_argument('--dataset-path', type=str)
     parser.add_argument('--batch_size', type=int, default=1024,
                         help='The size of the training batch')
     parser.add_argument('--optimizer', type=str, default="Adam", choices=["Adam", "SGD", "RMSProp"],
@@ -65,6 +66,7 @@ if __name__ == "__main__":
     lambda_1 = args.lambda_energy
     lambda_2 = args.lambda_p
     p_threshold = args.p_threshold
+    dataset_path = args.dataset_path
 
     # Loading the data
     if args.dataset == 'kdd':
