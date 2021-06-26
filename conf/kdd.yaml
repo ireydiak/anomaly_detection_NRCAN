@@ -1,0 +1,39 @@
+dataset:
+  name: KDDCUP10_percent
+  path: "C:/Users/verdi/Documents/datasets/KDD/kddcup_data_10_percent_corrected.csv"
+  export_npz: True
+  npz_export_path: "../data/kddcup_data_10_percent_corrected.npz"
+
+mlad:
+  D: 120
+  L: 64
+  K: 4
+  batch_size: 64
+  num_epochs: 2000
+  lr: 1e-04
+  lambda_1: 1e-03
+  lambda_2: 1e-03
+  layers:
+    common:
+      - D, 64, ReLU
+      - 64, 64, ReLU
+      - 64, L, Sigmoid
+    error:
+      - D, 64, ReLU
+      - 64, 64, ReLU
+      - 64, L, Sigmoid
+    representation:
+      - 128, 64, ReLU
+      - 64, 96, ReLU
+      - 96, D, Sigmoid
+    exchanger:
+      - L, 64, ReLU
+      - 64, 64, ReLU
+      - 64, D, Sigmoid
+    gmm:
+      - L, 16, ReLU
+      - 16, 16, ReLU
+      - 16, K, Softmax
+      - 4, 16, ReLU
+      - 16, 16, ReLU
+      - 16, L, Sigmoid
