@@ -6,7 +6,7 @@ from typing import Callable, Type
 import numpy as np
 import torch
 from tqdm import tqdm
-from datamanager.DataManager import DataManager
+from src.datamanager.DataManager import DataManager
 from sklearn.metrics import precision_recall_fscore_support as prf, accuracy_score
 
 
@@ -18,7 +18,7 @@ class DAGMMTrainTestManager(object):
     def __init__(self, model,
                  dm: DataManager,
                  optimizer_factory: Callable[[torch.nn.Module], torch.optim.Optimizer],
-                 use_cuda=True):
+                 use_cuda=False):
         """
         Args:
             model: model to train

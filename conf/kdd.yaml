@@ -13,6 +13,7 @@ mlad:
   lr: 1e-04
   lambda_1: 1e-03
   lambda_2: 1e-03
+  optimizer: Adam
   layers:
     common:
       - D, 64, ReLU

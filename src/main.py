@@ -8,22 +8,20 @@ Authors: D'Jeff Kanda
 """
 
 import argparse
+import configparser
+
 import torch.optim as optim
-import torch.nn as nn
-import copy
-
-from datamanager.GenericDataset import GenericDataset
+from datamanager.KDD10Dataset import KDD10Dataset
 from datamanager.NSLKDDDataset import NSLKDDDataset
+from src.model.MLAD import MLAD
+from src.trainer.MLADTrainManager import MLADTrainManager
 from utils.utils import check_dir, optimizer_setup
-# from TrainTestManager import TrainTestManager, optimizer_setup
-
-from model.AutoEncoder import AutoEncoder as AE
+import hydra
+from omegaconf import DictConfig
 from model.DAGMM import DAGMM
-from datamanager.KDDDataset import KDDDataset
 from datamanager.DataManager import DataManager
-from trainer.AETrainTestManager import AETrainTestManager
 from trainer.DAGMMTrainTestManager import DAGMMTrainTestManager
-from viz.viz import plot_losses, plot_2D_latent, plot_1D_latent_vs_loss, plot_3D_latent, plot_energy_percentile
+from viz.viz import plot_3D_latent, plot_energy_percentile
 
 
 def argument_parser():
@@ -55,11 +53,18 @@ def argument_parser():
                         help='loss energy factor')
     parser.add_argument('--lambda-p', type=float, default=0.005,
                         help='loss related to the inverse of diagonal element of the covariance matrix ')
+    parser.add_argument('--K', type=int, default=4,
+                        help='The number of mixtures')
     parser.add_argument('--save_path', type=str, default="./", help='The path where the output will be stored,'
                                                                     'model weights as well as the figures of '
                                                                     'experiments')
     return parser.parse_args()
 
+
+@hydra.main(config_path = '../conf', config_name='kdd')
+def test_mlad(cfg: DictConfig) -> None:
+    layers_dict, D, L, K = configparser.parse_configs(cfg.mlad)
+    model = MLAD(D, L, K, **layers_dict)
 
 if __name__ == "__main__":
     args = argument_parser()
@@ -72,14 +77,15 @@ if __name__ == "__main__":
     lambda_2 = args.lambda_p
     p_threshold = args.p_threshold
     dataset_path = args.dataset_path
+    K = args.K
 
     # Loading the data
     if args.dataset == 'kdd':
-        dataset = KDDDataset(path=dataset_path)
+        dataset = KDD10Dataset(path=dataset_path)
     elif args.dataset == 'nslkdd':
         dataset = NSLKDDDataset(path=dataset_path)
     else:
-        raise Exception("This dataset is not available for experiment at present")
+        raise RuntimeError(f'Unknown dataset {args.dataset}')
 
     # split data in train and test sets
     train_set, test_set = dataset.one_class_split_train_test(test_perc=0.5, label=0)
@@ -93,45 +99,28 @@ if __name__ == "__main__":
         optimizer_factory = optimizer_setup(optim.SGD, lr=learning_rate, momentum=0.9)
     elif args.optimizer == 'Adam':
         optimizer_factory = optimizer_setup(optim.Adam, lr=learning_rate)
+    else:
+        raise RuntimeError(f'Unknown optimizer {args.optimizer}')
 
-    model = DAGMM(dataset.get_shape()[1],
-                  [60, 30, 10, 1],
-                  fa='tanh',
-                  gmm_layers=[10, 2]
-                  )
+    if args.model == 'DAGMM':
+        model = DAGMM(dataset.get_shape()[1],
+                      [60, 30, 10, 1],
+                      fa='tanh',
+                      gmm_layers=[10, 2]
+                      )
 
-    model_trainer = DAGMMTrainTestManager(model=model,
-                                          dm=dm,
-                                          optimizer_factory=optimizer_factory,
-                                          )
+        model_trainer = DAGMMTrainTestManager(model=model,
+                                              dm=dm,
+                                              optimizer_factory=optimizer_factory,
+                                              )
+    elif args.model == 'MLAD':
+        model = MLAD(dataset.get_shape()[1], 64, 4)
+        trainer = MLADTrainManager(model=model, dm=dm, optim=optimizer_factory, K=K)
+    else:
+        raise RuntimeError(f'Unknown model {args.model}')
 
     metrics = model_trainer.train(num_epochs)
     _, _, _, _, test_z, test_label, energy = model_trainer.evaluate_on_test_set(p_threshold)
 
     plot_3D_latent(test_z, test_label)
     plot_energy_percentile(energy)
-
-    # print(dataset.get_shape())
-    # model = AE(dataset.get_shape()[1], [60, 30, 10, 2], fa='tanh')
-    #
-    # model_trainer = AETrainTestManager(model=model,
-    #                                    dm=dm,
-    #                                    loss_fn=nn.MSELoss(reduction='none'),
-    #                                    optimizer_factory=optimizer_factory,
-    #                                    )
-    #
-    # metrics = model_trainer.train(200)
-    # codes, labels, loss, losses_items = model_trainer.evaluate_on_test_set()
-    # # train_loss
-    # plot_losses(metrics['train_loss'], metrics['val_loss'])
-    # plot_2D_latent(codes, labels)
-    # # plot_1D_latent_vs_loss(codes, labels, losses_items)
-    #
-    # print('Test one')
-    # codes, labels, loss, losses_items = model_trainer.evaluate_on_test_set()
-    # # train_loss
-    # plot_losses(metrics['train_loss'], metrics['val_loss'])
-    # plot_2D_latent(codes, labels)
-    # # plot_1D_latent_vs_loss(codes, labels, losses_items)
-
-    # Test DAGMM
