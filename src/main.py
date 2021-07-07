@@ -41,30 +41,22 @@ def argument_parser():
                         help='The size of the training batch')
     parser.add_argument('--optimizer', type=str, default="Adam", choices=["Adam", "SGD", "RMSProp"],
                         help="The optimizer to use for training the model")
-    parser.add_argument('--num-epochs', type=int, default=200,
-                        help='The number of epochs')
+    parser.add_argument('--num-epochs', type=int, default=200, help='The number of epochs')
     parser.add_argument('--validation', type=float, default=0.1,
                         help='Percentage of training data to use for validation')
-    parser.add_argument('--lr', type=float, default=0.0001,
-                        help='Learning rate')
-    parser.add_argument('--p-threshold', type=float, default=80,
-                       help='percentile threshold for the energy ')
+    parser.add_argument('--lr', type=float, default=0.0001, help='Learning rate')
+    parser.add_argument('--p-threshold', type=float, default=80, help='percentile threshold for the energy')
     parser.add_argument('--lambda-energy', type=float, default=0.1,
                         help='loss energy factor')
     parser.add_argument('--lambda-p', type=float, default=0.005,
                         help='loss related to the inverse of diagonal element of the covariance matrix ')
-    parser.add_argument('--K', type=int, default=4,
-                        help='The number of mixtures')
+    parser.add_argument('--K', type=int, default=4, help='The number of mixtures')
+    parser.add_argument('--L', type=int, default=1, help='Size of the latent space')
     parser.add_argument('--save_path', type=str, default="./", help='The path where the output will be stored,'
                                                                     'model weights as well as the figures of '
                                                                     'experiments')
     return parser.parse_args()
 
-
-@hydra.main(config_path = '../conf', config_name='kdd')
-def test_mlad(cfg: DictConfig) -> None:
-    layers_dict, D, L, K = configparser.parse_configs(cfg.mlad)
-    model = MLAD(D, L, K, **layers_dict)
 
 if __name__ == "__main__":
     args = argument_parser()
@@ -78,6 +70,7 @@ if __name__ == "__main__":
     p_threshold = args.p_threshold
     dataset_path = args.dataset_path
     K = args.K
+    L = args.L
 
     # Loading the data
     if args.dataset == 'kdd':
@@ -114,7 +107,7 @@ if __name__ == "__main__":
                                               optimizer_factory=optimizer_factory,
                                               )
     elif args.model == 'MLAD':
-        model = MLAD(dataset.get_shape()[1], 64, 4)
+        model = MLAD(dataset.get_shape()[1], D=train_set.shape[1], K=4, L=L)
         trainer = MLADTrainManager(model=model, dm=dm, optim=optimizer_factory, K=K)
     else:
         raise RuntimeError(f'Unknown model {args.model}')

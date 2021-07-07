@@ -1,7 +1,10 @@
 from typing import Tuple
 
 import torch
+from torch import Tensor
 import torch.nn as nn
+
+from src.loss import mean_square_loss
 from src.model.Encoder import Encoder
 from src.model.Decoder import Decoder
 
@@ -27,8 +30,9 @@ class MLAD(nn.Module):
         """
         super(MLAD, self).__init__()
         # Common network
-        common_net_layers = kwargs.get('common_layers',
-                                       [(D, 64, nn.ReLU()), (64, 64, nn.ReLU()), (64, L, nn.Sigmoid())])
+        common_net_layers = kwargs.get(
+            'common_layers', [(D, 64, nn.ReLU()), (64, 64, nn.ReLU()), (64, L, nn.Sigmoid())]
+        )
         self.common_net = Encoder(common_net_layers)
         # Error network
         err_net_layers = kwargs.get('error_layers', [(D, 64, nn.ReLU()), (64, 64, nn.ReLU()), (64, L, nn.Sigmoid())])
@@ -46,17 +50,17 @@ class MLAD(nn.Module):
             (L, 16, nn.ReLU()), (16, 16, nn.ReLU()), (16, K, nn.Softmax()), (K, 16, nn.ReLU()),
             (16, 16, nn.ReLU()), (16, L, nn.Sigmoid())
         ])
+        # TODO: Viz network
         self.gmm_net = Encoder(gmm_net_layers)
         self.lambda_1 = kwargs.get('lambda_1', 1e-04)
-        self.lambda_2 = kwargs.get('lambda_2', 1e-04)
-        self.lambda_3 = kwargs.get('lambda_3', 1e-04)
+        self.lambda_2 = kwargs.get('lambda_2', 0.01)
+        self.lambda_3 = kwargs.get('lambda_3', 0.01)
         self.lambda_4 = kwargs.get('lambda_4', 1e-04)
-        self.lambda_5 = kwargs.get('lambda_5', 1e-04)
 
-    def _forward_single_stream(self, X: torch.Tensor):
-        pass
+    def _forward_single_stream(self, X: Tensor):
+        raise Warning("Unimplemented")
 
-    def _forward_two_stream(self, X_1: torch.Tensor, X_2: torch.Tensor) -> (Tuple, Tuple, Tuple, Tuple, Tuple):
+    def _forward_two_stream(self, X_1: Tensor, X_2: Tensor) -> (Tuple, Tuple, Tuple, Tuple):
         # common pass
         common_1 = self.common_net.forward(X_1)
         common_2 = self.common_net.forward(X_2)
@@ -75,38 +79,56 @@ class MLAD(nn.Module):
         # Decode (representation)
         rec_1 = self.repr_net(mix_1)
         rec_2 = self.repr_net(mix_2)
-        return (common_1, common_2), (err_1, err_2), (gmm_1, gmm_2), (ex_1, ex_2), (rec_1, rec_2)
+        return (common_1, common_2), (gmm_1, gmm_2), (ex_1, ex_2), (rec_1, rec_2)
 
-    def reconstruction_loss(self, X_1: torch.Tensor, X_2: torch.Tensor, rec_tup: Tuple):
-        rec_1, rec_2 = rec_tup[0], rec_tup[1]
-        return torch.mean((rec_1 - X_1) ** 2) + torch.mean((rec_2 - X_2) ** 2)
+    def reconstruction_loss(self, X_1: Tensor, X_2: Tensor, X_hat_1: Tensor, X_hat_2: Tensor):
+        return mean_square_loss(X_hat_1, X_2) + mean_square_loss(X_hat_2, X_1)
 
-    def exchanger_loss(self, X_1: torch.Tensor, X_2: torch.Tensor, ex_tup: Tuple):
-        ex_1, ex_2 = ex_tup[0], ex_tup[1]
-        return torch.mean((ex_1 - X_1) ** 2) + torch.mean((ex_2 - X_2) ** 2)
+    def exchanger_loss(self, X_1: Tensor, X_2: Tensor, X_hat_1: Tensor, X_hat_2: Tensor):
+        return mean_square_loss(X_1, X_hat_2) + mean_square_loss(X_2, X_hat_1)
 
-    def gmm_loss(self, common_tup: Tuple, gmm_tup: Tuple):
-        gmm_1, gmm_2 = gmm_tup[0], gmm_tup[1]
-        c_1, c_2 = common_tup[0], common_tup[1]
-        return torch.mean((gmm_1 - c_1) ** 2) + torch.mean((gmm_2 - c_2) ** 2)
+    def gmm_loss(self, common_1: Tensor, common_2: Tensor, gmm_1: Tensor, gmm_2: Tensor):
+        return mean_square_loss(common_1, gmm_1) + mean_square_loss(common_2, gmm_2)
+
+    def common_loss(self, common_1: Tensor, common_2: Tensor):
+        return mean_square_loss(common_1, common_2)
+
+    def common_res_loss(self):
+        # TODO: IMPLEMENT
+        # ORIGINAL CODE BELOW
+        # loss_common_res1 = tf.reduce_mean(tf.square(common1 - common1_res))
+        # loss_common_res2 = tf.reduce_mean(tf.square(common2 - common2_res))
+        raise Warning("Common res loss unimplemented")
 
     def metric_loss(self):
-        pass
+        # TODO: IMPLEMENT
+        # ORIGINAL CODE BELOW
+        # metric_input = tf.placeholder(dtype=tf.float32, shape=[None, 1])
+        # ...
+        # dot_metric1 = tf.matmul(common1_gmm_coding * common1_gmm_codingz, tf.ones([K, 1]))
+        # ...
+        # loss_metric1 = tf.reduce_mean(tf.square(dot_metric1 - metric_input))
+        # loss_metric2 = tf.reduce_mean(tf.square(dot_metric2 - metric_input))
+        # loss_metric3 = tf.reduce_mean(tf.square(dot_metric3 - metric_input))
+        # loss_metric4 = tf.reduce_mean(tf.square(dot_metric4 - metric_input))
+        raise Warning("Metric loss unimplemented")
 
-    def loss(self, common_tup, err_tup, gmm_tup, ex_tup, rec_tup, X_1, X_2):
-        rec_loss = self.reconstruction_loss(X_1, X_2, rec_tup)
-        gmm_loss = self.gmm_lost(common_tup, gmm_tup)
-        mix_loss = 0.0
-        ex_loss = self.exchanger_loss(X_1, X_2, ex_tup)
+    def loss(self, common_tup, gmm_tup, exchanger_tup, rec_tup, X_1, X_2):
+        com_loss = self.common_loss(*common_tup)
+        rec_loss = self.reconstruction_loss(X_1, X_2, *rec_tup)
+        gmm_loss = self.gmm_loss(*common_tup, *gmm_tup)
+        exchanger_loss = self.exchanger_loss(X_1, X_2, *exchanger_tup)
+        com_res_loss = 0.0
         metric_loss = 0.0
 
-        return self.lambda_1 * rec_loss + \
-               self.lambda_2 * gmm_loss + \
-               self.lambda_3 * mix_loss + \
-               self.lambda_4 * ex_loss + \
-               self.lambda_5 * metric_loss
+        return self.lambda_1 * com_loss + \
+               rec_loss + \
+               exchanger_loss + \
+               self.lambda_2 * com_res_loss + \
+               self.lambda_3 * gmm_loss + \
+               self.lambda_4 * metric_loss
 
-    def forward(self, X_1: torch.Tensor, X_2: torch.Tensor = None):
+    def forward(self, X_1: Tensor, X_2: Tensor = None):
         """
         Single forward pass dispatcher.
         During training, MLAD follows a two-input stream architecture.
@@ -114,8 +136,8 @@ class MLAD(nn.Module):
 
         Parameters
         ----------
-        X_1: A torch.Tensor input matrix
-        X_2: Another torch.Tensor input matrix
+        X_1: A Tensor input matrix
+        X_2: Another Tensor input matrix
 
         Returns
         -------
