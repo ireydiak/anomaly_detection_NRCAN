@@ -1,17 +1,18 @@
+from typing import List, Tuple
+
 import torch
+from torch import Tensor
 import numpy as np
 from sklearn.cluster import KMeans
-from src.datamanager import DataManager
 from tqdm import tqdm
 from src.model.MLAD import MLAD
 
 
 class MLADTrainManager:
-    def __init__(self, model: MLAD, dm: DataManager, optim, use_cuda: bool = False, **kwargs):
+    def __init__(self, model: MLAD, optim, use_cuda: bool = False, **kwargs):
         device_name = 'cuda:0' if use_cuda else 'cpu'
         self.device = torch.device(device_name)
         self.model = model.to(self.device)
-        self.dm = dm
         self.optim = optim(self.model)
         self.use_cuda = use_cuda
         self.K = kwargs.get('K', 4)
@@ -19,39 +20,36 @@ class MLADTrainManager:
         self.train_set = None
         self.batch_size = None
 
-    def initialize(self, X: torch.Tensor):
-        latent_features = self.model.common_net.forward(X)
-        clusters = KMeans(n_clusters=self.K, random_state=0).fit(latent_features)
-        labels = clusters.labels_
-        for k in range(0, self.K):
-            idx = np.where(labels == k)
-            x_1 = X[idx, :]
-            np.random.shuffle(idx)
-            x_2 = X[idx, :]
-
-    def fit_clusters(self, X: torch.Tensor):
+    def fit_clusters(self, X: Tensor) -> List:
         Z = self.model.common_net.forward(X)
         clusters = KMeans(n_clusters=self.K, random_state=0).fit(Z)
         return clusters.labels_
 
-    def create_batches(self):
-
-        pass
-
-    def create_samples(self, clusters):
-        X_1 = X_2 = None
+    def create_batches(self, X_1: Tensor, X_2: Tensor) -> List[Tuple[Tensor, Tensor]]:
         N = self.batch_size
+        # Number of batches
+        n_batch = np.int(len(X_1) // N)
+        # Handle the case where len(X_1) / N yields a remainder
+        overflow = len(X_1) % N
+        # Prepare the indices which will be used to split X_1 and X_2 in mini batches
+        indices = [(i * n_batch, (i + 1) * n_batch) for i in range(0, n_batch)]
+        # Last batch will contain remainder
+        if overflow > 0:
+            indices[-1][1] += overflow
+        assert indices[-1][1] == len(X_1) - 1
+        return [(X_1[start:end, :], X_2[start:end, :]) for start, end in indices]
+
+    def create_samples(self, clusters) -> List[Tuple[Tensor, Tensor]]:
+        X_1 = X_2 = None
         for k in range(0, self.K):
             [coding_idx] = np.where(clusters == k)
             X_1 = torch.cat((X_1, self.train_set[coding_idx, :])) if X_1 else self.train_set[coding_idx, :]
             np.random.shuffle(coding_idx)
             # TODO: we run the risk of training the model on the same data
             X_2 = torch.cat((X_2, self.train_set[coding_idx, :])) if X_2 else self.train_set[coding_idx, :]
-        n_batch = np.int(len(X_1) // self.batch_size)
-        return [(X_1[i * N:(i+1) * N, :], X_2[i * N:(i+1) * N, :]) for i in range(0, n_batch)]
+        return self.create_batches(X_1, X_2)
 
-    def train(self, n_epochs):
-        train_ldr = self.dm.get_train_set()
+    def train(self, n_epochs) -> None:
         train_loss = 0.0
         loss_history = []
 
@@ -70,6 +68,6 @@ class MLADTrainManager:
                     t.set_postfix(loss='{:05.3f}'.format(train_loss / (i + 1)))
                     t.update()
 
-    def forward(self, X_1: torch.Tensor, X_2: torch.Tensor):
+    def forward(self, X_1: Tensor, X_2: Tensor):
         common_tup, gmm_tup, ex_tup, rec_tup = self.model.forward(X_1, X_2)
         return self.model.loss(common_tup, gmm_tup, ex_tup, rec_tup, X_1, X_2)
