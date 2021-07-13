@@ -7,13 +7,16 @@ import pandas as pd
 import numpy as np
 from sklearn import preprocessing
 
+# TODO
+# Refactor this class
+#
 
 class NSLKDDDataset(Dataset):
     """
     This class is used to load KDD Cup dataset as a pytorch Dataset
     """
 
-    def __init__(self, path=None):
+    def __init__(self, path='../data/kddcup_data'):
         self.path = path
 
         # load data
@@ -22,10 +25,9 @@ class NSLKDDDataset(Dataset):
         # else:
         #     data = self._load_data(path)
 
-        # data = self._load_data(path)
-        # self.X, self.y = data[:, :-1], data[:, -1]
-        df = self.import_raw(path)
-        X, y = self.preprocess(df)
+        data = self._load_data(path)
+        self.X, self.y = data[:, :-1], data[:, -1]
+
         # Normalize data
         # X_mean = np.mean(self.X, axis=1)
         # X_std = np.std(self.X, axis=1)
@@ -33,7 +35,7 @@ class NSLKDDDataset(Dataset):
 
         # scaler = preprocessing.MinMaxScaler()
         # self.X = scaler.fit_transform(self.X)
-        self.n = len(X)
+        self.n = len(data)
 
     def __len__(self):
         return len(self.X)

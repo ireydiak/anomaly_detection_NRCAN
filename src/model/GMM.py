@@ -7,7 +7,7 @@ import torch
 class GMM(nn.Module):
     def __init__(self, layers=None):
         super(GMM, self).__init__()
-        default_layers = [(3, 10, nn.Tanh()), (None, None, nn.Dropout(0.5)), (10, 4, nn.Softmax())]
+        default_layers = [(3, 10, nn.Tanh()), (None, None, nn.Dropout(0.5)), (10, 4, nn.Softmax(dim=-1))]
         self.net = self.create_network(layers or default_layers)
 
     def create_network(self, layers: List[Tuple]):

@@ -15,7 +15,7 @@ class DAGMM(nn.Module):
     Simply put, it's an end-to-end trained auto-encoder network complemented by a distinct gaussian mixture network.
     """
 
-    def __init__(self, input_size, ae_layers=None, gmm_layers=None, lambda_1=0.1, lambda_2=0.005):
+    def __init__(self, input_size, ae_layers=None, gmm_layers=None, lambda_1=0.1, lambda_2=0.005, device='cpu'):
         """
         DAGMM constructor
 
@@ -42,7 +42,7 @@ class DAGMM(nn.Module):
         self.K = None
         self.lambda_1 = lambda_1
         self.lambda_2 = lambda_2
-        self.device = 'cpu'
+        self.device = device
 
     def forward(self, x: torch.Tensor):
         """
@@ -56,9 +56,9 @@ class DAGMM(nn.Module):
         #   - :math:`z_c = h(x; \theta_e)`
         #   - :math:`z_r = f(x, x')`
         code = self.ae.encoder(x)
-        x_hat = self.ae.decoder(code)
-        rel_euc_dist = self.relative_euclidean_dist(x, x_hat)
-        cosim = self.cosim(x, x_hat)
+        x_prime = self.ae.decoder(code)
+        rel_euc_dist = self.relative_euclidean_dist(x, x_prime)
+        cosim = self.cosim(x, x_prime)
         z_r = torch.cat([code, rel_euc_dist.unsqueeze(-1), cosim.unsqueeze(-1)], dim=1)
 
         # compute gmm net output, that is
@@ -67,7 +67,7 @@ class DAGMM(nn.Module):
         gamma_hat = self.gmm.forward(z_r)
         # gamma = self.softmax(output)
 
-        return code, x_hat, cosim, z_r, gamma_hat
+        return code, x_prime, cosim, z_r, gamma_hat
 
     def weighted_log_sum_exp(self, x, weights, dim):
         """
@@ -122,8 +122,8 @@ class DAGMM(nn.Module):
 
         # K x D
         # :math: `\mu = (I * gamma_sum)^{-1} * (\gamma^T * z)`
-        # mu = torch.sum(gamma.unsqueeze(-1) * z.unsqueeze(1), dim=0) / gamma_sum.unsqueeze(-1)
-        mu = torch.linalg.inv(torch.diag(gamma_sum)) @ (gamma.T @ z)
+        mu = torch.sum(gamma.unsqueeze(-1) * z.unsqueeze(1), dim=0) / gamma_sum.unsqueeze(-1)
+        # mu = torch.linalg.inv(torch.diag(gamma_sum)) @ (gamma.T @ z)
 
         # Covariance (K x D x D)
         covs = []
@@ -165,7 +165,7 @@ class DAGMM(nn.Module):
             energies.append(-self.weighted_log_sum_exp(torch.log(probs), phi[k]))
         return torch.sum(torch.Tensor(energies))
 
-    def estimate_sample_energy(self, z, phi=None, mu=None, cov_mat=None, average_it=True, device='cpu'):
+    def estimate_sample_energy(self, z, phi=None, mu=None, cov_mat=None, average_energy=True, device='cpu'):
 
         if phi is None:
             phi = self.phi
@@ -205,7 +205,7 @@ class DAGMM(nn.Module):
         # energy computation
         energy_result = - max_val.squeeze() - torch.log(log_term + eps)
 
-        if average_it:
+        if average_energy:
             energy_result = energy_result.mean()
 
         # penalty term
@@ -273,8 +273,6 @@ class DAGMM(nn.Module):
 
         """
         rec_err = ((x - x_prime) ** 2).mean()
-        # rec_err = ((x - x_prime) ** 2).sum(1)
-        N = x.shape[0]
-        loss = rec_err + (self.lambda_1 / N) * energy + self.lambda_2 * pen_cov_mat
+        loss = rec_err + self.lambda_1 * energy + self.lambda_2 * pen_cov_mat
 
         return loss

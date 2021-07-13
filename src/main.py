@@ -29,8 +29,8 @@ def argument_parser():
                                      )
     parser.add_argument('--model', type=str, default="DAGMM",
                         choices=["AE", "DAGMM", "MLAD"])
-    parser.add_argument('--dataset', type=str, default="nslkdd", choices=["kdd", "nslkdd", "hsherbrooke"])
-    parser.add_argument('--dataset-path', type=str)
+    parser.add_argument('--dataset', type=str, default="kdd", choices=["kdd", "nslkdd", "hsherbrooke"])
+
     parser.add_argument('--batch_size', type=int, default=1024,
                         help='The size of the training batch')
     parser.add_argument('--optimizer', type=str, default="Adam", choices=["Adam", "SGD", "RMSProp"],

@@ -31,6 +31,7 @@ class DAGMMTrainTestManager:
             warnings.warn("CUDA is not available. Suppress this warning by passing "
                           "use_cuda=False to {}()."
                           .format(self.__class__.__name__), RuntimeWarning)
+            print('\n\n')
             device_name = 'cpu'
 
         self.device = torch.device(device_name)
@@ -191,7 +192,7 @@ class DAGMMTrainTestManager:
                 # forward pass
                 code, x_prime, cosim, z, gamma = self.model(train_inputs)
                 sample_energy, pen_cov_mat = self.model.estimate_sample_energy(
-                    z, train_phi, train_mu, train_cov, average_it=False, device=self.device
+                    z, train_phi, train_mu, train_cov, average_energy=False, device=self.device
                 )
 
                 train_energy.append(sample_energy.cpu().numpy())
@@ -210,7 +211,7 @@ class DAGMMTrainTestManager:
                 # forward pass
                 code, x_prime, cosim, z, gamma = self.model(test_inputs)
                 sample_energy, pen_cov_mat = self.model.estimate_sample_energy(
-                    z, train_phi, train_mu, train_cov, average_it=False, device=self.device
+                    z, train_phi, train_mu, train_cov, average_energy=False, device=self.device
                 )
                 test_energy.append(sample_energy.cpu().numpy())
                 test_z.append(z.cpu().numpy())

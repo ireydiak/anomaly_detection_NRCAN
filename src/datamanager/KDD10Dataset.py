@@ -6,6 +6,8 @@ import pandas as pd
 import numpy as np
 from sklearn.preprocessing import MinMaxScaler
 
+from src.utils.utils import check_file_exists
+
 NPZ_FILENAME = 'kdd10_train.npz'
 BASE_PATH = '../data'
 
@@ -24,6 +26,7 @@ class KDD10Dataset(Dataset):
         elif os.path.exists(f"{BASE_PATH}/{NPZ_FILENAME}"):
             X = np.load(f"{BASE_PATH}/{NPZ_FILENAME}")['kdd']
         else:
+            check_file_exists(f'{BASE_PATH}/')
             df = self._import_data()
             X = self.preprocess(df)
 
