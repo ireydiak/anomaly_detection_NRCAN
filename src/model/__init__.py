@@ -1,6 +1,7 @@
 from typing import List, Tuple
 import torch.nn as nn
 
+
 def create_network(layers: List[Tuple]) -> nn.Sequential:
     net_layers = []
     for layer in layers:

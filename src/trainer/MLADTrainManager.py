@@ -5,20 +5,24 @@ from torch import Tensor
 import numpy as np
 from sklearn.cluster import KMeans
 from tqdm import tqdm
+
+from src.distributions import multivariate_normal_pdf, estimate_GMM_params
+from src.metrics import accuracy_precision_recall_f1_scores
 from src.model.MLAD import MLAD
 
 
 class MLADTrainManager:
-    def __init__(self, model: MLAD, optim, use_cuda: bool = False, **kwargs):
+    def __init__(self, model: MLAD, train_set: Tensor, optim, use_cuda: bool = False, **kwargs):
         device_name = 'cuda:0' if use_cuda else 'cpu'
         self.device = torch.device(device_name)
         self.model = model.to(self.device)
         self.optim = optim(self.model)
         self.use_cuda = use_cuda
+        self.train_set = train_set
         self.K = kwargs.get('K', 4)
         self.L = kwargs.get('L', None)
-        self.train_set = None
-        self.batch_size = None
+        self.verbose = kwargs.get('verbose', True)
+        self.batch_size = kwargs.get('batch_size', 64)
 
     def fit_clusters(self, X: Tensor) -> List:
         Z = self.model.common_net.forward(X)
@@ -67,6 +71,73 @@ class MLADTrainManager:
                     train_loss += loss.items()
                     t.set_postfix(loss='{:05.3f}'.format(train_loss / (i + 1)))
                     t.update()
+        return loss_history
+
+    def compute_density(self, X: Tensor, phi: Tensor, mu: Tensor, Sigma: Tensor):
+        density = 0.0
+        # TODO: replace loops by matrix operations
+        for k in range(0, self.K):
+            density += multivariate_normal_pdf(X, phi[k], mu[k], Sigma[k, :, :])
+        return density
+
+    def compute_densities(self, test_set: Tensor, phi: Tensor, mu: Tensor, Sigma: Tensor) -> List[float]:
+        test_z = self.model.common_net.forward(test_set)
+        self.verbose and print(
+            f'calculating GMM densities using \u03C6={phi.shape}, \u03BC={mu.shape}, \u03A3={Sigma.shape}')
+        densities = []
+        # TODO: replace loops by matrix operations
+        for i in range(0, len(test_z)):
+            densities[i] = self.compute_density(test_z[i], phi, mu, Sigma)
+        return densities
+
+    def evaluate(self, y, densities, p):
+        anomaly_idx = np.where(densities < p)
+        y_hat = np.zeros(len(densities))
+        if len(anomaly_idx) > 0:
+            y_hat[anomaly_idx] = 1
+        return accuracy_precision_recall_f1_scores(y.squeeze(), y_hat)
+
+    def find_optimal_threshold(self, y: Tensor, densities: List[float], scale_coef: float = 0.3125,
+                               n_iter: int = 20_000):
+        """
+        Implements Jianhai's original method `Functions.search_Threshold_Metric`.
+
+        Parameters
+        ----------
+        y
+        densities
+        scale_coef
+        n_iter
+
+        Returns
+        -------
+
+        """
+        # `p` refers to the anomaly threshold
+        p_hist = f1_hist = list()
+        for i in range(n_iter):
+            p = 10 ** (-i * scale_coef)
+            p_hist.append(p)
+            if self.verbose and (i + 1) % 10 == 0:
+                print(f'iter {i}: threshold={p}')
+            acc, precision, recall, f1 = self.evaluate(y.squeeze(), densities, p)
+            f1_hist.append(f1)
+        # The best p-threshold is the one that yield the best F1-Score
+        idx_max = np.argmax(np.array(f1_hist))
+        acc, precision, recall, f1 = self.evaluate(y.squeeze(), densities, p_hist[idx_max])
+        return {'Accuracy': acc, 'Precision': precision, 'Recall': recall, 'F1-Score': f1}, p_hist[idx_max]
+
+    def evaluate_on_test_set(self, test_set: Tensor, y):
+        self.model.eval()
+        with torch.no_grad():
+            # 1- estimate GMM parameters
+            gmm_z = self.model.gmm_net.encode(self.train_set)
+            train_set_z = self.model.common_net.forward(self.train_set)
+            phi, mu, Sigma = estimate_GMM_params(gmm_z, train_set_z)
+            # 2- compute densities based on computed GMM parameters
+            densities = self.compute_densities(test_set, phi, mu, Sigma)
+            # 3- Find best p threshold
+            return self.find_optimal_threshold(y, densities)
 
     def forward(self, X_1: Tensor, X_2: Tensor):
         common_tup, gmm_tup, ex_tup, rec_tup = self.model.forward(X_1, X_2)

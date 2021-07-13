@@ -71,6 +71,7 @@ if __name__ == "__main__":
     dataset_path = args.dataset_path
     K = args.K
     L = args.L
+    test_z = test_label = energy = None
 
     # Loading the data
     if args.dataset == 'kdd':
@@ -102,18 +103,22 @@ if __name__ == "__main__":
                       gmm_layers=[10, 2]
                       )
 
-        model_trainer = DAGMMTrainTestManager(model=model,
-                                              dm=dm,
-                                              optimizer_factory=optimizer_factory,
-                                              )
+        trainer = DAGMMTrainTestManager(
+            model=model, dm=dm, optimizer_factory=optimizer_factory,
+        )
+        metrics = trainer.train(num_epochs)
+        _, _, _, _, test_z, test_label, energy = trainer.evaluate_on_test_set(p_threshold)
     elif args.model == 'MLAD':
-        model = MLAD(dataset.get_shape()[1], D=train_set.shape[1], K=4, L=L)
-        trainer = MLADTrainManager(model=model, dm=dm, optim=optimizer_factory, K=K)
+        model = MLAD(dataset.get_shape()[1], D=train_set.shape[1], K=K, L=L)
+        trainer = MLADTrainManager(
+            model=model, dm=dm, train_set=train_set, optim=optimizer_factory, K=K, batch_size=batch_size
+        )
+        _ = trainer.train(num_epochs)
+        metrics, best_p = trainer.evaluate_on_test_set(test_set[:, :-1], test_set[:, -1])
+        print(f'Best anomaly threshold = {best_p}')
+        print(f'{key}={val}\n' for key, val in metrics.items())
     else:
         raise RuntimeError(f'Unknown model {args.model}')
-
-    metrics = model_trainer.train(num_epochs)
-    _, _, _, _, test_z, test_label, energy = model_trainer.evaluate_on_test_set(p_threshold)
 
     plot_3D_latent(test_z, test_label)
     plot_energy_percentile(energy)

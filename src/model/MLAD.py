@@ -5,6 +5,7 @@ from torch import Tensor
 import torch.nn as nn
 
 from src.loss import mean_square_loss
+from src.model.AutoEncoder import AutoEncoder
 from src.model.Encoder import Encoder
 from src.model.Decoder import Decoder
 
@@ -47,11 +48,11 @@ class MLAD(nn.Module):
         self.exchange_net = Decoder(exchange_net_layers)
         # GMM network
         gmm_net_layers = kwargs.get('gmm_layers', [
-            (L, 16, nn.ReLU()), (16, 16, nn.ReLU()), (16, K, nn.Softmax()), (K, 16, nn.ReLU()),
-            (16, 16, nn.ReLU()), (16, L, nn.Sigmoid())
+            ((L, 16, nn.ReLU()), (16, 16, nn.ReLU()), (16, K, nn.Softmax())),
+            ((K, 16, nn.ReLU()), (16, 16, nn.ReLU()), (16, L, nn.Sigmoid()))
         ])
         # TODO: Viz network
-        self.gmm_net = Encoder(gmm_net_layers)
+        self.gmm_net = AutoEncoder(gmm_net_layers[0], gmm_net_layers[1])
         self.lambda_1 = kwargs.get('lambda_1', 1e-04)
         self.lambda_2 = kwargs.get('lambda_2', 0.01)
         self.lambda_3 = kwargs.get('lambda_3', 0.01)
