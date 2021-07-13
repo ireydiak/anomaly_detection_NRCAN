@@ -8,6 +8,7 @@ Authors: D'Jeff Kanda
 """
 
 import argparse
+from model.SOMDAGMM import SOMDAGMM
 import torch.optim as optim
 import torch.nn as nn
 import copy
@@ -35,10 +36,10 @@ def argument_parser():
                                            '\n python3 main.py --model AE --predict',
                                      description="Description...."
                                      )
-    parser.add_argument('--model', type=str, default="DAGMM",
-                        choices=["AE", "DAGMM", "MLAD"])
+    parser.add_argument('-m', '--model', type=str, default="DAGMM",
+                        choices=["AE", "DAGMM", "MLAD", "SOMDAGMM"])
+    parser.add_argument('-d', '--dataset-path', type=str)
     parser.add_argument('--dataset', type=str, default="nslkdd", choices=["kdd", "nslkdd", "hsherbrooke"])
-    parser.add_argument('--dataset-path', type=str)
     parser.add_argument('--batch_size', type=int, default=1024,
                         help='The size of the training batch')
     parser.add_argument('--optimizer', type=str, default="Adam", choices=["Adam", "SGD", "RMSProp"],
@@ -94,16 +95,24 @@ if __name__ == "__main__":
     elif args.optimizer == 'Adam':
         optimizer_factory = optimizer_setup(optim.Adam, lr=learning_rate)
 
-    model = DAGMM(dataset.get_shape()[1],
-                  [60, 30, 10, 1],
-                  fa='tanh',
-                  gmm_layers=[10, 2]
-                  )
+    if args.model == 'DAGMM':
+        model = DAGMM(dataset.get_shape()[1],
+                    [60, 30, 10, 1],
+                    fa='tanh',
+                    gmm_layers=[10, 2]
+                    )
 
-    model_trainer = DAGMMTrainTestManager(model=model,
-                                          dm=dm,
-                                          optimizer_factory=optimizer_factory,
-                                          )
+        model_trainer = DAGMMTrainTestManager(model=model,
+                                            dm=dm,
+                                            optimizer_factory=optimizer_factory,
+                                            )
+    elif args.model == 'SOMDAGMM':
+        dagmm = DAGMM(
+                    dataset.get_shape()[1], [60, 30, 10, 1],
+                    fa='tanh',
+                    gmm_layers=[10, 2]
+                )
+        model = SOMDAGMM(dataset.get_shape()[1], dagmm=dagmm)
 
     metrics = model_trainer.train(num_epochs)
     _, _, _, _, test_z, test_label, energy = model_trainer.evaluate_on_test_set(p_threshold)
