@@ -6,7 +6,7 @@ import pandas as pd
 import numpy as np
 from sklearn.preprocessing import MinMaxScaler
 
-from src.utils.utils import check_file_exists
+from utils.utils import check_file_exists
 
 NPZ_FILENAME = 'kdd10_train.npz'
 BASE_PATH = '../data'
@@ -17,22 +17,26 @@ class KDD10Dataset(Dataset):
     This class is used to load KDD Cup 10% dataset as a pytorch Dataset
     """
 
-    def __init__(self, path='../data/kdd10_train'):
+    def __init__(self, path='../data/kdd10_train', pct=1.0):
         self.path = path
-
+    
         # load data
-        if path and os.path.exists(path):
-            X = np.load(path)
-        elif os.path.exists(f"{BASE_PATH}/{NPZ_FILENAME}"):
+        if os.path.exists(f"{BASE_PATH}/{NPZ_FILENAME}"):
             X = np.load(f"{BASE_PATH}/{NPZ_FILENAME}")['kdd']
         else:
             check_file_exists(f'{BASE_PATH}/')
             df = self._import_data()
             X = self.preprocess(df)
 
+        # Keep `pct` percent of the original data
         # Extract labels and features in two separate arrays
-        self.X = X[:, :-1]
-        self.y = X[:, -1]
+        if pct < 1.0:
+            np.random.shuffle(X)
+            self.X = X[0: int(len(X) * pct), :-1]
+            self.y = X[0: int(len(X) * pct), -1]
+        else:
+            self.X = X[:, :-1]
+            self.y = X[:, -1]
         self.n = len(X)
 
     def _import_data(self):

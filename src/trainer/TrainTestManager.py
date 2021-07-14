@@ -6,9 +6,9 @@ from typing import Callable, Type
 import numpy as np
 import torch
 from tqdm import tqdm
-from src.datamanager.DataManager import DataManager
+from datamanager.DataManager import DataManager
 
-from src.utils.metrics import accuracy
+from utils.metrics import accuracy
 
 
 class TrainTestManager(object):

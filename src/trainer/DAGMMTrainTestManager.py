@@ -3,8 +3,8 @@ from typing import Callable, Type
 import numpy as np
 import torch
 from tqdm import tqdm
-from src.datamanager.DataManager import DataManager
-from sklearn.metrics import precision_recall_fscore_support as prf, accuracy_score
+from datamanager.DataManager import DataManager
+from sklearn import metrics
 import torch.nn as nn
 
 
@@ -137,7 +137,6 @@ class DAGMMTrainTestManager:
         # if self.use_cuda:
         #     torch.cuda.empty_cache()
         # GPUtil.showUtilization()
-        print('Finished learning process')
         return metrics
 
     def evaluate_on_test_set(self, energy_threshold=80):
@@ -175,9 +174,9 @@ class DAGMMTrainTestManager:
             train_cov = cov_mat_sum / gamma_sum.unsqueeze(-1).unsqueeze(-1)
 
             print("Train N:", N)
-            print("phi :\n", train_phi)
-            print("mu :\n", train_mu)
-            print("cov :\n", train_cov)
+            print("\u03C6 :\n", train_phi.shape)
+            print("\u03BC :\n", train_mu.shape)
+            print("\u03A3 :\n", train_cov.shape)
 
             # Calculate energy using estimated parameters
 
@@ -230,14 +229,15 @@ class DAGMMTrainTestManager:
             pred = (test_energy > thresh).astype(int)
             gt = test_labels.astype(int)
 
-            accuracy = accuracy_score(gt, pred)
-            precision, recall, f_score, support = prf(gt, pred, average='binary')
-
+            accuracy = metrics.accuracy_score(gt, pred)
+            precision, recall, f_score, _ = metrics.precision_recall_fscore_support(gt, pred, average='binary')
+            res = {"Accuracy": accuracy, "Precision": precision, "Recall": recall, "F1-Score": f_score}
             print("Accuracy : {:0.4f}, Precision : {:0.4f}, Recall : {:0.4f}, F-score : {:0.4f}".format(
                 accuracy, precision, recall, f_score)
             )
             # switch back to train mode
             self.model.train()
-            return accuracy, precision, recall, f_score, test_z, test_labels, combined_energy
+
+            return res, test_z, test_labels, combined_energy
 
 

@@ -4,8 +4,8 @@ import torch
 import numpy as np
 from scipy.stats import multivariate_normal
 
-from src.model.GMM import GMM
-from src.model.AutoEncoder import AutoEncoder as AE
+from model.GMM import GMM
+from model.AutoEncoder import AutoEncoder as AE
 from scipy.linalg import lapack
 
 class DAGMM(nn.Module):
@@ -29,7 +29,17 @@ class DAGMM(nn.Module):
         """
         super(DAGMM, self).__init__()
 
-        self.ae = AE(input_size, ae_layers)
+        # defaults to parameters described in section 4.3 of the paper
+        # https://sites.cs.ucsb.edu/~bzong/doc/iclr18-dagmm.pdf.
+        if not ae_layers:
+            enc_layers = [(input_size, 60, nn.Tanh()), (60, 30, nn.Tanh()), (30, 10, nn.Tanh()), (10, 1, None)]
+            dec_layers = [(1, 10, nn.Tanh()), (10, 30, nn.Tanh()), (30, 60, nn.Tanh()), (60, input_size, None)]
+        else:
+            enc_layers = ae_layers[0]
+            dec_layers = ae_layers[1]
+        gmm_layers = gmm_layers or [(3, 10, nn.Tanh()), (None, None, nn.Dropout(0.5)), (10, 4, nn.Softmax(dim=-1))]
+
+        self.ae = AE(enc_layers, dec_layers)
         self.gmm = GMM(gmm_layers)
 
         code_shape = self.ae.code_shape + 2  # 2 for the euclidean error and the cosine similarity
@@ -276,3 +286,10 @@ class DAGMM(nn.Module):
         loss = rec_err + self.lambda_1 * energy + self.lambda_2 * pen_cov_mat
 
         return loss
+
+    def get_params(self) -> dict:
+        return {
+            "\u03BB_1": self.lambda_1,
+            "\u03BB_2": self.lambda_2,
+            "L": self.ae.L
+        }
