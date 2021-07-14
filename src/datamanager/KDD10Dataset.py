@@ -37,7 +37,7 @@ class KDD10Dataset(Dataset):
         else:
             self.X = X[:, :-1]
             self.y = X[:, -1]
-        self.n = len(X)
+        self.n = len(self.X)
 
     def _import_data(self):
         url_base = "https://archive.ics.uci.edu/ml/machine-learning-databases/kddcup99-mld"
