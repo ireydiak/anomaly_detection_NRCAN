@@ -3,7 +3,7 @@ import numpy as np
 from torch.utils.data import Dataset, DataLoader, SubsetRandomSampler, Sampler, Subset
 
 
-class DataManager(object):
+class DataManager:
     """
     class that yields dataloaders for train, test, and validation data
     """
@@ -38,13 +38,14 @@ class DataManager(object):
         self.seed = seed
 
         # torch.manual_seed(seed)
-        n = len(train_dataset)
+        # n = len(train_dataset)
         # num_sample = int(n * initial_train_dataset_ratio)
         # shuffled_idx = torch.randperm(n).long()
 
         # Create the loaders
-        train_sampler, val_sampler = self.train_validation_split(len(self.train_set), self.validation,
-                                                                 self.seed)
+        train_sampler, val_sampler = self.train_validation_split(
+            len(self.train_set), self.validation, self.seed
+        )
         self.train_loader = DataLoader(self.train_set, self.batch_size, sampler=train_sampler, **self.kwargs)
         self.validation_loader = DataLoader(self.train_set, self.batch_size, sampler=val_sampler, **self.kwargs)
         self.test_loader = DataLoader(test_dataset, batch_size, shuffle=True, **kwargs)

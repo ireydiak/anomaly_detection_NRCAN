@@ -1,20 +1,20 @@
-# -*- coding:utf-8 -*-
-from mpl_toolkits.mplot3d import Axes3D
 from matplotlib import pyplot as plt
 import numpy as np
 
 
-
-
-
 def plot_losses(train_loss, val_loss, save_path='./'):
     """
-    Function that plots loss and accuracy of active learning process for single query strategy
-    Args:
-        manager(TrainTestManager): trained TrainTestManager object
-        save_path(str): path where to save figure
-    """
 
+    Parameters
+    ----------
+    train_loss
+    val_loss
+    save_path: path where to save figure
+
+    Returns
+    -------
+
+    """
     num_data = range(len(train_loss))
 
     f = plt.figure(figsize=(10, 5))
@@ -28,14 +28,6 @@ def plot_losses(train_loss, val_loss, save_path='./'):
     ax1.set_xlabel('# epochs')
     ax1.set_ylabel('Loss')
     ax1.legend()
-
-    # # accuracy plot
-    # ax2.plot(num_data, manager.metric_values['global_train_accuracy'], '-o', label='Training accuracy')
-    # ax2.plot(num_data, manager.metric_values['global_test_accuracy'], '-o', label='Test accuracy')
-    # ax2.set_title('Training and test accuracy')
-    # ax2.set_xlabel('Number of data used')
-    # ax2.set_ylabel('Accuracy')
-    # ax2.legend()
     f.savefig(save_path + 'fig.png')
     plt.show()
 
@@ -55,12 +47,12 @@ def plot_2D_latent(X, y, save_path='./'):
     f.savefig(save_path + 'fig_latent.png')
     plt.show()
 
+
 def plot_energy_percentile(energies, save_path='./'):
     f = plt.figure(figsize=(10, 5))
     ax1 = f.add_subplot(111)
 
     q = np.linspace(0, 100, 100)
-    # oo = np.percentile(energies, q)
     ax1.plot(np.percentile(energies, q), q, label='Training loss')
     ax1.set_title('Percentage vs Energy')
     ax1.set_xlabel('percentage')
