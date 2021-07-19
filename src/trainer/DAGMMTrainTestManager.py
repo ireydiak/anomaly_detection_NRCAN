@@ -139,7 +139,7 @@ class DAGMMTrainTestManager:
         # GPUtil.showUtilization()
         return metrics
 
-    def evaluate_on_test_set(self, energy_threshold=80):
+    def evaluate_on_test_set(self, energy_threshold=80, pos_label=1):
         """
         function that evaluate the model on the test set every iteration of the
         active learning process
@@ -226,11 +226,11 @@ class DAGMMTrainTestManager:
             print("Threshold :", thresh)
 
             # Prediction using the threshold value
-            pred = (test_energy > thresh).astype(int)
-            gt = test_labels.astype(int)
+            y_pred = (test_energy > thresh).astype(int)
+            y_true = test_labels.astype(int)
 
-            accuracy = metrics.accuracy_score(gt, pred)
-            precision, recall, f_score, _ = metrics.precision_recall_fscore_support(gt, pred, average='binary')
+            accuracy = metrics.accuracy_score(y_true, y_pred)
+            precision, recall, f_score, _ = metrics.precision_recall_fscore_support(y_true, y_pred, average='binary', pos_label=pos_label)
             res = {"Accuracy": accuracy, "Precision": precision, "Recall": recall, "F1-Score": f_score}
             print("Accuracy : {:0.4f}, Precision : {:0.4f}, Recall : {:0.4f}, F-score : {:0.4f}".format(
                 accuracy, precision, recall, f_score)

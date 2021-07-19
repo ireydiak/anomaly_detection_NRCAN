@@ -36,6 +36,9 @@ def preprocess(df: pd.DataFrame):
     # Extract and simplify labels (normal data is 1, attacks are labelled as 0)
     y = np.where(df.label == "normal.", 1, 0)
 
+    # We know the anomaly ration should be around 20%
+    assert np.isclose((y == 0).sum() / len(y), 1.-.20, rtol=1.)
+
     X = np.concatenate(
         (one_hot.values, y.reshape(-1, 1)),
         axis=1

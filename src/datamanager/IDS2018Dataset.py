@@ -7,6 +7,9 @@ from torch.utils.data.dataset import T_co
 
 class IDS2018Dataset(Dataset):
 
+    majority_cls_label = 0
+    minority_cls_label = 1
+
     def __init__(self, path: str, pct: float=1.0):
         if path.endswith(".npz"):
             X = np.load(path)["ids2018"]

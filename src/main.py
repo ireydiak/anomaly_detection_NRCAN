@@ -32,6 +32,7 @@ def argument_parser():
     parser.add_argument('--optimizer', type=str, default="Adam", choices=["Adam", "SGD", "RMSProp"],
                         help="The optimizer to use for training the model")
     parser.add_argument('-e', '--num-epochs', type=int, default=200, help='The number of epochs')
+    parser.add_argument('-o', '--output-file', type=str, default=None, help='Where the results will be stored')
     parser.add_argument('--validation', type=float, default=0.1,
                         help='Percentage of training data to use for validation')
     parser.add_argument('--lr', type=float, default=0.0001,
@@ -47,13 +48,14 @@ def argument_parser():
     parser.add_argument('--save_path', type=str, default="./", help='The path where the output will be stored,'
                                                                     'model weights as well as the figures of '
                                                                     'experiments')
+    parser.add_argument('--vizualization', type=bool, default=False)
 
     return parser.parse_args()
 
 
-
-def store_results(results: dict, params: dict, model_name: str, dataset: str, path: str):
-    with open(f'../results/{model_name}_results.txt', 'a') as f:
+def store_results(results: dict, params: dict, model_name: str, dataset: str, path: str, output_path: str=None):
+    output_path = output_path or f'../results/{model_name}_results.txt'
+    with open(output_path, 'a') as f:
         hdr = "Experiments on {}\n".format(dt.now().strftime("%d/%m/%Y %H:%M:%S"))
         f.write(hdr)
         f.write("-".join("" for _ in range(len(hdr))) + "\n")
@@ -76,8 +78,8 @@ if __name__ == "__main__":
     batch_size = len(dataset) if args.batch_size < 0 else args.batch_size
 
     # split data in train and test sets
-    train_set, test_set = dataset.one_class_split_train_test(test_perc=0.5, label=0)
-    # test_set = NSLKDDDataset(path='../data/NSL-KDD/KDDTest.txt')
+    # we train only on the majority class
+    train_set, test_set = dataset.one_class_split_train_test(test_perc=0.5, label=dataset.majority_cls_label)
     dm = DataManager(train_set, test_set, batch_size=batch_size, validation=1e-6)
 
     # safely create save path
@@ -99,9 +101,11 @@ if __name__ == "__main__":
     metrics = model_trainer.train(args.num_epochs)
     print('Finished learning process')
     print('Evaluating model on test set')
-    results, test_z, test_label, energy = model_trainer.evaluate_on_test_set(args.p_threshold)
+    # We test with the minority samples as the positive class
+    results, test_z, test_label, energy = model_trainer.evaluate_on_test_set(args.p_threshold, dataset.minority_cls_label)
 
     params = dict({"BatchSize": batch_size, "Epochs": args.num_epochs, "\u03C1": args.rho}, **model.get_params())
-    store_results(results, params, args.model, args.dataset, args.dataset_path)
-    plot_3D_latent(test_z, test_label)
-    plot_energy_percentile(energy)
+    store_results(results, params, args.model, args.dataset, args.dataset_path, args.output_file)
+    if args.vizualization:
+        plot_3D_latent(test_z, test_label)
+        plot_energy_percentile(energy)
