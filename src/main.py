@@ -11,11 +11,13 @@ import argparse
 import torch.optim as optim
 from datamanager.NSLKDDDataset import NSLKDDDataset
 from utils.utils import check_dir, optimizer_setup
-from model.DAGMM import DAGMM
+from model import DAGMM
+from sklearn.svm import OneClassSVM
 from datamanager import DataManager, KDD10Dataset, IDS2018Dataset
 from trainer.DAGMMTrainTestManager import DAGMMTrainTestManager
 from viz.viz import plot_3D_latent, plot_energy_percentile
 from datetime import datetime as dt
+from sklearn import metrics
 
 
 def argument_parser():
@@ -25,7 +27,7 @@ def argument_parser():
     parser = argparse.ArgumentParser(
         usage='\n python3 main.py -m [model] -d [dataset-path] --dataset [dataset] [hyper_parameters]'
     )
-    parser.add_argument('-m', '--model', type=str, default="DAGMM", choices=["AE", "DAGMM", "MLAD"])
+    parser.add_argument('-m', '--model', type=str, default="DAGMM", choices=["AE", "DAGMM", "MLAD", "OC-SVM"])
     parser.add_argument('-d', '--dataset-path', type=str, help='Path to the dataset')
     parser.add_argument('--dataset', type=str, default="kdd", choices=["kdd10", "nslkdd", "ids2018"])
     parser.add_argument('--batch-size', type=int, default=1024, help='The size of the training batch')
@@ -90,22 +92,35 @@ if __name__ == "__main__":
     elif args.optimizer == 'Adam':
         optimizer_factory = optimizer_setup(optim.Adam, lr=args.lr)
 
-    model = DAGMM(
-        dataset.get_shape()[1]
-    )
+    if args.model == 'DAGMM':
+        model = DAGMM(
+            dataset.get_shape()[1]
+        )
 
-    model_trainer = DAGMMTrainTestManager(
-        model=model, dm=dm, optimizer_factory=optimizer_factory,
-    )
+        model_trainer = DAGMMTrainTestManager(
+            model=model, dm=dm, optimizer_factory=optimizer_factory,
+        )
 
-    metrics = model_trainer.train(args.num_epochs)
-    print('Finished learning process')
-    print('Evaluating model on test set')
-    # We test with the minority samples as the positive class
-    results, test_z, test_label, energy = model_trainer.evaluate_on_test_set(args.p_threshold, dataset.minority_cls_label)
+        metrics = model_trainer.train(args.num_epochs)
+        print('Finished learning process')
+        print('Evaluating model on test set')
+        # We test with the minority samples as the positive class
+        results, test_z, test_label, energy = model_trainer.evaluate_on_test_set(args.p_threshold, dataset.minority_cls_label)
 
-    params = dict({"BatchSize": batch_size, "Epochs": args.num_epochs, "\u03C1": args.rho}, **model.get_params())
-    store_results(results, params, args.model, args.dataset, args.dataset_path, args.output_file)
-    if args.vizualization:
-        plot_3D_latent(test_z, test_label)
-        plot_energy_percentile(energy)
+        params = dict({"BatchSize": batch_size, "Epochs": args.num_epochs, "\u03C1": args.rho}, **model.get_params())
+        store_results(results, params, args.model, args.dataset, args.dataset_path, args.output_file)
+        if args.vizualization:
+            plot_3D_latent(test_z, test_label)
+            plot_energy_percentile(energy)
+
+    elif args.model == 'OC-SVM':
+        train_set, test_set = train_set.dataset.X[train_set.indices], test_set.dataset.X[test_set.indices]
+        X_train = train_set[:, :-1]
+        X_test, y_test, = test_set[:, :-1], test_set[:, -1] 
+        model = OneClassSVM(kernel='rbf', verbose=True)
+        model.fit(X_train)
+        y_pred = model.predict(X_test)
+        accuracy = metrics.accuracy_score(y_test, y_pred)
+        precision, recall, f_score, _ = metrics.precision_recall_fscore_support(y_test, y_pred, average='binary', pos_label=dataset.minority_cls_label)
+        print(accuracy, precision, recall, f_score)
+   
