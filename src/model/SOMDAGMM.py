@@ -14,7 +14,9 @@ default_som_args={
 
 
 class SOMDAGMM(nn.Module):
-    def __init__(self, input_len: int, dagmm: DAGMM, som_args: dict=default_som_args, **kwargs):
+    def __init__(self, input_len: int, dagmm: DAGMM, som_args: dict=None, **kwargs):
+        super(SOMDAGMM, self).__init__()
+        som_args = som_args or default_som_args
         # Use 0.6 for KDD; 0.8 for IDS2018
         self.som = MiniSom(
             som_args['x'], som_args['y'], input_len,
@@ -27,7 +29,7 @@ class SOMDAGMM(nn.Module):
 
     def forward(self, X):
         # SOM-generated low-dimensional representation
-        z_s = self.som.train(X)
+        self.som.train(X, 200)
         # DAGMM's latent feature, the reconstruction error and gamma
         _, X_prime, _, z_r, gamma = self.dagmm(X)
         # Concatenate SOM's features with DAGMM's

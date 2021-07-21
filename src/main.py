@@ -8,6 +8,7 @@ Authors: D'Jeff Kanda
 """
 
 import argparse
+from trainer import SOMDAGMMTrainer
 from model.SOMDAGMM import SOMDAGMM
 import torch.optim as optim
 from datamanager.NSLKDDDataset import NSLKDDDataset
@@ -26,9 +27,9 @@ def argument_parser():
     parser = argparse.ArgumentParser(
         usage='\n python3 main.py -m [model] -d [dataset-path] --dataset [dataset] [hyper_parameters]'
     )
-    parser.add_argument('-m', '--model', type=str, default="DAGMM", choices=["AE", "DAGMM", "MLAD"])
+    parser.add_argument('-m', '--model', type=str, default="DAGMM", choices=["AE", "DAGMM", "SOM-DAGMM", "MLAD"])
     parser.add_argument('-d', '--dataset-path', type=str, help='Path to the dataset')
-    parser.add_argument('--dataset', type=str, default="kdd", choices=["kdd10", "nslkdd", "ids2018"])
+    parser.add_argument('--dataset', type=str, default="kdd", choices=["kdd10", "nsl-kdd", "ids2018"])
     parser.add_argument('--batch-size', type=int, default=1024, help='The size of the training batch')
     parser.add_argument('--optimizer', type=str, default="Adam", choices=["Adam", "SGD", "RMSProp"],
                         help="The optimizer to use for training the model")
@@ -92,23 +93,17 @@ if __name__ == "__main__":
         optimizer_factory = optimizer_setup(optim.Adam, lr=args.lr)
 
     if args.model == 'DAGMM':
-        model = DAGMM(dataset.get_shape()[1],
-                    [60, 30, 10, 1],
-                    fa='tanh',
-                    gmm_layers=[10, 2]
-                    )
-
-        model_trainer = DAGMMTrainTestManager(model=model,
-                                            dm=dm,
-                                            optimizer_factory=optimizer_factory,
-                                            )
-    elif args.model == 'SOMDAGMM':
-        dagmm = DAGMM(
-                    dataset.get_shape()[1], [60, 30, 10, 1],
-                    fa='tanh',
-                    gmm_layers=[10, 2]
-                )
-        model = SOMDAGMM(dataset.get_shape()[1], dagmm=dagmm)
+        model = DAGMM(dataset.get_shape()[1])
+        model_trainer = DAGMMTrainTestManager(
+            model=model, dm=dm, optimizer_factory=optimizer_factory
+        )
+    elif args.model == 'SOM-DAGMM':
+        dagmm = DAGMM(dataset.get_shape()[1])
+        model = SOMDAGMM(dataset.get_shape()[1], dagmm)
+        model_trainer = SOMDAGMMTrainer(
+            model=model, dm=dm, optimizer_factory=optimizer_factory
+        )
+        
 
     metrics = model_trainer.train(args.num_epochs)
     print('Finished learning process')
