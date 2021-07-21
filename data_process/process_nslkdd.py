@@ -7,6 +7,9 @@ parser = argparse.ArgumentParser()
 parser.add_argument('-d', '--dataset-path', type=str)
 parser.add_argument('-o', '--output-directory', help='Must be an empty directory', type=str)
 
+TRAIN_FILENAME = 'KDDTrain+.txt'
+TEST_FILENAME = 'KDDTest+.txt'
+
 folder_struct = {
     'clean_step': '1_clean',
     'normalize_step': '2_normalized',
@@ -44,8 +47,9 @@ def import_data(path: str):
     coltypes = np.where(df_info["type"].str.contains("continuous"), "float", "str")
     colnames = np.append(colnames, ["label"])
     coltypes = np.append(coltypes, ["str"])
-    return pd.read_csv(path, names=colnames, index_col=False, dtype=dict(zip(colnames, coltypes)))
-
+    df_train = pd.read_csv(path + '/' + TRAIN_FILENAME, names=colnames, index_col=False, dtype=dict(zip(colnames, coltypes)))
+    df_test = pd.read_csv(path + '/' + TEST_FILENAME, names=colnames, index_col=False, dtype=dict(zip(colnames, coltypes)))
+    return pd.concat([df_train, df_test], ignore_index=True, sort=False)
 
 def preprocess(df: pd.DataFrame):
     # Dropping columns with unique values
@@ -76,13 +80,15 @@ def preprocess(df: pd.DataFrame):
 if __name__ == '__main__':
     args = parser.parse_args()
     
-    df_0 = import_data(args.dataset_path)
+    dataset_path = args.dataset_path[:-1] if args.dataset_path.endswith('/') else args.dataset_path
+    df_0 = import_data(dataset_path)
     stats_0 = df_stats(df_0)
 
     X, df_1, n_cols_dropped = preprocess(df_0)
     
     stats_0['Normal Instances'] = (df_1['label'] == NORMAL_LABEL).sum()
     stats_0['Anormal Instances'] = (df_1['label'] == ANORMAL_LABEL).sum()
+    stats_0['Anomaly Ratio'] = stats_0['Anormal Instances'] / len(df_1)
     stats_1 = {'N Prime': len(X), 'D Prime': X.shape[1] - 1}
     stats_1['Dropped Columns'] = n_cols_dropped
     export_stats(args.output_directory, stats_0, stats_1)
