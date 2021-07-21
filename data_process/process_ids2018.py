@@ -7,6 +7,9 @@ import warnings
 import os
 warnings.filterwarnings('ignore')
 
+NORMAL_LABEL = 1
+ANORMAL_LABEL = 0
+
 parser = argparse.ArgumentParser(
     description='CICIDS2018 preprocessing script.Assumes that header row duplicates were removed and original files were concatenated. Use merge.bash to concatenate CSV files (works only on Linux)',
     usage='\npython3 main.py [path] [export-path]'
@@ -183,7 +186,7 @@ def clean_step(path: str, export_path: str) -> pd.DataFrame:
         print(f'Found {nrows} invalid rows')
         dropped_rows += nrows
 
-    df_final['Label'] = df_final['Label'].apply(lambda x: 0 if x == 'Benign' else 1)
+    df_final['Label'] = df_final['Label'].apply(lambda x: NORMAL_LABEL if x == 'Benign' else ANORMAL_LABEL)
     print(f'Total rows before changes: {total_rows}')
     print(f'Total of affected rows: {dropped_rows}')
     print(f'Total rows after changes: {df_final.shape[0]}')
