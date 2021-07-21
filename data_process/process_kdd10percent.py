@@ -93,6 +93,6 @@ if __name__ == '__main__':
         sep=',', encoding='utf-8', index=False
     )
     np.savez(
-        '{}/{}/{}.npz'.format(output_dir, folder_struct["minify_step"], "KDD10percent_minified", 
-        kdd=X.astype(np.float64))
+        '{}/{}/{}.npz'.format(output_dir, folder_struct["minify_step"], "KDD10percent_minified"), 
+        kdd=X.astype(np.float64)
     )

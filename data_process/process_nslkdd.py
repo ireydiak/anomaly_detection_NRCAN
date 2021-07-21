@@ -13,8 +13,8 @@ folder_struct = {
     'minify_step': '3_minified'
 }
 
-NORMAL_LABEL = 1
-ANORMAL_LABEL = 0
+NORMAL_LABEL = 0
+ANORMAL_LABEL = 1
 
 def export_stats(output_dir: str, before_stats: dict, after_stats: dict):
     after_stats = {f'{key} Prime': val for key, val in after_stats.items()}
@@ -92,6 +92,6 @@ if __name__ == '__main__':
         sep=',', encoding='utf-8', index=False
     )
     np.savez(
-        '{}/{}/{}.npz'.format(args.output_directory, folder_struct["minify_step"], "NSL-KDD_minified", 
-        kdd=X.astype(np.float64))
+        '{}/{}/{}.npz'.format(args.output_directory, folder_struct["minify_step"], "NSL-KDD_minified"), 
+        kdd=X.astype(np.float64)
     )
