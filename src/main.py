@@ -13,8 +13,7 @@ import torch.optim as optim
 from datamanager.NSLKDDDataset import NSLKDDDataset
 from utils.utils import check_dir, optimizer_setup
 from model.DAGMM import DAGMM
-from datamanager.KDD10Dataset import KDD10Dataset
-from datamanager.DataManager import DataManager
+from datamanager import DataManager, KDD10Dataset, IDS2018Dataset
 from trainer.DAGMMTrainTestManager import DAGMMTrainTestManager
 from viz.viz import plot_3D_latent, plot_energy_percentile
 from datetime import datetime as dt
@@ -29,11 +28,12 @@ def argument_parser():
     )
     parser.add_argument('-m', '--model', type=str, default="DAGMM", choices=["AE", "DAGMM", "MLAD"])
     parser.add_argument('-d', '--dataset-path', type=str, help='Path to the dataset')
-    parser.add_argument('--dataset', type=str, default="kdd", choices=["kdd", "nslkdd", "hsherbrooke"])
+    parser.add_argument('--dataset', type=str, default="kdd", choices=["kdd10", "nslkdd", "ids2018"])
     parser.add_argument('--batch-size', type=int, default=1024, help='The size of the training batch')
     parser.add_argument('--optimizer', type=str, default="Adam", choices=["Adam", "SGD", "RMSProp"],
                         help="The optimizer to use for training the model")
     parser.add_argument('-e', '--num-epochs', type=int, default=200, help='The number of epochs')
+    parser.add_argument('-o', '--output-file', type=str, default=None, help='Where the results will be stored')
     parser.add_argument('--validation', type=float, default=0.1,
                         help='Percentage of training data to use for validation')
     parser.add_argument('--lr', type=float, default=0.0001,
@@ -49,20 +49,21 @@ def argument_parser():
     parser.add_argument('--save_path', type=str, default="./", help='The path where the output will be stored,'
                                                                     'model weights as well as the figures of '
                                                                     'experiments')
+    parser.add_argument('--vizualization', type=bool, default=False)
 
     return parser.parse_args()
 
 
-
-def store_results(results: dict, params: dict, fname: str):
-    with open(f'results/{fname}', 'a') as f:
+def store_results(results: dict, params: dict, model_name: str, dataset: str, path: str, output_path: str=None):
+    output_path = output_path or f'../results/{model_name}_results.txt'
+    with open(output_path, 'a') as f:
         hdr = "Experiments on {}\n".format(dt.now().strftime("%d/%m/%Y %H:%M:%S"))
         f.write(hdr)
         f.write("-".join("" for _ in range(len(hdr))) + "\n")
+        f.write(f'{dataset} ({path.split("/")[-1].split(".")[0]})\n')
         f.write(", ".join([f"{param_name}={param_val}" for param_name, param_val in params.items()]) + "\n")
-        f.write("\n".join([f"{met_name}: {res}" for met_name, res in results.items()]))
-        f.write("\n")
-
+        f.write("\n".join([f"{met_name}: {res}" for met_name, res in results.items()]) + "\n")
+        f.write("-".join("" for _ in range(len(hdr))) + "\n")
 
 if __name__ == "__main__":
     args = argument_parser()
@@ -71,20 +72,16 @@ if __name__ == "__main__":
     lambda_1 = args.lambda_energy
     lambda_2 = args.lambda_p
 
-    # Loading the data
-    if args.dataset == 'kdd':
-        dataset = KDD10Dataset(args.dataset_path, args.pct)
-    elif args.dataset == 'nslkdd':
-        dataset = NSLKDDDataset(args.dataset_path, args.pct)
-    else:
-        raise Exception("This dataset is not available for experiment at present")
+    # Dynamically load the Dataset instance
+    clsname = globals()[f'{args.dataset.upper()}Dataset']
+    dataset = clsname(args.dataset_path, args.pct)
 
     batch_size = len(dataset) if args.batch_size < 0 else args.batch_size
 
     # split data in train and test sets
-    train_set, test_set = dataset.one_class_split_train_test(test_perc=0.5, label=0)
-    # test_set = NSLKDDDataset(path='../data/NSL-KDD/KDDTest.txt')
-    dm = DataManager(train_set, test_set, batch_size=batch_size, validation=1e-6)
+    # we train only on the majority class
+    train_set, test_set = dataset.one_class_split_train_test(test_perc=0.3, label=dataset.majority_cls_label)
+    dm = DataManager(train_set, test_set, batch_size=batch_size, validation=0.1)
 
     # safely create save path
     check_dir(args.save_path)
@@ -116,8 +113,11 @@ if __name__ == "__main__":
     metrics = model_trainer.train(args.num_epochs)
     print('Finished learning process')
     print('Evaluating model on test set')
-    results, test_z, test_label, energy = model_trainer.evaluate_on_test_set(args.p_threshold)
+    # We test with the minority samples as the positive class
+    results, test_z, test_label, energy = model_trainer.evaluate_on_test_set(args.p_threshold, dataset.minority_cls_label)
 
-    store_results(results, dict({"BatchSize": batch_size, "Epochs": args.num_epochs, "\u03C1": args.rho}, **model.get_params()), f'../results/{args.model}_results.txt')
-    plot_3D_latent(test_z, test_label)
-    plot_energy_percentile(energy)
+    params = dict({"BatchSize": batch_size, "Epochs": args.num_epochs, "\u03C1": args.rho}, **model.get_params())
+    store_results(results, params, args.model, args.dataset, args.dataset_path, args.output_file)
+    if args.vizualization:
+        plot_3D_latent(test_z, test_label)
+        plot_energy_percentile(energy)
