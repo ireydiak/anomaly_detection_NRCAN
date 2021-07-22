@@ -49,7 +49,8 @@ def import_data(path: str):
     coltypes = np.append(coltypes, ["str"])
     df_train = pd.read_csv(path + '/' + TRAIN_FILENAME, names=colnames, index_col=False, dtype=dict(zip(colnames, coltypes)))
     df_test = pd.read_csv(path + '/' + TEST_FILENAME, names=colnames, index_col=False, dtype=dict(zip(colnames, coltypes)))
-    return pd.concat([df_train, df_test], ignore_index=True, sort=False)
+    # UBN added an extra `difficulty_level` columns which we ignore here
+    return pd.concat([df_train[:, :-1], df_test[:, :-1]], ignore_index=True, sort=False)
 
 def preprocess(df: pd.DataFrame):
     # Dropping columns with unique values
