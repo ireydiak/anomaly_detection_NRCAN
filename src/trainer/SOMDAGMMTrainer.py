@@ -1,3 +1,6 @@
+import warnings
+
+from sklearn.metrics import confusion_matrix
 from tqdm import trange
 from model.SOMDAGMM import SOMDAGMM
 import torch
@@ -5,34 +8,54 @@ import numpy as np
 from datamanager.DataManager import DataManager
 from typing import Callable
 
+from sklearn import metrics
+
 
 class SOMDAGMMTrainer:
 
-    def __init__(self, model: SOMDAGMM, dm: DataManager, optimizer_factory: Callable[[torch.nn.Module], torch.optim.Optimizer], device='cpu'):
+    def __init__(self, model: SOMDAGMM, dm: DataManager,
+                 optimizer_factory: Callable[[torch.nn.Module], torch.optim.Optimizer],
+                 use_cuda=True,
+                 ):
         self.model = model
         self.optim = optimizer_factory(self.model)
         self.metric_hist = []
         self.dm = dm
-        self.device = device
 
+        device_name = 'cuda:0' if use_cuda else 'cpu'
+        if use_cuda and not torch.cuda.is_available():
+            warnings.warn("CUDA is not available. Suppress this warning by passing "
+                          "use_cuda=False to {}()."
+                          .format(self.__class__.__name__), RuntimeWarning)
+            print('\n\n')
+            device_name = 'cpu'
+
+        self.device = torch.device(device_name)
+
+    def train_som(self, X):
+        self.model.train_som(X)
 
     def train(self, n_epochs: int):
         mean_loss = np.inf
         train_ldr = self.dm.get_train_set()
-        with trange(n_epochs) as t:
-            for i, X_i in enumerate(train_ldr, 0):
-                train_inputs = X_i[0].to(self.device).float()
-                loss = self.train_iter(train_inputs)
-                mean_loss = loss / (i + 1)
-                t.set_postfix(loss='{:05.3f}'.format(mean_loss))
-                t.update()
+
+        for epoch in range(n_epochs):
+            print(f"\nEpoch: {epoch + 1} of {n_epochs}")
+            loss = 0
+            with trange(len(train_ldr)) as t:
+                for i, X_i in enumerate(train_ldr, 0):
+                    train_inputs = X_i[0].to(self.device).float()
+                    loss += self.train_iter(train_inputs)
+                    mean_loss = loss / (i + 1)
+                    t.set_postfix(loss='{:05.3f}'.format(mean_loss))
+                    t.update()
         return mean_loss
 
     def train_iter(self, X):
         self.optim.zero_grad()
 
         # SOM-generated low-dimensional representation
-        Z, X_prime, gamma = self.model(X)
+        code, X_prime, cosim, Z, gamma = self.model(X)
 
         phi, mu, Sigma = self.model.compute_params(Z, gamma)
         energy, penalty_term = self.model.estimate_sample_energy(Z, phi, mu, Sigma)
@@ -43,10 +66,10 @@ class SOMDAGMMTrainer:
         loss.backward()
 
         # updates the weights using gradient descent
-        self.optimizer.step()
+        self.optim.step()
 
         return loss.item()
-    
+
     def evaluate_on_test_set(self, energy_threshold=80, pos_label=1):
         """
         function that evaluate the model on the test set every iteration of the
@@ -138,13 +161,17 @@ class SOMDAGMMTrainer:
             y_true = test_labels.astype(int)
 
             accuracy = metrics.accuracy_score(y_true, y_pred)
-            precision, recall, f_score, _ = metrics.precision_recall_fscore_support(y_true, y_pred, average='binary', pos_label=pos_label)
+            precision, recall, f_score, _ = metrics.precision_recall_fscore_support(y_true, y_pred, average='binary',
+                                                                                    pos_label=pos_label)
             res = {"Accuracy": accuracy, "Precision": precision, "Recall": recall, "F1-Score": f_score}
-            print("Accuracy : {:0.4f}, Precision : {:0.4f}, Recall : {:0.4f}, F-score : {:0.4f}".format(
-                accuracy, precision, recall, f_score)
-            )
+
+            print(f"Accuracy:{accuracy}, "
+                  f"Precision:{precision}, "
+                  f"Recall:{recall}, "
+                  f"F-score:{f_score}, "
+                  f"\nconfusion-matrix: {confusion_matrix(y_true, y_pred)}")
+
             # switch back to train mode
             self.model.train()
 
             return res, test_z, test_labels, combined_energy
-

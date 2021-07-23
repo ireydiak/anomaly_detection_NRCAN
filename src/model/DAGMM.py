@@ -8,6 +8,7 @@ from model.GMM import GMM
 from model.AutoEncoder import AutoEncoder as AE
 from scipy.linalg import lapack
 
+
 class DAGMM(nn.Module):
     """
     This class proposes an unofficial implementation of the DAGMM architecture proposed in
@@ -79,6 +80,39 @@ class DAGMM(nn.Module):
 
         return code, x_prime, cosim, z_r, gamma_hat
 
+    def forward_end_dec(self, x: torch.Tensor):
+        """
+        This function compute the output of the network in the forward pass
+        :param x: input
+        :return: output of the model
+        """
+
+        # computes the z vector of the original paper (p.4), that is
+        # :math:`z = [z_c, z_r]` with
+        #   - :math:`z_c = h(x; \theta_e)`
+        #   - :math:`z_r = f(x, x')`
+        code = self.ae.encoder(x)
+        x_prime = self.ae.decoder(code)
+        rel_euc_dist = self.relative_euclidean_dist(x, x_prime)
+        cosim = self.cosim(x, x_prime)
+        z_r = torch.cat([code, rel_euc_dist.unsqueeze(-1), cosim.unsqueeze(-1)], dim=1)
+
+        return code, x_prime, cosim, z_r
+
+    def forward_estimation_net(self, z_r: torch.Tensor):
+        """
+        This function compute the output of the network in the forward pass
+        :param z_r: input
+        :return: output of the model
+        """
+
+        # compute gmm net output, that is
+        #   - p = MLN(z, \theta_m) and
+        #   - \gamma_hat = softmax(p)
+        gamma_hat = self.gmm.forward(z_r)
+
+        return gamma_hat
+
     def weighted_log_sum_exp(self, x, weights, dim):
         """
         Inspired by https://discuss.pytorch.org/t/moving-to-numerically-stable-log-sum-exp-leads-to-extremely-large-loss-values/61938
@@ -139,7 +173,7 @@ class DAGMM(nn.Module):
         covs = []
         for i in range(0, K):
             xm = z - mu[i]
-            cov = 1/gamma_sum[i] * ((gamma[:, i].unsqueeze(-1) * xm).T @ xm)
+            cov = 1 / gamma_sum[i] * ((gamma[:, i].unsqueeze(-1) * xm).T @ xm)
             cov += 1e-12
             covs.append(cov)
 
@@ -171,7 +205,7 @@ class DAGMM(nn.Module):
     def estimate_sample_energy_js(self, z, phi, mu):
         energies = []
         for k, sigma_k in enumerate(self.covs):
-            probs = self.mv_normal_cholesky(z, mu[k], sigma_k).reshape(1024,)
+            probs = self.mv_normal_cholesky(z, mu[k], sigma_k).reshape(1024, )
             energies.append(-self.weighted_log_sum_exp(torch.log(probs), phi[k]))
         return torch.sum(torch.Tensor(energies))
 

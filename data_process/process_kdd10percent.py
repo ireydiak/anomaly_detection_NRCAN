@@ -1,8 +1,9 @@
+import os
+
 import pandas as pd
 import numpy as np
 import argparse
 from sklearn.preprocessing import MinMaxScaler
-
 
 folder_struct = {
     'clean_step': '1_clean',
@@ -10,11 +11,13 @@ folder_struct = {
     'minify_step': '3_minified'
 }
 
+os.chdir(os.path.dirname(__file__))
 parser = argparse.ArgumentParser()
-parser.add_argument('-o', '--output-directory', type=str, default='../data/kdd10percent.npz')
+parser.add_argument('-o', '--output-directory', type=str, default='../data/')
 
 NORMAL_LABEL = 0
 ANORMAL_LABEL = 1
+
 
 def export_stats(output_dir: str, stats: dict):
     with open(f'{output_dir}/kdd10percent_infos.csv', 'w') as f:
@@ -93,6 +96,6 @@ if __name__ == '__main__':
         sep=',', encoding='utf-8', index=False
     )
     np.savez(
-        '{}/{}/{}.npz'.format(output_dir, folder_struct["minify_step"], "KDD10percent_minified"), 
+        '{}/{}/{}.npz'.format(output_dir, folder_struct["minify_step"], "KDD10percent_minified"),
         kdd=X.astype(np.float64)
     )
