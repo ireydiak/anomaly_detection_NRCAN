@@ -37,9 +37,9 @@ class SOMDAGMM(nn.Module):
         # _, X_prime, _, z_r = self.dagmm.forward_end_dec(X)
         code, X_prime, cosim, z_r = self.dagmm.forward_end_dec(X)
         # Concatenate SOM's features with DAGMM's
-        z_s = [self.som.winner(x) for x in X]
+        z_s = [self.som.winner(x) for x in X.cpu()]
         z_s = [[x, y] for x, y in z_s]
-        z_s = torch.from_numpy(np.array(z_s)) / 20
+        z_s = torch.from_numpy(np.array(z_s)).to(z_r.device) / 20
         Z = torch.cat([z_r, z_s], dim=1)
 
         # Z = z_r

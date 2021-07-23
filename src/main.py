@@ -32,7 +32,7 @@ def argument_parser():
     )
     parser.add_argument('-m', '--model', type=str, default="DAGMM", choices=["AE", "DAGMM", "SOM-DAGMM", "MLAD"])
     parser.add_argument('-d', '--dataset-path', type=str, help='Path to the dataset')
-    parser.add_argument('--dataset', type=str, default="kdd10", choices=["kdd10", "nsl-kdd", "ids2018"])
+    parser.add_argument('--dataset', type=str, default="kdd10", choices=["kdd10", "nslkdd", "ids2018"])
     parser.add_argument('--batch-size', type=int, default=1024, help='The size of the training batch')
     parser.add_argument('--optimizer', type=str, default="Adam", choices=["Adam", "SGD", "RMSProp"],
                         help="The optimizer to use for training the model")
@@ -84,7 +84,7 @@ if __name__ == "__main__":
 
     # split data in train and test sets
     # we train only on the majority class
-    train_set, test_set = dataset.one_class_split_train_test(test_perc=0.3, label=dataset.majority_cls_label)
+    train_set, test_set = dataset.one_class_split_train_test(test_perc=0.5, label=dataset.majority_cls_label)
     dm = DataManager(train_set, test_set, batch_size=batch_size, validation=0.1)
 
     # safely create save path
@@ -102,7 +102,7 @@ if __name__ == "__main__":
         )
     elif args.model == 'SOM-DAGMM':
         dagmm = DAGMM(dataset.get_shape()[1],
-                      gmm_layers=[(5, 10, nn.Tanh()), (None, None, nn.Dropout(0.5)), (10, 4, nn.Softmax(dim=-1))])
+                      gmm_layers=[(5, 10, nn.Tanh()), (None, None, nn.Dropout(0.5)), (10, 2, nn.Softmax(dim=-1))])
         model = SOMDAGMM(dataset.get_shape()[1], dagmm)
         model_trainer = SOMDAGMMTrainer(
             model=model, dm=dm, optimizer_factory=optimizer_factory

@@ -17,8 +17,7 @@ class SOMDAGMMTrainer:
                  optimizer_factory: Callable[[torch.nn.Module], torch.optim.Optimizer],
                  use_cuda=True,
                  ):
-        self.model = model
-        self.optim = optimizer_factory(self.model)
+
         self.metric_hist = []
         self.dm = dm
 
@@ -31,6 +30,9 @@ class SOMDAGMMTrainer:
             device_name = 'cpu'
 
         self.device = torch.device(device_name)
+        self.model = model.to(self.device)
+        self.optim = optimizer_factory(self.model)
+
 
     def train_som(self, X):
         self.model.train_som(X)
@@ -58,7 +60,7 @@ class SOMDAGMMTrainer:
         code, X_prime, cosim, Z, gamma = self.model(X)
 
         phi, mu, Sigma = self.model.compute_params(Z, gamma)
-        energy, penalty_term = self.model.estimate_sample_energy(Z, phi, mu, Sigma)
+        energy, penalty_term = self.model.estimate_sample_energy(Z, phi, mu, Sigma, device=self.device)
 
         loss = self.model.compute_loss(X, X_prime, energy, penalty_term)
 

@@ -5,6 +5,9 @@ import numpy as np
 import argparse
 from sklearn.preprocessing import MinMaxScaler
 
+from src.utils.utils import check_dir
+
+
 folder_struct = {
     'clean_step': '1_clean',
     'normalize_step': '2_normalized',
@@ -91,11 +94,17 @@ if __name__ == '__main__':
 
     export_stats(output_dir, dict(**stats_0, **stats_1))
 
+    path = '{}/{}/{}.csv'.format(output_dir, folder_struct["normalize_step"], "KDD10percent_normalized")
+    # check if the directory exists or create it
+    check_dir(path)
     df_1.to_csv(
-        '{}/{}/{}.csv'.format(output_dir, folder_struct["normalize_step"], "KDD10percent_normalized"),
+        path,
         sep=',', encoding='utf-8', index=False
     )
-    np.savez(
-        '{}/{}/{}.npz'.format(output_dir, folder_struct["minify_step"], "KDD10percent_minified"),
-        kdd=X.astype(np.float64)
-    )
+
+    path = '{}/{}/{}.npz'.format(output_dir, folder_struct["minify_step"], "KDD10percent_minified")
+    # check if the directory exists or create it
+    check_dir(path)
+    np.savez(path,
+             kdd=X.astype(np.float64)
+             )
