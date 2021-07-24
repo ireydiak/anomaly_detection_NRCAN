@@ -5,8 +5,8 @@ from minisom import MiniSom
 from model.DAGMM import DAGMM
 
 default_som_args = {
-    "x": 20,
-    "y": 20,
+    "x": 32,
+    "y": 32,
     "lr": 0.6,
     "neighborhood_function": "bubble"
 }
@@ -39,7 +39,7 @@ class SOMDAGMM(nn.Module):
         # Concatenate SOM's features with DAGMM's
         z_s = [self.som.winner(x) for x in X.cpu()]
         z_s = [[x, y] for x, y in z_s]
-        z_s = torch.from_numpy(np.array(z_s)).to(z_r.device) / 20
+        z_s = torch.from_numpy(np.array(z_s)).to(z_r.device) / (default_som_args.get('x') + 1)
         Z = torch.cat([z_r, z_s], dim=1)
 
         # Z = z_r

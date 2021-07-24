@@ -2,6 +2,7 @@ import warnings
 from typing import Callable, Type
 import numpy as np
 import torch
+from sklearn.metrics import confusion_matrix
 from tqdm import tqdm
 from datamanager.DataManager import DataManager
 from sklearn import metrics
@@ -232,9 +233,13 @@ class DAGMMTrainTestManager:
             accuracy = metrics.accuracy_score(y_true, y_pred)
             precision, recall, f_score, _ = metrics.precision_recall_fscore_support(y_true, y_pred, average='binary', pos_label=pos_label)
             res = {"Accuracy": accuracy, "Precision": precision, "Recall": recall, "F1-Score": f_score}
-            print("Accuracy : {:0.4f}, Precision : {:0.4f}, Recall : {:0.4f}, F-score : {:0.4f}".format(
-                accuracy, precision, recall, f_score)
-            )
+
+            print(f"Accuracy:{accuracy}, "
+                  f"Precision:{precision}, "
+                  f"Recall:{recall}, "
+                  f"F-score:{f_score}, "
+                  f"\nconfusion-matrix: {confusion_matrix(y_true, y_pred)}")
+
             # switch back to train mode
             self.model.train()
 
