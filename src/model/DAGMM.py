@@ -1,12 +1,8 @@
-import scipy
 import torch.nn as nn
 import torch
 import numpy as np
-from scipy.stats import multivariate_normal
-
-from model.GMM import GMM
-from model.AutoEncoder import AutoEncoder as AE
-from scipy.linalg import lapack
+from . import GMM
+from . import AutoEncoder as AE
 
 
 class DAGMM(nn.Module):
@@ -42,8 +38,6 @@ class DAGMM(nn.Module):
 
         self.ae = AE(enc_layers, dec_layers)
         self.gmm = GMM(gmm_layers)
-
-        code_shape = self.ae.code_shape + 2  # 2 for the euclidean error and the cosine similarity
 
         self.cosim = nn.CosineSimilarity()
         self.softmax = nn.Softmax(dim=-1)

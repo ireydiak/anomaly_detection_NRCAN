@@ -33,7 +33,6 @@ class SOMDAGMMTrainer:
         self.model = model.to(self.device)
         self.optim = optimizer_factory(self.model)
 
-
     def train_som(self, X):
         self.model.train_som(X)
 
