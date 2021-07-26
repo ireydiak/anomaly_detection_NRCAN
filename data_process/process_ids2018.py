@@ -4,7 +4,8 @@ import numpy as np
 from sklearn.preprocessing import MinMaxScaler
 import category_encoders as ce
 import warnings
-import os
+import utils
+
 warnings.filterwarnings('ignore')
 
 NORMAL_LABEL = 1
@@ -15,14 +16,6 @@ parser = argparse.ArgumentParser(
     usage='\npython3 main.py [path] [export-path]'
 )
 
-parser.add_argument('-d', '--path', type=str, help='Path to original CSV file')
-parser.add_argument('-o', '--export-path', type=str, help='Path to the output directory. Folders will be added to this directory.')
-
-folder_struct = {
-    'clean_step': '1_clean',
-    'normalize_step': '2_normalized',
-    'minify_step': '3_minified'
-}
 
 NON_NUMERIC_COLS = ['Label', 'Timestamp']
 COLS_TO_DROP = ['Protocol', 'Timestamp', 'Flow Duration', 'Init Fwd Win Byts', 'Init Bwd Win Byts', 'Flow Duration']
@@ -142,6 +135,7 @@ TYPES = {
     'Label': 'category'
 }
 
+
 def convert_dtype(x, dtype):
     fn = getattr(np, dtype)
 
@@ -149,6 +143,7 @@ def convert_dtype(x, dtype):
         return fn(x)
     except:
         return np.nan
+
 
 def cols_to_drop() -> list:
     return UNIQ_COLS + COLS_TO_DROP
@@ -169,12 +164,6 @@ def process(df: pd.DataFrame):
     return df.drop(rows).drop(to_drop, axis=1), len(rows)
 
 
-def parse_args():
-    args = parser.parse_args()
-    return args.path, \
-           args.export_path if not args.export_path.endswith('/') else args.export_path[0:-1]
-
-
 def clean_step(path: str, export_path: str) -> pd.DataFrame:
     total_rows = dropped_rows = 0
     df_final = pd.DataFrame()
@@ -192,7 +181,7 @@ def clean_step(path: str, export_path: str) -> pd.DataFrame:
     print(f'Total rows after changes: {df_final.shape[0]}')
     print('Percentage of rows affected: %8.2f' % ((dropped_rows * 100) / total_rows))
     df_final.to_csv(
-        f'{export_path}/{folder_struct["clean_step"]}/cicids2018_clean.csv',
+        f'{export_path}/{utils.folder_struct["clean_step"]}/cicids2018_clean.csv',
         sep=',', encoding='utf-8', index=False
     )
     print(f'Finished writing dataframe to {fname}')
@@ -207,7 +196,7 @@ def normalize_step(df: pd.DataFrame, cols: list, base_path: str, fname: str):
     cat_cols = df[cols].select_dtypes(include=["category", "object"]).columns.tolist()
     # Optinally handle categorical values
     if cat_cols:
-        perm = np.random.permutation(len(df)) 
+        perm = np.random.permutation(len(df))
         X = df.iloc[perm].reset_index(drop=True)
         y_prime = df['Label'].iloc[perm].reset_index(drop=True)
         enc = ce.CatBoostEncoder(verbose=1, cols=cat_cols)
@@ -229,21 +218,19 @@ def normalize_step(df: pd.DataFrame, cols: list, base_path: str, fname: str):
         axis=1
     )
     df.to_csv(
-        f'{base_path}/{folder_struct["normalize_step"]}/{fname}.csv',
+        f'{base_path}/{utils.folder_struct["normalize_step"]}/{fname}.csv',
         sep=',', encoding='utf-8', index=False
     )
-    print(f'Saved {base_path}/{folder_struct["normalize_step"]}/{fname}.csv')
+    print(f'Saved {base_path}/{utils.folder_struct["normalize_step"]}/{fname}.csv')
     del df
-    np.savez(f'{base_path}/{folder_struct["minify_step"]}/{fname}.npz', ids2018=X.astype(np.float64))
+    np.savez(f'{base_path}/{utils.folder_struct["minify_step"]}/{fname}.npz', ids2018=X.astype(np.float64))
     print(f'Saved {base_path}/{fname}.npz')
 
-def prepare(base_path: str):
-    os.makedirs(['{}/{}'.format(base_path, folder) for _, folder in folder_struct.items()])
 
 if __name__ == '__main__':
     path, export_path = parse_args()
     # 0 - Prepare folder structure
-    prepare(export_path)
+    utils.prepare(export_path)
     # 1 - Clean the data (remove invalid rows and columns)
     df = clean_step(path, export_path)
     # 2 - Normalize numerical values and treat categorical values
