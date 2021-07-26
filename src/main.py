@@ -8,6 +8,11 @@ Authors: D'Jeff Kanda
 """
 
 import argparse
+
+from torch import nn
+
+from trainer import SOMDAGMMTrainer
+from model.SOMDAGMM import SOMDAGMM
 import torch.optim as optim
 from datamanager.NSLKDDDataset import NSLKDDDataset
 from utils.utils import check_dir, optimizer_setup
@@ -25,9 +30,9 @@ def argument_parser():
     parser = argparse.ArgumentParser(
         usage='\n python3 main.py -m [model] -d [dataset-path] --dataset [dataset] [hyper_parameters]'
     )
-    parser.add_argument('-m', '--model', type=str, default="DAGMM", choices=["AE", "DAGMM", "MLAD"])
+    parser.add_argument('-m', '--model', type=str, default="DAGMM", choices=["AE", "DAGMM", "SOM-DAGMM", "MLAD"])
     parser.add_argument('-d', '--dataset-path', type=str, help='Path to the dataset')
-    parser.add_argument('--dataset', type=str, default="kdd", choices=["kdd10", "nslkdd", "ids2018"])
+    parser.add_argument('--dataset', type=str, default="kdd10", choices=["kdd10", "nslkdd", "ids2018"])
     parser.add_argument('--batch-size', type=int, default=1024, help='The size of the training batch')
     parser.add_argument('--optimizer', type=str, default="Adam", choices=["Adam", "SGD", "RMSProp"],
                         help="The optimizer to use for training the model")
@@ -79,7 +84,7 @@ if __name__ == "__main__":
 
     # split data in train and test sets
     # we train only on the majority class
-    train_set, test_set = dataset.one_class_split_train_test(test_perc=0.3, label=dataset.majority_cls_label)
+    train_set, test_set = dataset.one_class_split_train_test(test_perc=0.5, label=dataset.majority_cls_label)
     dm = DataManager(train_set, test_set, batch_size=batch_size, validation=0.1)
 
     # safely create save path
@@ -90,13 +95,22 @@ if __name__ == "__main__":
     elif args.optimizer == 'Adam':
         optimizer_factory = optimizer_setup(optim.Adam, lr=args.lr)
 
-    model = DAGMM(
-        dataset.get_shape()[1]
-    )
+    if args.model == 'DAGMM':
+        model = DAGMM(dataset.get_shape()[1])
+        model_trainer = DAGMMTrainTestManager(
+            model=model, dm=dm, optimizer_factory=optimizer_factory
+        )
+    elif args.model == 'SOM-DAGMM':
+        dagmm = DAGMM(dataset.get_shape()[1],
+                      gmm_layers=[(5, 10, nn.Tanh()), (None, None, nn.Dropout(0.5)), (10, 2, nn.Softmax(dim=-1))])
+        model = SOMDAGMM(dataset.get_shape()[1], dagmm)
+        model_trainer = SOMDAGMMTrainer(
+            model=model, dm=dm, optimizer_factory=optimizer_factory
+        )
+        som_train_data = dataset.split_train_test()[0]
+        data = [som_train_data[i][0] for i in range(len(som_train_data))]
+        model_trainer.train_som(data)
 
-    model_trainer = DAGMMTrainTestManager(
-        model=model, dm=dm, optimizer_factory=optimizer_factory,
-    )
 
     metrics = model_trainer.train(args.num_epochs)
     print('Finished learning process')

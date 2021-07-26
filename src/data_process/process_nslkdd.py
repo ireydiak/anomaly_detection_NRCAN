@@ -3,6 +3,8 @@ import numpy as np
 import argparse
 from sklearn.preprocessing import MinMaxScaler
 
+from src.utils import check_dir
+
 parser = argparse.ArgumentParser()
 parser.add_argument('-d', '--dataset-path', type=str)
 parser.add_argument('-o', '--output-directory', help='Must be an empty directory', type=str)
@@ -94,11 +96,18 @@ if __name__ == '__main__':
     stats_1['Dropped Columns'] = n_cols_dropped
     export_stats(args.output_directory, stats_0, stats_1)
 
+    path = '{}/{}/{}.csv'.format(args.output_directory, folder_struct["normalize_step"], "NSL-KDD_normalized")
+    # check if the directory exists or create it
+    check_dir(path)
     df_1.to_csv(
-        '{}/{}/{}.csv'.format(args.output_directory, folder_struct["normalize_step"], "NSL-KDD_normalized"),
+        path,
         sep=',', encoding='utf-8', index=False
     )
+
+    path = '{}/{}/{}.npz'.format(args.output_directory, folder_struct["minify_step"], "NSL-KDD_minified")
+    # check if the directory exists or create it
+    check_dir(path)
     np.savez(
-        '{}/{}/{}.npz'.format(args.output_directory, folder_struct["minify_step"], "NSL-KDD_minified"), 
+        path,
         kdd=X.astype(np.float64)
     )
