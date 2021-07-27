@@ -2,7 +2,8 @@ import numpy as np
 import torch
 import torch.nn as nn
 from minisom import MiniSom
-from model.DAGMM import DAGMM
+
+from src.model import DAGMM
 
 default_som_args = {
     "x": 32,

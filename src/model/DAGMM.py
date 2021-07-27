@@ -1,8 +1,9 @@
 import torch.nn as nn
 import torch
 import numpy as np
-from . import GMM
-from . import AutoEncoder as AE
+
+from src.model import AutoEncoder as AE
+from src.model import GMM
 
 
 class DAGMM(nn.Module):

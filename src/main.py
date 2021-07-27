@@ -93,7 +93,7 @@ def resolve_trainer(trainer_str: str, optimizer_factory, **kwargs):
     elif trainer_str == 'SOM-DAGMM':
         dagmm = DAGMM(
             dataset.get_shape()[1],
-            gmm_layers=[(5, 10, nn.Tanh()), (None, None, nn.Dropout(0.5)), (10, 2, nn.Softmax(dim=-1))]
+            gmm_layers=[(5, 10, nn.Tanh()), (None, None, nn.Dropout(0.5)), (10, 4, nn.Softmax(dim=-1))]
         )
         model = SOMDAGMM(dataset.get_shape()[1], dagmm)
         trainer = SOMDAGMMTrainer(
@@ -146,7 +146,7 @@ if __name__ == "__main__":
         print('Finished learning process')
         print('Evaluating model on test set')
         # We test with the minority samples as the positive class
-        results, test_z, test_label, energy = model_trainer.evaluate_on_test_set(dataset.minority_cls_label)
+        results, test_z, test_label, energy = model_trainer.evaluate_on_test_set(dataset.majority_cls_label)
 
         params = dict({"BatchSize": batch_size, "Epochs": args.num_epochs, "\u03C1": args.rho}, **model.get_params())
         store_results(results, params, args.model, args.dataset, args.dataset_path, args.output_file)

@@ -40,7 +40,7 @@ class MemAutoEncoder(nn.Module):
             nn.Linear(30, 10),
             nn.Tanh(),
             nn.Linear(10, L)
-        ).to(device)
+        )  # .to(device)
         self.mem_rep = MemoryUnit(mem_dim, L, shrink_thres, device=device).to(device)
         self.decoder = nn.Sequential(
             nn.Linear(L, 10),
@@ -50,7 +50,7 @@ class MemAutoEncoder(nn.Module):
             nn.Linear(30, 60),
             nn.Tanh(),
             nn.Linear(60, D)
-        ).to(device)
+        )  # .to(device)
 
     def forward(self, x):
         f_e = self.encoder(x)

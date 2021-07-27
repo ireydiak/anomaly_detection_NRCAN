@@ -164,13 +164,19 @@ class SOMDAGMMTrainer:
             accuracy = metrics.accuracy_score(y_true, y_pred)
             precision, recall, f_score, _ = metrics.precision_recall_fscore_support(y_true, y_pred, average='binary',
                                                                                     pos_label=pos_label)
-            res = {"Accuracy": accuracy, "Precision": precision, "Recall": recall, "F1-Score": f_score}
+            cm = confusion_matrix(y_true, y_pred)
+            res = {"Accuracy": accuracy,
+                   "Precision": precision,
+                   "Recall": recall,
+                   "F1-Score": f_score,
+                   'Confusion': cm
+                   }
 
             print(f"Accuracy:{accuracy}, "
                   f"Precision:{precision}, "
                   f"Recall:{recall}, "
                   f"F-score:{f_score}, "
-                  f"\nconfusion-matrix: {confusion_matrix(y_true, y_pred)}")
+                  f"\nconfusion-matrix: {cm}")
 
             # switch back to train mode
             self.model.train()
