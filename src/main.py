@@ -82,7 +82,7 @@ def resolve_optimizer(optimizer_str: str):
     return optimizer_factory
 
 
-def resolve_trainer(trainer_str: str, optimizer_factory):
+def resolve_trainer(trainer_str: str, optimizer_factory, **kwargs):
     model, trainer = None, None
     device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
     if trainer_str == 'DAGMM':
@@ -104,7 +104,9 @@ def resolve_trainer(trainer_str: str, optimizer_factory):
         trainer.train_som(data)
     elif trainer_str == 'MemAE':
         print(f'training on {device}')
-        model = MemAE(dataset.get_shape()[1], args.latent_dim, args.mem_dim, args.shrink_thres, device).to(device)
+        model = MemAE(
+            dataset.get_shape()[1], kwargs.get('latent_dim'), kwargs.get('mem_dim'), kwargs.get('shrink_thres'), device
+        ).to(device)
         trainer = MemAETrainer(
             model=model, dm=dm, optimizer_factory=optimizer_factory, device=device
         )
@@ -135,7 +137,9 @@ if __name__ == "__main__":
 
     optimizer = resolve_optimizer(args.optimizer)
 
-    model, model_trainer = resolve_trainer(args.model, optimizer)
+    model, model_trainer = resolve_trainer(
+        args.model, optimizer, latent_dim=args.latent_dim, mem_dim=args.mem_dim, shrink_thres=args.shrink_thres
+    )
 
     if model and model_trainer:
         metrics = model_trainer.train(args.num_epochs)
