@@ -217,13 +217,14 @@ class DAGMM(nn.Module):
 
         # Avoid non-invertible covariance matrix by adding small values (eps)
         d = z.shape[1]
-        eps = 1e-12
+        eps = 1e-5
         cov_mat = cov_mat + (torch.eye(d)).to(device) * eps
         # N x K x D
         mu_z = z.unsqueeze(1) - mu.unsqueeze(0)
 
         # scaler
-        inv_cov_mat = torch.linalg.inv(cov_mat)
+        inv_cov_mat = torch.cholesky_inverse(torch.cholesky(cov_mat))
+        # inv_cov_mat = torch.linalg.inv(cov_mat)
         det_cov_mat = torch.linalg.cholesky(2 * np.pi * cov_mat)
         det_cov_mat = torch.diagonal(det_cov_mat, dim1=1, dim2=2)
         det_cov_mat = torch.prod(det_cov_mat, dim=1)

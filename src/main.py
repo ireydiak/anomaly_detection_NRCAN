@@ -60,6 +60,10 @@ def argument_parser():
     parser.add_argument('--shrink-thres', type=float, default=0.0025)
     parser.add_argument('--vizualization', type=bool, default=False)
 
+    parser.add_argument('--n-som', help='number of SOM component', type=int, default=1)
+
+
+
     return parser.parse_args()
 
 
@@ -92,19 +96,23 @@ def resolve_trainer(trainer_str: str, optimizer_factory, **kwargs):
             model=model, dm=dm, optimizer_factory=optimizer_factory
         )
     elif trainer_str == 'SOM-DAGMM':
+        gmm_input = kwargs.get('n_som', 1) * 2 + kwargs.get('latent_dim', 1) + 2
         dagmm = DAGMM(
             dataset.get_shape()[1],
-            gmm_layers=[(5, 10, nn.Tanh()), (None, None, nn.Dropout(0.5)), (10, 4, nn.Softmax(dim=-1))]
+            gmm_layers=[(gmm_input, 10, nn.Tanh()),
+                        (None, None, nn.Dropout(0.5)),
+                        (10, 4, nn.Softmax(dim=-1))]
         )
         # TODO
         # set these values according to the used dataset
-        grid_length = 40  # int(5 * np.sqrt(len(dataset)))
+        grid_length = int(np.sqrt(5 * np.sqrt(len(dataset))))
         som_args = {
             "x": grid_length,
             "y": grid_length,
             "lr": 0.6,
             "neighborhood_function": "bubble",
-            'n_epoch': 3000
+            'n_epoch': 8000,
+            'n_som': kwargs.get('n_som')
         }
         model = SOMDAGMM(dataset.get_shape()[1], dagmm, som_args=som_args)
         trainer = SOMDAGMMTrainer(
@@ -131,6 +139,7 @@ if __name__ == "__main__":
     val_set = args.validation
     lambda_1 = args.lambda_energy
     lambda_2 = args.lambda_p
+    n_som = args.n_som
 
 
     # Dynamically load the Dataset instance
@@ -150,7 +159,8 @@ if __name__ == "__main__":
     optimizer = resolve_optimizer(args.optimizer)
 
     model, model_trainer = resolve_trainer(
-        args.model, optimizer, latent_dim=args.latent_dim, mem_dim=args.mem_dim, shrink_thres=args.shrink_thres
+        args.model, optimizer, latent_dim=args.latent_dim, mem_dim=args.mem_dim, shrink_thres=args.shrink_thres,
+        n_som=n_som
     )
 
     if model and model_trainer:
