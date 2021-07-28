@@ -1,3 +1,5 @@
+from collections import defaultdict
+
 import pandas as pd
 import numpy as np
 from sklearn.preprocessing import MinMaxScaler
@@ -48,6 +50,7 @@ COLS_TO_DROP = [
     'Timestamp',
     'Flow Duration',
 ]
+
 COLS = [
    'Flow ID', 'Source IP', 'Source Port', 'Destination IP',
    'Destination Port', 'Protocol', 'Timestamp', 'Flow Duration',
@@ -79,26 +82,15 @@ COLS = [
 
 
 def clean_step(path_to_files: str, export_path: str, backup: bool = False) -> (pd.DataFrame, dict):
-    stats = {
-        "Total Rows": "",
-        "Total Features": "",
-        "Unique Columns": "",
-        "Negative Columns": "",
-        "Negative Rows": 0,
-        "NaN/INF Rows": 0,
-        "Dropped Columns": [],
-        "Dropped Negative Columns": [],
-        "Dropped NaN Columns": [],
-        "Dropped Rows": "",
-        "Rows after clean": "",
-        "Ratio": "",
-        "Features after clean": ""
-    }
+    # Keep a trace of the cleaning step
+    stats = defaultdict()
+    stats["Dropped Columns"] =  stats["Dropped Negative Columns"] = stats["Dropped NaN Columns"] = []
+    stats["Negative Rows"] = stats["NaN/INF Rows"] = 0
     # 1- Merge all files
-    # dfs = [pd.read_csv(path_to_files + '/' + f, compression='gzip') for f in os.listdir(path_to_files)]
-    # df = pd.concat(dfs)
-    df = pd.read_csv(path_to_files + '/' + 'USB-IDS-1-TRAINING.csv.gz')
-    # Remove leading and trailing spaces from columns
+    dfs = [pd.read_csv(path_to_files + '/' + f, compression='gzip') for f in os.listdir(path_to_files)]
+    df = pd.concat(dfs)
+    # df = pd.read_csv(path_to_files + '/' + 'USB-IDS-1-TRAINING.csv.gz')
+    # Remove leading and trailing spaces from columns names
     df = df.rename(columns=dict(zip(df.columns, [col.strip() for col in df.columns])))
     total_rows = len(df)
     stats["Total Rows"] = str(total_rows)
@@ -112,12 +104,12 @@ def clean_step(path_to_files: str, export_path: str, backup: bool = False) -> (p
     # 2.1- Remove columns with unique values
     cols_uniq_vals = df.columns[df.nunique() <= 1].to_list()
     df = df.drop(cols_uniq_vals, axis=1)
-    stats["Unique Columns"] = ", ".join(cols_uniq_vals)
+    stats["Unique Columns"] = " ".join(cols_uniq_vals)
 
     # 2.2- Drop numerical columns with negative values
     num_cols = df.select_dtypes(exclude=["object", "category"]).columns.tolist()
     neg_cols = df[num_cols].columns[(df[num_cols] < 0).any()].tolist()
-    stats["Negative Columns"] = ", ".join(neg_cols)
+    stats["Negative Columns"] = " ".join(neg_cols)
     for col in neg_cols:
         neg_rows = (df[col] < 0).sum()
         if neg_rows >= 0.1 * len(df[col]):
@@ -125,7 +117,7 @@ def clean_step(path_to_files: str, export_path: str, backup: bool = False) -> (p
             stats["Dropped Negative Columns"].append(col)
         else:
             stats["Negative Rows"] += neg_rows
-            df[col] = df[df[col] >= 0]
+            df.query(f'`{col}` >= 0', inplace=True)
 
     # Remove dropped columns from the numerical columns list
     if stats["Dropped Negative Columns"]:
@@ -138,7 +130,7 @@ def clean_step(path_to_files: str, export_path: str, backup: bool = False) -> (p
     # Replacing INF values with NaN
     df = df.replace([np.inf, -np.inf], np.nan)
     nan_cols = df.columns[(df.isna()).any()].tolist()
-    stats["NaN Columns"] = ", ".join(nan_cols)
+    stats["NaN Columns"] = " ".join(nan_cols)
     for col in nan_cols:
         nan_rows = (df[col].isna()).sum()
         if nan_rows >= 0.1 * len(df[col]):
@@ -146,7 +138,7 @@ def clean_step(path_to_files: str, export_path: str, backup: bool = False) -> (p
             stats["Dropped NaN Columns"].append(col)
         else:
             stats["NaN/INF Rows"] += nan_rows
-            df[col] = df[col].dropna()
+            df[col].dropna(inplace=True)
 
     # 3- Converting labels to binary values
     df['Label'] = df['Label'].apply(lambda x: NORMAL_LABEL if x == 'BENIGN' else ANORMAL_LABEL)
@@ -158,14 +150,14 @@ def clean_step(path_to_files: str, export_path: str, backup: bool = False) -> (p
         )
 
     deleted_rows = stats["NaN/INF Rows"] + stats["Negative Rows"]
-    stats["Dropped Rows"] = str(deleted_rows)
-    stats["NaN/INF Rows"] = str(stats["NaN/INF Rows"])
-    stats["Negative Rows"] = str(stats["Negative Rows"])
     stats["Ratio"] = f"{(deleted_rows / total_rows):1.4f}"
     stats["Final Features"] = str(len(df.columns))
     stats["Final Total Rows"] = str(len(df))
-    for col in ["Dropped Columns", "Dropped Negative Columns", "Dropped NaN Columns"]:
-        stats[col] = ", ".join(stats[col])
+    for key, val in stats.items():
+        if type(val) == list:
+            stats[key] = " ".join(val)
+        elif type(val) != str:
+            stats[key] = str(val)
 
     return df, stats
 
@@ -178,6 +170,7 @@ def normalize_step(df: pd.DataFrame, cols: list, base_path: str, fname: str, bac
     cat_cols = df[cols].select_dtypes(include=["category", "object"]).columns.tolist()
     # Optinally handle categorical values
     if cat_cols:
+        print("Converting categorical columns " + ", ".join(cat_cols))
         perm = np.random.permutation(len(df))
         X = df.iloc[perm].reset_index(drop=True)
         y_prime = df['Label'].iloc[perm].reset_index(drop=True)
@@ -192,7 +185,7 @@ def normalize_step(df: pd.DataFrame, cols: list, base_path: str, fname: str, bac
     # Select numerical columns with values in the range (0, 1)
     # This way we avoid normalizing values that are already between 0 and 1.
     to_scale = df[num_cols][(df[num_cols] < 0.0).any(axis=1) & (df[num_cols] > 1.0).any(axis=1)].columns
-    print(f'Scaling {len(to_scale)} columns')
+    print(f"Scaling {len(to_scale)} columns: " + ", ".join(num_cols))
     df[to_scale] = scaler.fit_transform(df[to_scale].values.astype(np.float64))
     # Merge normalized dataframe with labels
     X = np.concatenate(
@@ -200,20 +193,22 @@ def normalize_step(df: pd.DataFrame, cols: list, base_path: str, fname: str, bac
         axis=1
     )
     if backup:
+        normalized_fname = f'{base_path}/{utils.folder_struct["normalize_step"]}/{fname}.csv'
         df.to_csv(
-            f'{base_path}/{utils.folder_struct["normalize_step"]}/{fname}.csv',
+            normalized_fname,
             sep=',', encoding='utf-8', index=False
         )
-    print(f'Saved {base_path}/{utils.folder_struct["normalize_step"]}/{fname}.csv')
-    del df
-    np.savez(f'{base_path}/{utils.folder_struct["minify_step"]}/{fname}.npz', ids2018=X.astype(np.float64))
-    print(f'Saved {base_path}/{fname}.npz')
+        print(f'Saved {normalized_fname}')
+        del df
+    compressed_fname = f'{base_path}/{utils.folder_struct["minify_step"]}/{fname}.npz'
+    np.savez(compressed_fname, ids2018=X.astype(np.float64))
+    print(f'Saved {compressed_fname}')
 
 
 if __name__ == '__main__':
     # Assumes `path` points to the location of the original CSV files.
     # `path` must only contain CSV files and not other file types such as folders. 
-    path, export_path = utils.parse_args()
+    path, export_path, backup = utils.parse_args()
     # 0 - Prepare folder structure
     utils.prepare(export_path)
     path_to_clean = f"{export_path}/{utils.folder_struct['clean_step']}/usb-ids_clean.csv"
@@ -222,9 +217,9 @@ if __name__ == '__main__':
         df = pd.read_csv(path_to_clean)
     else:
         # 1 - Clean the data (remove invalid rows and columns)
-        df, clean_stats = clean_step(path, export_path)
+        df, clean_stats = clean_step(path, export_path, backup)
         # Save info about cleaning step
-        # utils.save_stats(export_path + '/usb_ids_info.csv', clean_stats)
+        utils.save_stats(export_path + '/usb_ids_info.csv', clean_stats)
 
     cols = df.columns.to_list()
     # 2 - Normalize numerical values and treat categorical values
@@ -234,4 +229,4 @@ if __name__ == '__main__':
     ]
     df['Destination Port'] = df['Destination Port'].astype('category')
     for features, fname in to_process:
-        normalize_step(df, features, export_path, fname)
+        normalize_step(df, features, export_path, fname, backup)
