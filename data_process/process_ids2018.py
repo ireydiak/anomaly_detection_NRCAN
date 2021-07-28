@@ -12,11 +12,6 @@ warnings.filterwarnings('ignore')
 NORMAL_LABEL = 0
 ANORMAL_LABEL = 1
 
-parser = argparse.ArgumentParser(
-    description='CICIDS2018 preprocessing script.Assumes that header row duplicates were removed and original files were concatenated. Use merge.bash to concatenate CSV files (works only on Linux)',
-    usage='\npython3 main.py [path] [export-path]'
-)
-
 rank_7_otf_7 = [
     'Flow IAT Max'
 ]
@@ -137,6 +132,7 @@ COLS = [
 
 def clean_step(path_to_files: str) -> pd.DataFrame:
     total_rows = deleted_rows = 0
+    total_features = 83
     chunks = []
 
     for f in [f"{path}/{file}" for file in os.listdir(path_to_files)]:
@@ -171,9 +167,11 @@ def clean_step(path_to_files: str) -> pd.DataFrame:
 
     stats = {
         "Total Rows": str(total_rows),
+        "Total Features": "83",
         "Dropped Rows": str(deleted_rows),
         "Rows after clean": str(total_rows - deleted_rows),
-        "Ratio": f"{(deleted_rows / total_rows):1.4f}"
+        "Ratio": f"{(deleted_rows / total_rows):1.4f}",
+        "Features after clean": str(len(chunk.columns))
     }
     return pd.concat(chunks), stats
 
@@ -218,6 +216,8 @@ def normalize_step(df: pd.DataFrame, cols: list, base_path: str, fname: str):
 
 
 if __name__ == '__main__':
+    # Assumes `path` points to the location of the original CSV files.
+    # `path` must only contain CSV files and not other file types such as folders. 
     path, export_path = utils.parse_args()
     # 0 - Prepare folder structure
     utils.prepare(export_path)
