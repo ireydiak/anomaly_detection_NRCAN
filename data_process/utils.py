@@ -1,5 +1,6 @@
 import os
 import argparse
+from typing import Tuple
 
 folder_struct = {
     'clean_step': '1_clean',
@@ -8,7 +9,7 @@ folder_struct = {
 }
 
 
-def parse_args() -> (str, str):
+def parse_args() -> Tuple[str, str]:
     parser = argparse.ArgumentParser()
     parser.add_argument(
         '-d', '--path', type=str,
@@ -32,3 +33,9 @@ def prepare(base_path: str):
             print(f'Directory {f} already exists. Skipping')
         else:
             os.mkdir(f)
+
+def save_stats(path: str, *stats: dict):
+    vals = {k: v for d in stats for k, v in d.items()}
+    with open(path, 'w') as f:
+        f.write(','.join(vals.keys()) + '\n')
+        f.write(','.join([str(val) for val in stats.values()]))
