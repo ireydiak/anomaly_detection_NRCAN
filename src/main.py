@@ -11,6 +11,7 @@ Authors:
 
 import argparse
 
+import numpy as np
 from torch import nn
 
 from trainer import SOMDAGMMTrainer
@@ -95,7 +96,17 @@ def resolve_trainer(trainer_str: str, optimizer_factory, **kwargs):
             dataset.get_shape()[1],
             gmm_layers=[(5, 10, nn.Tanh()), (None, None, nn.Dropout(0.5)), (10, 4, nn.Softmax(dim=-1))]
         )
-        model = SOMDAGMM(dataset.get_shape()[1], dagmm)
+        # TODO
+        # set these values according to the used dataset
+        grid_length = 40  # int(5 * np.sqrt(len(dataset)))
+        som_args = {
+            "x": grid_length,
+            "y": grid_length,
+            "lr": 0.6,
+            "neighborhood_function": "bubble",
+            'n_epoch': 3000
+        }
+        model = SOMDAGMM(dataset.get_shape()[1], dagmm, som_args=som_args)
         trainer = SOMDAGMMTrainer(
             model=model, dm=dm, optimizer_factory=optimizer_factory
         )
@@ -120,6 +131,7 @@ if __name__ == "__main__":
     val_set = args.validation
     lambda_1 = args.lambda_energy
     lambda_2 = args.lambda_p
+
 
     # Dynamically load the Dataset instance
     clsname = globals()[f'{args.dataset.upper()}Dataset']
@@ -146,7 +158,8 @@ if __name__ == "__main__":
         print('Finished learning process')
         print('Evaluating model on test set')
         # We test with the minority samples as the positive class
-        results, test_z, test_label, energy = model_trainer.evaluate_on_test_set(dataset.majority_cls_label)
+        results, test_z, test_label, energy = model_trainer.evaluate_on_test_set(pos_label=dataset.majority_cls_label,
+                                                                                 energy_threshold=args.p_threshold)
 
         params = dict({"BatchSize": batch_size, "Epochs": args.num_epochs, "\u03C1": args.rho}, **model.get_params())
         store_results(results, params, args.model, args.dataset, args.dataset_path, args.output_file)

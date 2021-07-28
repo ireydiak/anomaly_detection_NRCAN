@@ -53,7 +53,7 @@ class MemAETrainer:
 
         return loss.item(), entropy_loss.item(), recon_loss.item()
 
-    def evaluate_on_test_set(self, pos_label=1):
+    def evaluate_on_test_set(self, pos_label=1, **kwargs):
         """
         function that evaluate the model on the test set every iteration of the
         active learning process
