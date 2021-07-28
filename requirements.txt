@@ -95,3 +95,11 @@ xz=5.2.5=h7b6447c_0
 yaml=0.2.5=h516909a_0
 zlib=1.2.11=h7b6447c_3
 zstd=1.4.9=haebb681_0
+
+numpy~=1.20.2
+matplotlib~=3.3.4
+minisom~=2.2.9
+tqdm~=4.59.0
+scikit-learn~=0.24.2
+pandas~=1.2.4
+setuptools~=52.0.0
