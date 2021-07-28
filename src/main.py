@@ -14,10 +14,9 @@ from torch import nn
 from trainer import SOMDAGMMTrainer
 from model.SOMDAGMM import SOMDAGMM
 import torch.optim as optim
-from datamanager.NSLKDDDataset import NSLKDDDataset
 from utils.utils import check_dir, optimizer_setup
 from model.DAGMM import DAGMM
-from datamanager import DataManager, KDD10Dataset, IDS2018Dataset
+from datamanager import DataManager, KDD10Dataset, NSLKDDDataset, IDS2018Dataset, USBIDSDataset
 from trainer.DAGMMTrainTestManager import DAGMMTrainTestManager
 from viz.viz import plot_3D_latent, plot_energy_percentile
 from datetime import datetime as dt
@@ -32,7 +31,7 @@ def argument_parser():
     )
     parser.add_argument('-m', '--model', type=str, default="DAGMM", choices=["AE", "DAGMM", "SOM-DAGMM", "MLAD"])
     parser.add_argument('-d', '--dataset-path', type=str, help='Path to the dataset')
-    parser.add_argument('--dataset', type=str, default="kdd10", choices=["kdd10", "nslkdd", "ids2018"])
+    parser.add_argument('--dataset', type=str, default="kdd10", choices=["kdd10", "nslkdd", "ids2018", "usbids"])
     parser.add_argument('--batch-size', type=int, default=1024, help='The size of the training batch')
     parser.add_argument('--optimizer', type=str, default="Adam", choices=["Adam", "SGD", "RMSProp"],
                         help="The optimizer to use for training the model")
@@ -118,7 +117,7 @@ if __name__ == "__main__":
     # We test with the minority samples as the positive class
     results, test_z, test_label, energy = model_trainer.evaluate_on_test_set(args.p_threshold, dataset.minority_cls_label)
 
-    params = dict({"BatchSize": batch_size, "Epochs": args.num_epochs, "\u03C1": args.rho}, **model.get_params())
+    params = dict({"BatchSize": batch_size, "Epochs": args.num_epochs, "rho": args.rho}, **model.get_params())
     store_results(results, params, args.model, args.dataset, args.dataset_path, args.output_file)
     if args.vizualization:
         plot_3D_latent(test_z, test_label)
