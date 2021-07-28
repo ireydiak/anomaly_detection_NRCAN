@@ -25,6 +25,8 @@ from datetime import datetime as dt
 import torch
 
 
+vizualizable_models = ["AE", "DAGMM", "SOM-DAGMM"]
+
 def argument_parser():
     """
         A parser to allow user to easily experiment different models along with datasets and differents parameters
@@ -163,7 +165,7 @@ if __name__ == "__main__":
 
         params = dict({"BatchSize": batch_size, "Epochs": args.num_epochs, "\u03C1": args.rho}, **model.get_params())
         store_results(results, params, args.model, args.dataset, args.dataset_path, args.output_file)
-        if args.vizualization:
+        if args.vizualization and model in vizualizable_models:
             plot_3D_latent(test_z, test_label)
             plot_energy_percentile(energy)
     else:
