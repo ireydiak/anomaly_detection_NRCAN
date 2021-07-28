@@ -130,40 +130,46 @@ COLS = [
 ]
 
 
-def clean_step(path_to_files: str) -> pd.DataFrame:
+def clean_step(path_to_files: str, export_path: str) -> pd.DataFrame:
     total_rows = deleted_rows = 0
     total_features = 83
     chunks = []
 
-    for f in [f"{path}/{file}" for file in os.listdir(path_to_files)]:
+    for f in os.listdir(path_to_files):
         print(f"Cleaning file {f}")
-        for chunk in pd.read_csv(f, chunksize=600000):
-            total_rows += len(chunk)
-            # Drop target columns if they exist
-            chunk.drop(columns=COLS_TO_DROP, errors='ignore', inplace=True)
+        chunk = pd.read_csv(f"{path_to_files}/{f}")
+        total_rows += len(chunk)
+        # Drop target columns if they exist
+        chunk.drop(columns=COLS_TO_DROP, errors='ignore', inplace=True)
 
-            # Transforming all non numeric values to NaN
-            chunk[COLS] = chunk[COLS].apply(pd.to_numeric, errors='coerce')
+        # Transforming all non numeric values to NaN
+        chunk[COLS] = chunk[COLS].apply(pd.to_numeric, errors='coerce')
 
-            # Replacing INF values with NaN
-            chunk.replace([np.inf, -np.inf], np.nan, inplace=True)
+        # Replacing INF values with NaN
+        chunk.replace([np.inf, -np.inf], np.nan, inplace=True)
 
-            # Filtering NaN values
-            before_drop = len(chunk)
-            chunk.dropna(inplace=True)
-            deleted_rows += (before_drop - len(chunk))
+        # Filtering NaN values
+        before_drop = len(chunk)
+        chunk.dropna(inplace=True)
+        deleted_rows += (before_drop - len(chunk))
 
-            # Filtering negative values
-            before_drop = len(chunk)
-            chunk.query('`Fwd Header Len` >= 0', inplace=True)
-            chunk.query('`Flow IAT Mean` >= 0', inplace=True)
-            deleted_rows += (before_drop - len(chunk))
+        # Filtering negative values
+        before_drop = len(chunk)
+        chunk.query('`Fwd Header Len` >= 0', inplace=True)
+        chunk.query('`Flow IAT Mean` >= 0', inplace=True)
+        deleted_rows += (before_drop - len(chunk))
 
-            # Converting labels to binary values
-            chunk['Label'] = chunk['Label'].apply(lambda x: NORMAL_LABEL if x == 'Benign' else ANORMAL_LABEL)
+        # Converting labels to binary values
+        chunk['Label'] = chunk['Label'].apply(lambda x: NORMAL_LABEL if x == 'Benign' else ANORMAL_LABEL)
 
-            # Adding chunk to chunks
-            chunks.append(chunk)
+        # Adding chunk to chunks
+        chunks.append(chunk)
+        
+        # backup
+        chunk.to_csv(
+            f"{export_path}/{utils.folder_struct['clean_step']}/{f}",
+            sep=',', encoding='utf-8', index=False
+        )
 
     stats = {
         "Total Rows": str(total_rows),
@@ -227,14 +233,10 @@ if __name__ == '__main__':
         df = pd.read_csv(path_to_clean)
     else:
         # 1 - Clean the data (remove invalid rows and columns)
-        df, clean_stats = clean_step(path)
-        # backup
-        df.to_csv(
-            path_to_clean,
-            sep=',', encoding='utf-8', index=False
-        )
-        # save info about cleaning step
+        df, clean_stats = clean_step(path, export_path)
+        # Save info about cleaning step
         utils.save_stats(export_path + '/cicids2018_info.csv', clean_stats)
+    
     # 2 - Normalize numerical values and treat categorical values
     to_process = [
         (list(set(COLS) - set(COLS_TO_DROP) - {'Dst Port', 'Label'}), 'feature_group_5'),
