@@ -21,7 +21,7 @@ def parse_args() -> (str, str):
     )
 
     args = parser.parse_args()
-    return args.path if not args.ppath.endswith('/') else args.path[:-1], \
+    return args.path if not args.path.endswith('/') else args.path[:-1], \
            args.export_path if not args.export_path.endswith('/') else args.export_path[:-1]
 
 
