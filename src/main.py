@@ -23,6 +23,7 @@ from trainer import DAGMMTrainTestManager, MemAETrainer
 from viz.viz import plot_3D_latent, plot_energy_percentile
 from datetime import datetime as dt
 import torch
+import os
 
 
 vizualizable_models = ["AE", "DAGMM", "SOM-DAGMM"]
@@ -65,9 +66,12 @@ def argument_parser():
     return parser.parse_args()
 
 
-def store_results(results: dict, params: dict, model_name: str, dataset: str, path: str, output_path: str=None):
-    output_path = output_path or f'../results/{model_name}_results.txt'
-    with open(output_path, 'a') as f:
+def store_results(results: dict, params: dict, model_name: str, dataset: str, path: str):
+
+    output_dir = f'../results/{dataset}'
+    if not os.path.exists(output_dir):
+        os.mkdir(output_dir)
+    with open(output_dir + '/' + f'{model_name}_results.txt', 'a') as f:
         hdr = "Experiments on {}\n".format(dt.now().strftime("%d/%m/%Y %H:%M:%S"))
         f.write(hdr)
         f.write("-".join("" for _ in range(len(hdr))) + "\n")
