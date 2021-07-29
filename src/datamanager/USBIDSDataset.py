@@ -7,6 +7,8 @@ from torch.utils.data.dataset import T_co
 
 class USBIDSDataset(Dataset):
 
+    name = 'USBIDS'
+    
     def __init__(self, path: str, pct: float=1.0):
         if path.endswith(".npz"):
             X = np.load(path)["usbids"]
