@@ -140,11 +140,12 @@ class DAGMMTrainTestManager:
         # GPUtil.showUtilization()
         return metrics
 
-    def evaluate_on_test_set(self, energy_threshold=80, pos_label=1):
+    def evaluate_on_test_set(self, pos_label=1, **kwargs):
         """
         function that evaluate the model on the test set every iteration of the
         active learning process
         """
+        energy_threshold = kwargs.get('energy_threshold', 80)
         test_loader = self.dm.get_test_set()
         N = gamma_sum = mu_sum = cov_mat_sum = 0
 

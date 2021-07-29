@@ -2,25 +2,27 @@ import numpy as np
 import torch
 import torch.nn as nn
 from minisom import MiniSom
-from model.DAGMM import DAGMM
+
+from src.model import DAGMM
 
 default_som_args = {
     "x": 32,
     "y": 32,
     "lr": 0.6,
-    "neighborhood_function": "bubble"
+    "neighborhood_function": "bubble",
+    "n_epoch": 500
 }
 
 
 class SOMDAGMM(nn.Module):
     def __init__(self, input_len: int, dagmm: DAGMM, som_args: dict = None, **kwargs):
         super(SOMDAGMM, self).__init__()
-        som_args = som_args or default_som_args
+        self.som_args = som_args or default_som_args
         # Use 0.6 for KDD; 0.8 for IDS2018 with babel as neighborhood function as suggested in the paper.
         self.som = MiniSom(
-            som_args['x'], som_args['y'], input_len,
-            neighborhood_function=som_args['neighborhood_function'],
-            learning_rate=som_args['lr']
+            self.som_args['x'], self.som_args['y'], input_len,
+            neighborhood_function=self.som_args['neighborhood_function'],
+            learning_rate=self.som_args['lr']
         )
         self.dagmm = dagmm
         self.lamb_1 = kwargs.get('lamb_1', 0.1)
@@ -30,7 +32,7 @@ class SOMDAGMM(nn.Module):
 
     def train_som(self, X):
         # SOM-generated low-dimensional representation
-        self.som.train(X, 2000)
+        self.som.train(X, self.som_args['n_epoch'])
 
     def forward(self, X):
         # DAGMM's latent feature, the reconstruction error and gamma
@@ -39,7 +41,7 @@ class SOMDAGMM(nn.Module):
         # Concatenate SOM's features with DAGMM's
         z_s = [self.som.winner(x) for x in X.cpu()]
         z_s = [[x, y] for x, y in z_s]
-        z_s = torch.from_numpy(np.array(z_s)).to(z_r.device) / (default_som_args.get('x') + 1)
+        z_s = torch.from_numpy(np.array(z_s)).to(z_r.device)  # / (default_som_args.get('x') + 1)
         Z = torch.cat([z_r, z_s], dim=1)
 
         # Z = z_r

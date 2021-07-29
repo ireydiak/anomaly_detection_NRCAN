@@ -33,7 +33,6 @@ class SOMDAGMMTrainer:
         self.model = model.to(self.device)
         self.optim = optimizer_factory(self.model)
 
-
     def train_som(self, X):
         self.model.train_som(X)
 
@@ -72,11 +71,12 @@ class SOMDAGMMTrainer:
 
         return loss.item()
 
-    def evaluate_on_test_set(self, energy_threshold=80, pos_label=1):
+    def evaluate_on_test_set(self, pos_label=1, **kwargs):
         """
         function that evaluate the model on the test set every iteration of the
         active learning process
         """
+        energy_threshold = kwargs.get('energy_threshold', 80)
         test_loader = self.dm.get_test_set()
         N = gamma_sum = mu_sum = cov_mat_sum = 0
 
@@ -165,13 +165,19 @@ class SOMDAGMMTrainer:
             accuracy = metrics.accuracy_score(y_true, y_pred)
             precision, recall, f_score, _ = metrics.precision_recall_fscore_support(y_true, y_pred, average='binary',
                                                                                     pos_label=pos_label)
-            res = {"Accuracy": accuracy, "Precision": precision, "Recall": recall, "F1-Score": f_score}
+            cm = confusion_matrix(y_true, y_pred)
+            res = {"Accuracy": accuracy,
+                   "Precision": precision,
+                   "Recall": recall,
+                   "F1-Score": f_score,
+                   'Confusion': cm
+                   }
 
             print(f"Accuracy:{accuracy}, "
                   f"Precision:{precision}, "
                   f"Recall:{recall}, "
                   f"F-score:{f_score}, "
-                  f"\nconfusion-matrix: {confusion_matrix(y_true, y_pred)}")
+                  f"\nconfusion-matrix: {cm}")
 
             # switch back to train mode
             self.model.train()
