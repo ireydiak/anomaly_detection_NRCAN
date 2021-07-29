@@ -64,7 +64,7 @@ def argument_parser():
 
 
 def store_results(results: dict, params: dict, model_name: str, dataset: str, path: str, output_path: str=None):
-    output_path = output_path or f'../{model_name}_results.txt'
+    output_path = output_path or f'../results/{model_name}_results.txt'
     with open(output_path, 'a') as f:
         hdr = "Experiments on {}\n".format(dt.now().strftime("%d/%m/%Y %H:%M:%S"))
         f.write(hdr)
