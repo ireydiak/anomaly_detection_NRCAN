@@ -7,12 +7,13 @@ from torch.utils.data.dataset import T_co
 
 class USBIDSDataset(Dataset):
 
-    majority_cls_label = 0
-    minority_cls_label = 1
-
     def __init__(self, path: str, pct: float=1.0):
         if path.endswith(".npz"):
-            X = np.load(path)["ids2018"]
+            X = np.load(path)["usbids"]
+            # Majority class must be labelled as 0
+            # If the ratio of ones is greather than 0.5, we need to invert the labels
+            if np.sum(X[:, -1]) / len(X) > .50 :
+                X[:, -1] = (~X[:, -1].astype(np.bool))
         else:
             raise RuntimeError(f"Could not open {path}. USBIDSDataset can only read .npz files.")
 
@@ -24,7 +25,7 @@ class USBIDSDataset(Dataset):
             self.y = X[0: int(len(X) * pct), -1]
         else:
             self.X = X[:, :-1]
-            self.y = X[:, -1]
+            self.y = X[:, -1].astype(np.uint8)
         
         self.N = len(self.X)
 
@@ -38,7 +39,7 @@ class USBIDSDataset(Dataset):
         return self.X.shape
  
     def get_data_index_by_label(self, label):
-        return np.where(self.y == label)[0]
+        return np.argwhere(self.y == label).reshape(-1)
 
     def split_train_test(self, test_perc=.2, seed=None):
         if seed:

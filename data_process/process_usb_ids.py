@@ -7,11 +7,9 @@ import category_encoders as ce
 import warnings
 import utils
 import os
+from typing import Tuple
 
 warnings.filterwarnings('ignore')
-
-NORMAL_LABEL = 0
-ANORMAL_LABEL = 1
 
 rank_7_otf_7 = [
     'Flow IAT Max'
@@ -81,10 +79,10 @@ COLS = [
 ]
 
 
-def clean_step(path_to_files: str, export_path: str, backup: bool = False) -> (pd.DataFrame, dict):
+def clean_step(path_to_files: str, export_path: str, backup: bool = False) -> Tuple[pd.DataFrame, dict]:
     # Keep a trace of the cleaning step
     stats = defaultdict()
-    stats["Dropped Columns"] =  stats["Dropped Negative Columns"] = stats["Dropped NaN Columns"] = []
+    stats["Dropped Columns"] = stats["Dropped Negative Columns"] = stats["Dropped NaN Columns"] = []
     stats["Negative Rows"] = stats["NaN/INF Rows"] = 0
     # 1- Merge all files
     dfs = [pd.read_csv(path_to_files + '/' + f, compression='gzip') for f in os.listdir(path_to_files)]
@@ -115,6 +113,7 @@ def clean_step(path_to_files: str, export_path: str, backup: bool = False) -> (p
         if neg_rows >= 0.1 * len(df[col]):
             df = df.drop(col, axis=1)
             stats["Dropped Negative Columns"].append(col)
+            stats["Dropped Columns"].append(col)
         else:
             stats["Negative Rows"] += neg_rows
             df.query(f'`{col}` >= 0', inplace=True)
@@ -136,12 +135,13 @@ def clean_step(path_to_files: str, export_path: str, backup: bool = False) -> (p
         if nan_rows >= 0.1 * len(df[col]):
             df = df.drop(col, axis=1)
             stats["Dropped NaN Columns"].append(col)
+            stats["Dropped Columns"].append(col)
         else:
             stats["NaN/INF Rows"] += nan_rows
             df[col].dropna(inplace=True)
 
     # 3- Converting labels to binary values
-    df['Label'] = df['Label'].apply(lambda x: NORMAL_LABEL if x == 'BENIGN' else ANORMAL_LABEL)
+    df['Label'] = df['Label'].apply(lambda x: 1 if x == 'BENIGN' else 0)
 
     if backup:
         df.to_csv(
@@ -150,7 +150,7 @@ def clean_step(path_to_files: str, export_path: str, backup: bool = False) -> (p
         )
 
     deleted_rows = stats["NaN/INF Rows"] + stats["Negative Rows"]
-    stats["Ratio"] = f"{(deleted_rows / total_rows):1.4f}"
+    stats["Ratio"] = f"{(deleted_rows / total_rows):1.4f}" if deleted_rows > 0 else "0.0"
     stats["Final Features"] = str(len(df.columns))
     stats["Final Total Rows"] = str(len(df))
     for key, val in stats.items():
@@ -201,7 +201,7 @@ def normalize_step(df: pd.DataFrame, cols: list, base_path: str, fname: str, bac
         print(f'Saved {normalized_fname}')
         del df
     compressed_fname = f'{base_path}/{utils.folder_struct["minify_step"]}/{fname}.npz'
-    np.savez(compressed_fname, ids2018=X.astype(np.float64))
+    np.savez(compressed_fname, usbids=X.astype(np.float64))
     print(f'Saved {compressed_fname}')
 
 

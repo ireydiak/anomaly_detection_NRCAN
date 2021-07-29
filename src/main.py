@@ -58,7 +58,7 @@ def argument_parser():
 
 
 def store_results(results: dict, params: dict, model_name: str, dataset: str, path: str, output_path: str=None):
-    output_path = output_path or f'../results/{model_name}_results.txt'
+    output_path = output_path or f'../{model_name}_results.txt'
     with open(output_path, 'a') as f:
         hdr = "Experiments on {}\n".format(dt.now().strftime("%d/%m/%Y %H:%M:%S"))
         f.write(hdr)
@@ -83,7 +83,7 @@ if __name__ == "__main__":
 
     # split data in train and test sets
     # we train only on the majority class
-    train_set, test_set = dataset.one_class_split_train_test(test_perc=0.5, label=dataset.majority_cls_label)
+    train_set, test_set = dataset.one_class_split_train_test(test_perc=0.5, label=0)
     dm = DataManager(train_set, test_set, batch_size=batch_size, validation=0.1)
 
     # safely create save path
@@ -115,7 +115,7 @@ if __name__ == "__main__":
     print('Finished learning process')
     print('Evaluating model on test set')
     # We test with the minority samples as the positive class
-    results, test_z, test_label, energy = model_trainer.evaluate_on_test_set(args.p_threshold, dataset.minority_cls_label)
+    results, test_z, test_label, energy = model_trainer.evaluate_on_test_set(args.p_threshold)
 
     params = dict({"BatchSize": batch_size, "Epochs": args.num_epochs, "rho": args.rho}, **model.get_params())
     store_results(results, params, args.model, args.dataset, args.dataset_path, args.output_file)

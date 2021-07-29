@@ -13,6 +13,10 @@ class IDS2018Dataset(Dataset):
     def __init__(self, path: str, pct: float=1.0):
         if path.endswith(".npz"):
             X = np.load(path)["ids2018"]
+            # Majority class must be labelled as 0
+            # If the ratio of ones is greather than 0.5, we need to invert the labels
+            if np.sum(X[:, -1]) / len(X) > .50 :
+                X[:, -1] = (~X[:, -1].astype(np.bool))
         else:
             raise RuntimeError(f"Could not open {path}. IDS20189Dataset can only read .npz files.")
 
@@ -24,7 +28,7 @@ class IDS2018Dataset(Dataset):
             self.y = X[0: int(len(X) * pct), -1]
         else:
             self.X = X[:, :-1]
-            self.y = X[:, -1]
+            self.y = X[:, -1].astype(np.uint8)
         
         self.N = len(self.X)
 
