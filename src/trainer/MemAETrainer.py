@@ -3,7 +3,7 @@ import torch.nn as nn
 import numpy as np
 
 from tqdm import trange
-from src.loss import EntropyLoss
+from loss import EntropyLoss
 from sklearn import metrics
 
 

@@ -2,8 +2,8 @@ import torch.nn as nn
 import torch
 import numpy as np
 
-from src.model import AutoEncoder as AE
-from src.model import GMM
+from model import AutoEncoder as AE
+from model import GMM
 
 
 class DAGMM(nn.Module):
@@ -35,10 +35,11 @@ class DAGMM(nn.Module):
         else:
             enc_layers = ae_layers[0]
             dec_layers = ae_layers[1]
+        
         gmm_layers = gmm_layers or [(3, 10, nn.Tanh()), (None, None, nn.Dropout(0.5)), (10, 4, nn.Softmax(dim=-1))]
 
         self.ae = AE(enc_layers, dec_layers)
-        self.gmm = GMM(gmm_layers)
+        self.gmm = GMM.GMM(gmm_layers)
 
         self.cosim = nn.CosineSimilarity()
         self.softmax = nn.Softmax(dim=-1)
@@ -320,5 +321,6 @@ class DAGMM(nn.Module):
         return {
             "\u03BB_1": self.lambda_1,
             "\u03BB_2": self.lambda_2,
-            "L": self.ae.L
+            "L": self.ae.L,
+            "K": self.gmm.K
         }

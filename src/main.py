@@ -18,7 +18,7 @@ from trainer import SOMDAGMMTrainer
 import torch.optim as optim
 from utils.utils import check_dir, optimizer_setup
 from model import DAGMM, MemAutoEncoder as MemAE, SOMDAGMM
-from datamanager import DataManager, KDD10Dataset, NSLKDDDataset, IDS2018Dataset
+from datamanager import ArrhythmiaDataset, DataManager, KDD10Dataset, NSLKDDDataset, IDS2018Dataset
 from trainer import DAGMMTrainTestManager, MemAETrainer
 from viz.viz import plot_3D_latent, plot_energy_percentile
 from datetime import datetime as dt
@@ -37,7 +37,7 @@ def argument_parser():
     parser.add_argument('-m', '--model', type=str, default="DAGMM", choices=["AE", "DAGMM", "SOM-DAGMM", "MLAD", "MemAE"])
     parser.add_argument('-L', '--latent-dim', type=int, default=1)
     parser.add_argument('-d', '--dataset-path', type=str, help='Path to the dataset')
-    parser.add_argument('--dataset', type=str, default="kdd10", choices=["kdd10", "nslkdd", "ids2018"])
+    parser.add_argument('--dataset', type=str, default="kdd10", choices=["KDD10", "NSLKDD", "IDS2018", "Arrhythmia"])
     parser.add_argument('--batch-size', type=int, default=1024, help='The size of the training batch')
     parser.add_argument('--optimizer', type=str, default="Adam", choices=["Adam", "SGD", "RMSProp"],
                         help="The optimizer to use for training the model")
@@ -88,8 +88,17 @@ def resolve_optimizer(optimizer_str: str):
 def resolve_trainer(trainer_str: str, optimizer_factory, **kwargs):
     model, trainer = None, None
     device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
+    D = dataset.get_shape()[1]
     if trainer_str == 'DAGMM':
-        model = DAGMM(dataset.get_shape()[1])
+        if dataset.name == 'Arrhythmia':
+            enc_layers = [(D, 10, nn.Tanh()), (10, 2, None)]
+            dec_layers = [(2, 10, nn.Tanh()), (10, D, None)]
+            gmm_layers = [(4, 10, nn.Tanh()), (None, None, nn.Dropout(0.5)), (10, 2, nn.Softmax(dim=-1))]
+        else:
+            enc_layers = [(D, 60, nn.Tanh()), (60, 30, nn.Tanh()), (30, 10, nn.Tanh()), (10, 1, None)]
+            dec_layers = [(1, 10, nn.Tanh()), (10, 30, nn.Tanh()), (30, 60, nn.Tanh()), (60, D, None)]
+            gmm_layers = [(3, 10, nn.Tanh()), (None, None, nn.Dropout(0.5)), (10, 4, nn.Softmax(dim=-1))]
+        model = DAGMM(D, ae_layers=(enc_layers, dec_layers), gmm_layers=gmm_layers)
         trainer = DAGMMTrainTestManager(
             model=model, dm=dm, optimizer_factory=optimizer_factory
         )
@@ -134,9 +143,8 @@ if __name__ == "__main__":
     lambda_1 = args.lambda_energy
     lambda_2 = args.lambda_p
 
-
     # Dynamically load the Dataset instance
-    clsname = globals()[f'{args.dataset.upper()}Dataset']
+    clsname = globals()[f'{args.dataset}Dataset']
     dataset = clsname(args.dataset_path, args.pct)
 
     batch_size = len(dataset) if args.batch_size < 0 else args.batch_size
@@ -160,8 +168,7 @@ if __name__ == "__main__":
         print('Finished learning process')
         print('Evaluating model on test set')
         # We test with the minority samples as the positive class
-        results, test_z, test_label, energy = model_trainer.evaluate_on_test_set(pos_label=dataset.majority_cls_label,
-                                                                                 energy_threshold=args.p_threshold)
+        results, test_z, test_label, energy = model_trainer.evaluate_on_test_set(energy_threshold=args.p_threshold)
 
         params = dict({"BatchSize": batch_size, "Epochs": args.num_epochs, "\u03C1": args.rho}, **model.get_params())
         store_results(results, params, args.model, args.dataset, args.dataset_path, args.output_file)

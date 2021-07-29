@@ -5,15 +5,15 @@ from torch.utils.data import Dataset, Subset
 from torch.utils.data.dataset import T_co
 
 
-class IDS2018Dataset(Dataset):
+class ArrhythmiaDataset(Dataset):
 
-    name = 'IDS2018'
+    name = 'Arrhythmia'
 
     def __init__(self, path: str, pct: float=1.0):
         if path.endswith(".npz"):
-            X = np.load(path)["ids2018"]
+            X = np.load(path)["arrhythmia"]
         else:
-            raise RuntimeError(f"Could not open {path}. IDS20189Dataset can only read .npz files.")
+            raise RuntimeError(f"Could not open {path}. ArrhythmiaDataset can only read .npz files.")
 
         # Keep `pct` percent of the original data
         # Extract labels and features in two separate arrays
@@ -59,8 +59,7 @@ class IDS2018Dataset(Dataset):
         train_set = Subset(self, label_data_index[shuffled_idx[num_test_sample:]])
 
         remaining_index = np.concatenate(
-            [label_data_index[shuffled_idx[:num_test_sample]],
-            self.get_data_index_by_label(label=0 if label == 1 else 1)]
+            [label_data_index[shuffled_idx[:num_test_sample]], self.get_data_index_by_label(0)]
         )
 
         print(f'Size of data with label ={label} :', 100 * len(label_data_index) / self.N)
