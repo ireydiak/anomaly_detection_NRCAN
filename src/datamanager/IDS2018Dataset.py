@@ -13,7 +13,7 @@ class IDS2018Dataset(Dataset):
         if path.endswith(".npz"):
             X = np.load(path)["ids2018"]
         else:
-            raise RuntimeError(f"Could not open {path}. IDS20189Dataset can only read .npz files.")
+            raise RuntimeError(f"Could not open {path}. IDS2018Dataset can only read .npz files.")
 
         # Keep `pct` percent of the original data
         # Extract labels and features in two separate arrays

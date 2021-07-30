@@ -67,7 +67,6 @@ def argument_parser():
 
 
 def store_results(results: dict, params: dict, model_name: str, dataset: str, path: str):
-
     output_dir = f'../results/{dataset}'
     if not os.path.exists(output_dir):
         os.mkdir(output_dir)
@@ -93,45 +92,70 @@ def resolve_trainer(trainer_str: str, optimizer_factory, **kwargs):
     model, trainer = None, None
     device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
     D = dataset.get_shape()[1]
-    if trainer_str == 'DAGMM':
+    L = kwargs.get("latent_dim", 1)
+    if trainer_str == 'DAGMM' or trainer_str == 'SOM-DAGMM':
         if dataset.name == 'Arrhythmia':
-            enc_layers = [(D, 10, nn.Tanh()), (10, 2, None)]
-            dec_layers = [(2, 10, nn.Tanh()), (10, D, None)]
+            enc_layers = [(D, 10, nn.Tanh()), (10, L, None)]
+            dec_layers = [(L, 10, nn.Tanh()), (10, D, None)]
             gmm_layers = [(4, 10, nn.Tanh()), (None, None, nn.Dropout(0.5)), (10, 2, nn.Softmax(dim=-1))]
         else:
-            enc_layers = [(D, 60, nn.Tanh()), (60, 30, nn.Tanh()), (30, 10, nn.Tanh()), (10, 1, None)]
-            dec_layers = [(1, 10, nn.Tanh()), (10, 30, nn.Tanh()), (30, 60, nn.Tanh()), (60, D, None)]
+            enc_layers = [(D, 60, nn.Tanh()), (60, 30, nn.Tanh()), (30, 10, nn.Tanh()), (10, L, None)]
+            dec_layers = [(L, 10, nn.Tanh()), (10, 30, nn.Tanh()), (30, 60, nn.Tanh()), (60, D, None)]
             gmm_layers = [(3, 10, nn.Tanh()), (None, None, nn.Dropout(0.5)), (10, 4, nn.Softmax(dim=-1))]
-        model = DAGMM(D, ae_layers=(enc_layers, dec_layers), gmm_layers=gmm_layers)
-        trainer = DAGMMTrainTestManager(
-            model=model, dm=dm, optimizer_factory=optimizer_factory
-        )
-    elif trainer_str == 'SOM-DAGMM':
-        dagmm = DAGMM(
-            dataset.get_shape()[1],
-            gmm_layers=[(5, 10, nn.Tanh()), (None, None, nn.Dropout(0.5)), (10, 4, nn.Softmax(dim=-1))]
-        )
-        # TODO
-        # set these values according to the used dataset
-        grid_length = 40  # int(5 * np.sqrt(len(dataset)))
-        som_args = {
-            "x": grid_length,
-            "y": grid_length,
-            "lr": 0.6,
-            "neighborhood_function": "bubble",
-            'n_epoch': 3000
-        }
-        model = SOMDAGMM(dataset.get_shape()[1], dagmm, som_args=som_args)
-        trainer = SOMDAGMMTrainer(
-            model=model, dm=dm, optimizer_factory=optimizer_factory
-        )
-        som_train_data = dataset.split_train_test()[0]
-        data = [som_train_data[i][0] for i in range(len(som_train_data))]
-        trainer.train_som(data)
+        
+        if trainer_str == 'DAGMM':
+            model = DAGMM(D, ae_layers=(enc_layers, dec_layers), gmm_layers=gmm_layers)
+            trainer = DAGMMTrainTestManager(
+                model=model, dm=dm, optimizer_factory=optimizer_factory
+            )
+        else:
+            dagmm = DAGMM(
+            enc_layers, dec_layers,
+                gmm_layers=[(5, 10, nn.Tanh()), (None, None, nn.Dropout(0.5)), (10, 4, nn.Softmax(dim=-1))]
+            )
+            # TODO
+            # set these values according to the used dataset
+            grid_length = 40  # int(5 * np.sqrt(len(dataset)))
+            som_args = {
+                "x": grid_length,
+                "y": grid_length,
+                "lr": 0.6,
+                "neighborhood_function": "bubble",
+                'n_epoch': 3000
+            }
+            model = SOMDAGMM(dataset.get_shape()[1], dagmm, som_args=som_args)
+            trainer = SOMDAGMMTrainer(
+                model=model, dm=dm, optimizer_factory=optimizer_factory
+            )
+            som_train_data = dataset.split_train_test()[0]
+            data = [som_train_data[i][0] for i in range(len(som_train_data))]
+            trainer.train_som(data)
     elif trainer_str == 'MemAE':
         print(f'training on {device}')
+        if dataset.name == 'Arrhythmia':
+            enc_layers = [
+                nn.Linear(D, 10), nn.Tanh(),
+                nn.Linear(10, L)
+            ]
+            dec_layers = [
+                nn.Linear(L, 10), nn.Tanh(),
+                nn.Linear(10, D)
+            ]
+        else:
+            enc_layers = [
+                nn.Linear(D, 60), nn.Tanh(),
+                nn.Linear(60, 30), nn.Tanh(),
+                nn.Linear(30, 10), nn.Tanh(),
+                nn.Linear(10, L)
+            ]
+            dec_layers = [
+                nn.Linear(L, 10), nn.Tanh(),
+                nn.Linear(10, 30), nn.Tanh(),
+                nn.Linear(30, 60), nn.Tanh(),
+                nn.Linear(60, D)
+            ]
         model = MemAE(
-            dataset.get_shape()[1], kwargs.get('latent_dim'), kwargs.get('mem_dim'), kwargs.get('shrink_thres'), device
+             kwargs.get('mem_dim'), enc_layers, dec_layers, kwargs.get('shrink_thres'), device
         ).to(device)
         trainer = MemAETrainer(
             model=model, dm=dm, optimizer_factory=optimizer_factory, device=device
@@ -155,7 +179,7 @@ if __name__ == "__main__":
 
     # split data in train and test sets
     # we train only on the majority class
-    train_set, test_set = dataset.one_class_split_train_test(test_perc=0.5, label=dataset.majority_cls_label)
+    train_set, test_set = dataset.one_class_split_train_test(test_perc=0.5, label=0)
     dm = DataManager(train_set, test_set, batch_size=batch_size, validation=0.1)
 
     # safely create save path
@@ -163,21 +187,22 @@ if __name__ == "__main__":
 
     optimizer = resolve_optimizer(args.optimizer)
 
-    model, model_trainer = resolve_trainer(
-        args.model, optimizer, latent_dim=args.latent_dim, mem_dim=args.mem_dim, shrink_thres=args.shrink_thres
-    )
+    for l in [1, 3, 7, 16, 30, 60]:
+        model, model_trainer = resolve_trainer(
+            args.model, optimizer, latent_dim=l, mem_dim=args.mem_dim, shrink_thres=args.shrink_thres
+        )
 
-    if model and model_trainer:
-        metrics = model_trainer.train(args.num_epochs)
-        print('Finished learning process')
-        print('Evaluating model on test set')
-        # We test with the minority samples as the positive class
-        results, test_z, test_label, energy = model_trainer.evaluate_on_test_set(energy_threshold=args.p_threshold)
+        if model and model_trainer:
+            metrics = model_trainer.train(args.num_epochs)
+            print('Finished learning process')
+            print('Evaluating model on test set')
+            # We test with the minority samples as the positive class
+            results, test_z, test_label, energy = model_trainer.evaluate_on_test_set(energy_threshold=args.p_threshold)
 
-        params = dict({"BatchSize": batch_size, "Epochs": args.num_epochs, "\u03C1": args.rho}, **model.get_params())
-        store_results(results, params, args.model, args.dataset, args.dataset_path, args.output_file)
-        if args.vizualization and model in vizualizable_models:
-            plot_3D_latent(test_z, test_label)
-            plot_energy_percentile(energy)
-    else:
-        print(f'Error: Could not train {args.dataset} on model {args.model}')
+            params = dict({"BatchSize": batch_size, "Epochs": args.num_epochs, "rho": args.rho}, **model.get_params())
+            store_results(results, params, args.model, args.dataset, args.dataset_path)
+            if args.vizualization and model in vizualizable_models:
+                plot_3D_latent(test_z, test_label)
+                plot_energy_percentile(energy)
+        else:
+            print(f'Error: Could not train {args.dataset} on model {args.model}')
