@@ -14,23 +14,29 @@ class KDD10Dataset(Dataset):
     """
     This class is used to load KDD Cup 10% dataset as a pytorch Dataset
     """
+    majority_cls_label = 0
+    minority_cls_label = 1
 
-    def __init__(self, path='../data/kdd10_train'):
+    def __init__(self, path='../data/kdd10_train', pct=1.0):
         self.path = path
-
+    
         # load data
-        if path and os.path.exists(path):
-            X = np.load(path)
-        elif os.path.exists(f"{BASE_PATH}/{NPZ_FILENAME}"):
-            X = np.load(f"{BASE_PATH}/{NPZ_FILENAME}")['kdd']
+        if os.path.exists(path) and path.endswith('.npz'):
+            X = np.load(path)['kdd']
         else:
             df = self._import_data()
             X = self.preprocess(df)
 
+        # Keep `pct` percent of the original data
         # Extract labels and features in two separate arrays
-        self.X = X[:, :-1]
-        self.y = X[:, -1]
-        self.n = len(X)
+        if pct < 1.0:
+            np.random.shuffle(X)
+            self.X = X[0: int(len(X) * pct), :-1]
+            self.y = X[0: int(len(X) * pct), -1]
+        else:
+            self.X = X[:, :-1]
+            self.y = X[:, -1]
+        self.n = len(self.X)
 
     def _import_data(self):
         url_base = "https://archive.ics.uci.edu/ml/machine-learning-databases/kddcup99-mld"
@@ -67,9 +73,6 @@ class KDD10Dataset(Dataset):
             axis=1
         )
 
-        # Save data
-        np.savez(f"{BASE_PATH}/{NPZ_FILENAME}", kdd=X.astype(np.float64))
-
         return X
 
     def __len__(self):
@@ -85,7 +88,6 @@ class KDD10Dataset(Dataset):
     def split_train_test(self, test_perc=.2, seed=None):
         if seed:
             torch.manual_seed(seed)
-
         num_test_sample = int(self.n * test_perc)
         shuffled_idx = torch.randperm(self.n).long()
         train_set = Subset(self, shuffled_idx[num_test_sample:])
@@ -106,7 +108,7 @@ class KDD10Dataset(Dataset):
              self.get_data_index_by_label(label=0 if label == 1 else 1)]
         )
 
-        print(f'Size of data with label ={label} :', 100 * len(label_data_index) / self.n)
+        print(f'Size of data with label ={label} :', len(label_data_index) / self.n)
 
         test_set = Subset(self, remaining_index)
 

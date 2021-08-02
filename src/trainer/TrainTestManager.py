@@ -8,6 +8,8 @@ import torch
 from tqdm import tqdm
 from datamanager.DataManager import DataManager
 
+from utils.metrics import accuracy
+
 
 class TrainTestManager(object):
     """
@@ -68,7 +70,7 @@ class TrainTestManager(object):
                 train_accuracies = []
                 for i, data in enumerate(train_loader, 0):
                     # transfer tensors to selected device
-                    train_inputs, train_labels = data[0].to(self.device), data[1].to(self.device)
+                    train_inputs, train_labels = data[0].float().to(self.device), data[1].float().to(self.device)
 
                     # zero the parameter gradients
                     self.optimizer.zero_grad()
@@ -179,7 +181,7 @@ class TrainTestManager(object):
         with torch.no_grad():
             for j, val_data in enumerate(val_loader, 0):
                 # transfer tensors to the selected device
-                val_inputs, val_labels = val_data[0].to(self.device), val_data[1].to(self.device)
+                val_inputs, val_labels = val_data[0].float().to(self.device), val_data[1].float().to(self.device)
 
                 # forward pass
                 val_outputs = self.model(val_inputs)
@@ -211,7 +213,7 @@ class TrainTestManager(object):
         test_loader = self.dm.get_test_set()
         with torch.no_grad():
             for data in test_loader:
-                test_inputs, test_labels = data[0].to(self.device), data[1].to(self.device)
+                test_inputs, test_labels = data[0].float().to(self.device), data[1].float().to(self.device)
                 test_outputs = self.model(test_inputs)
                 loss = self.loss_fn(test_outputs, test_labels)
                 losses.append(loss.item())
@@ -219,39 +221,3 @@ class TrainTestManager(object):
 
         self.metric_values['global_test_loss'].append(np.mean(losses))
         self.metric_values['global_test_accuracy'].append(np.mean(accuracies))
-
-
-def accuracy(outputs, labels):
-    """
-    Computes the accuracy of the model
-    Args:
-        outputs: outputs predicted by the model
-        labels: real outputs of the data
-    Returns:
-        Accuracy of the model
-    """
-    predicted = outputs.argmax(dim=1)
-    correct = (predicted == labels).sum().item()
-    return correct / labels.size(0)
-
-
-def optimizer_setup(optimizer_class: Type[torch.optim.Optimizer], **hyperparameters) -> \
-        Callable[[torch.nn.Module], torch.optim.Optimizer]:
-    """
-    Creates a factory method that can instanciate optimizer_class with the given
-    hyperparameters.
-
-    Why this? torch.optim.Optimizer takes the model's parameters as an argument.
-    Thus we cannot pass an Optimizer to the CNNBase constructor.
-
-    Args:
-        optimizer_class: optimizer used to train the model
-        **hyperparameters: hyperparameters for the model
-        Returns:
-            function to setup the optimizer
-    """
-
-    def f(model):
-        return optimizer_class(model.parameters(), **hyperparameters)
-
-    return f
