@@ -17,16 +17,16 @@ from torch import nn
 from trainer import SOMDAGMMTrainer
 import torch.optim as optim
 from utils.utils import check_dir, optimizer_setup
-from model import DAGMM, MemAutoEncoder as MemAE, SOMDAGMM
+from model import DAGMM, MemAutoEncoder as MemAE, MLAD, SOMDAGMM
 from datamanager import DataManager, KDD10Dataset, NSLKDDDataset, IDS2018Dataset
-from trainer import DAGMMTrainTestManager, MemAETrainer
+from trainer import DAGMMTrainTestManager, MemAETrainer, MLADTrainer
 from viz.viz import plot_3D_latent, plot_energy_percentile
 from datetime import datetime as dt
 import torch
 import os
 
-
 vizualizable_models = ["AE", "DAGMM", "SOM-DAGMM"]
+
 
 def argument_parser():
     """
@@ -37,6 +37,7 @@ def argument_parser():
     )
     parser.add_argument('-m', '--model', type=str, default="DAGMM", choices=["AE", "DAGMM", "SOM-DAGMM", "MLAD", "MemAE"])
     parser.add_argument('-L', '--latent-dim', type=int, default=1)
+    parser.add_argument('-k', '--n-mixtures', type=int, default=4)
     parser.add_argument('-d', '--dataset-path', type=str, help='Path to the dataset')
     parser.add_argument('--dataset', type=str, default="kdd10", choices=["kdd10", "nslkdd", "ids2018"])
     parser.add_argument('--batch-size', type=int, default=1024, help='The size of the training batch')
@@ -89,7 +90,7 @@ def resolve_optimizer(optimizer_str: str):
     return optimizer_factory
 
 
-def resolve_trainer(trainer_str: str, optimizer_factory, **kwargs):
+def resolve_trainer(trainer_str: str, optimizer_factory, dataset, **kwargs):
     model, trainer = None, None
     device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
     if trainer_str == 'DAGMM':
@@ -127,6 +128,14 @@ def resolve_trainer(trainer_str: str, optimizer_factory, **kwargs):
         trainer = MemAETrainer(
             model=model, dm=dm, optimizer_factory=optimizer_factory, device=device
         )
+    elif trainer_str == 'MLAD':
+        model = MLAD(
+            D=dataset.get_shape()[1], L=kwargs.get('latent_dim'), K=kwargs.get('n_mixtures')
+        )
+        trainer = MLADTrainer(
+            train_set=kwargs.get('train_set'), model=model, dm=dm,
+            optim=optimizer_factory, D=dataset.get_shape()[1], device=device
+        )
 
     return model, trainer
 
@@ -137,7 +146,6 @@ if __name__ == "__main__":
     val_set = args.validation
     lambda_1 = args.lambda_energy
     lambda_2 = args.lambda_p
-
 
     # Dynamically load the Dataset instance
     clsname = globals()[f'{args.dataset.upper()}Dataset']
@@ -156,7 +164,12 @@ if __name__ == "__main__":
     optimizer = resolve_optimizer(args.optimizer)
 
     model, model_trainer = resolve_trainer(
-        args.model, optimizer, latent_dim=args.latent_dim, mem_dim=args.mem_dim, shrink_thres=args.shrink_thres
+        args.model, optimizer, dataset,
+        latent_dim=args.latent_dim,
+        mem_dim=args.mem_dim,
+        n_mixtures=args.n_mixtures,
+        shrink_thres=args.shrink_thres,
+        train_set=train_set
     )
 
     if model and model_trainer:

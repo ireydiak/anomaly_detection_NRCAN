@@ -9,18 +9,18 @@ from tqdm import tqdm
 from src.distributions import multivariate_normal_pdf, estimate_GMM_params
 from src.metrics import accuracy_precision_recall_f1_scores
 from src.model.MLAD import MLAD
+import random
 
 
-class MLADTrainManager:
-    def __init__(self, model: MLAD, train_set: Tensor, optim, use_cuda: bool = False, **kwargs):
-        device_name = 'cuda:0' if use_cuda else 'cpu'
-        self.device = torch.device(device_name)
+class MLADTrainer:
+    def __init__(self, model: MLAD, train_set: Tensor, optim, device: str = 'cpu', **kwargs):
+        self.device = torch.device(device)
         self.model = model.to(self.device)
         self.optim = optim(self.model)
-        self.use_cuda = use_cuda
         self.train_set = train_set
+        self.D = train_set.shape[1]
         self.K = kwargs.get('K', 4)
-        self.L = kwargs.get('L', None)
+        self.L = kwargs.get('L', 1)
         self.verbose = kwargs.get('verbose', True)
         self.batch_size = kwargs.get('batch_size', 64)
 
@@ -29,7 +29,7 @@ class MLADTrainManager:
         clusters = KMeans(n_clusters=self.K, random_state=0).fit(Z)
         return clusters.labels_
 
-    def create_batches(self, X_1: Tensor, X_2: Tensor) -> List[Tuple[Tensor, Tensor]]:
+    def create_batches(self, X_1: Tensor, X_2: Tensor, Z_1: Tensor, Z_2: Tensor) -> List[Tuple[Tuple[Tensor, Tensor], Tuple[Tensor, Tensor]]]:
         N = self.batch_size
         # Number of batches
         n_batch = np.int(len(X_1) // N)
@@ -41,31 +41,74 @@ class MLADTrainManager:
         if overflow > 0:
             indices[-1][1] += overflow
         assert indices[-1][1] == len(X_1) - 1
-        return [(X_1[start:end, :], X_2[start:end, :]) for start, end in indices]
+        return [(
+            (X_1[start:end, :], X_2[start:end, :]),
+            (Z_1[start:end, :], Z_2[start:end, :])
+        ) for start, end in indices]
+    #
+    # def create_samples(self, clusters) -> List[Tuple[Tensor, Tensor]]:
+    #     X_11 = X_12 = X_21 = X_22 = X_1_labels = X_2_labels = None
+    #     for k in range(0, self.K):
+    #         [coding_idx] = np.where(clusters == k)
+    #         X_11 = torch.cat((X_11, self.train_set[coding_idx, :])) if X_11 else self.train_set[coding_idx, :]
+    #         X_12 = torch.cat((X_12, self.train_set[coding_idx, :])) if X_12 else self.train_set[coding_idx, :]
+    #         np.random.shuffle(coding_idx)
+    #         X_21 = torch.cat((X_21, self.train_set[coding_idx, :])) if X_21 else self.train_set[coding_idx, :]
+    #         X_22 = torch.cat((X_22, self.train_set[coding_idx, :])) if X_22 else self.train_set[coding_idx, :]
+    #         # TODO: we run the risk of training the model on the same data
+    #         labels_tmp = torch.ones(len(coding_idx), 1) * k
+    #         X_1_labels = torch.cat((X_1_labels, labels_tmp)) if X_1_labels else labels_tmp
+    #         X_2_labels = torch.cat((X_2_labels, labels_tmp)) if X_2_labels else labels_tmp
+    #     metric_label = (abs(x_label - z_label) == 0).astype('float32')
+    #     return self.create_batches(X_11, X_12), self.create_batches(X_21, X_22) labels
 
-    def create_samples(self, clusters) -> List[Tuple[Tensor, Tensor]]:
-        X_1 = X_2 = None
-        for k in range(0, self.K):
-            [coding_idx] = np.where(clusters == k)
-            X_1 = torch.cat((X_1, self.train_set[coding_idx, :])) if X_1 else self.train_set[coding_idx, :]
-            np.random.shuffle(coding_idx)
+    def split_siamese(self, X_1, X_2, labels):
+        # TODO: By shuffling again, are we not mixing the different clusters together?
+        idx_1 = random.sample(range(0, len(X_1)), len(X_1))
+        idx_2 = random.sample(range(0, len(X_2)), len(X_2))
+        input_x1 = X_1[idx_1, :]
+        input_x2 = X_2[idx_1, :]
+        x_label = labels[idx_1, :]
+        input_z1 = input_x1[idx_2, :]
+        input_z2 = input_x2[idx_2, :]
+        z_label = labels[idx_2, :]
+        metric_label = (torch.abs(x_label - z_label) == 0).sum()
+        return input_x1, input_x2, input_z1, input_z2, metric_label
+
+    def create_samples(self, clusters) -> Tuple[List[Tuple], Tensor]:
+        assert self.D
+        input_x1 = torch.zeros(0, self.D)
+        input_x2 = torch.zeros(0, self.D)
+        x_label = torch.zeros(0, 1)
+
+        for i in range(0, self.K):
+            [coding_index] = np.where(clusters == i)
+            input_x1 = torch.cat((input_x1, self.train_set[coding_index, :]))
+            np.random.shuffle(coding_index)
             # TODO: we run the risk of training the model on the same data
-            X_2 = torch.cat((X_2, self.train_set[coding_idx, :])) if X_2 else self.train_set[coding_idx, :]
-        return self.create_batches(X_1, X_2)
+            input_x2 = torch.cat((input_x2, self.train_set[coding_index, :]))
+            x_label = torch.cat((x_label, np.ones([len(coding_index), 1]) * i))
 
-    def train(self, n_epochs) -> None:
+        input_x1, input_x2, input_z1, input_z2, metric_label = self.split_siamese(
+            input_x1, input_x2, x_label
+        )
+
+        return self.create_batches(input_x1, input_x2, input_z1, input_z2), metric_label
+
+    def train(self, n_epochs) -> list:
         train_loss = 0.0
         loss_history = []
 
         for epoch in range(n_epochs):
             print("Epoch: {} of {}".format(epoch + 1, n_epochs))
             clusters = self.fit_clusters(self.train_set)
-            batches = self.create_samples(clusters)
+            batches, metric_labels = self.create_samples(clusters)
             with tqdm(range(len(batches))) as t:
-                for i, X_1, X_2 in enumerate(batches):
-                    self.optim.zero_grad()
-                    loss = self.forward(X_1, X_2)
+                for i, X_tup, Z_tup in enumerate(batches):
+                    loss = self.forward(X_tup[0], X_tup[1], Z_tup[0], Z_tup[1])
                     loss_history.append(loss)
+
+                    self.optim.zero_grad()
                     loss.backward()
                     self.optim.step()
                     train_loss += loss.items()
@@ -139,6 +182,14 @@ class MLADTrainManager:
             # 3- Find best p threshold
             return self.find_optimal_threshold(y, densities)
 
-    def forward(self, X_1: Tensor, X_2: Tensor):
-        common_tup, gmm_tup, ex_tup, rec_tup = self.model.forward(X_1, X_2)
-        return self.model.loss(common_tup, gmm_tup, ex_tup, rec_tup, X_1, X_2)
+    def forward(self, X_1: Tensor, X_2: Tensor, Z_1: Tensor, Z_2: Tensor, metric_labels: Tensor):
+        com_meta_tup, err_meta_tup, gmm_meta_tup, dot_metrics, ex_meta_tup, rec_meta_tup = self.model.forward(X_1, X_2, Z_1, Z_2)
+        return self.model.loss(
+            com_meta_tup,
+            gmm_meta_tup,
+            dot_metrics,
+            ex_meta_tup,
+            rec_meta_tup,
+            (X_1, X_2, Z_1, Z_2),
+            metric_labels
+        )
