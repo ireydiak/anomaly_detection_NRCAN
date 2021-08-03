@@ -39,6 +39,7 @@ def prepare(base_path: str):
         else:
             os.mkdir(f)
 
+
 def save_stats(path: str, *stats: dict):
     vals = {k: v for d in stats for k, v in d.items()}
     with open(path, 'w') as f:
