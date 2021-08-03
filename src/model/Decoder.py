@@ -1,7 +1,7 @@
 from typing import List, Tuple
 import torch
 import torch.nn as nn
-from . import create_network
+from .utils import create_network
 
 
 class Decoder(nn.Module):

@@ -1,7 +1,7 @@
 from typing import List, Tuple
 import torch
 import torch.nn as nn
-from . import create_network
+from .utils import create_network
 
 
 class Encoder(nn.Module):
@@ -10,4 +10,4 @@ class Encoder(nn.Module):
         self.enc = create_network(layers)
 
     def forward(self, X: torch.Tensor):
-        self.enc(X)
+        return self.enc(X)

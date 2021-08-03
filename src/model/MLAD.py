@@ -4,9 +4,10 @@ import torch
 from torch import Tensor
 import torch.nn as nn
 
-from ..model import AutoEncoder
-from ..model.Encoder import Encoder
-from ..model.Decoder import Decoder
+from .utils import create_network
+from src.model import AutoEncoder
+from src.model import Encoder
+from src.model import Decoder
 
 
 class MLAD(nn.Module):
@@ -17,7 +18,7 @@ class MLAD(nn.Module):
     gmm_net = None
 
     def __init__(
-            self, D: int, L: int, K: int,
+            self, D: int, L: int, K: int, common_net: nn.Module,
             **kwargs
     ):
         """
@@ -30,10 +31,7 @@ class MLAD(nn.Module):
         """
         super(MLAD, self).__init__()
         # Common network
-        common_net_layers = kwargs.get(
-            'common_layers', [(D, 64, nn.ReLU()), (64, 64, nn.ReLU()), (64, L, nn.Sigmoid())]
-        )
-        self.common_net = Encoder(common_net_layers)
+        self.common_net = common_net
         # Error network
         err_net_layers = kwargs.get('error_layers', [(D, 64, nn.ReLU()), (64, 64, nn.ReLU()), (64, L, nn.Sigmoid())])
         self.error_net = Encoder(err_net_layers)

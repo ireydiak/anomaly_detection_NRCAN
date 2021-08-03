@@ -1,11 +1,11 @@
 from typing import List, Tuple
 
 import torch
+import torch.nn as nn
 from torch import Tensor
 import numpy as np
 from sklearn.cluster import KMeans
 from tqdm import tqdm
-
 from src.distributions import multivariate_normal_pdf, estimate_GMM_params
 from src.metrics import accuracy_precision_recall_f1_scores
 from src.model.MLAD import MLAD
@@ -13,20 +13,22 @@ import random
 
 
 class MLADTrainer:
-    def __init__(self, model: MLAD, train_set: Tensor, optim, device: str = 'cpu', **kwargs):
+    def __init__(self, model: MLAD, train_set: Tensor, optim, encoder: nn.Module, device: str = 'cpu', **kwargs):
         self.device = torch.device(device)
-        self.model = model.to(self.device)
+        self.model = model
+        self.encoder = encoder
         self.optim = optim(self.model)
         self.train_set = train_set
-        self.D = train_set.shape[1]
+        self.D = self.train_set.shape[1]
         self.K = kwargs.get('K', 4)
         self.L = kwargs.get('L', 1)
         self.verbose = kwargs.get('verbose', True)
         self.batch_size = kwargs.get('batch_size', 64)
 
-    def fit_clusters(self, X: Tensor) -> List:
-        Z = self.model.common_net.forward(X)
-        clusters = KMeans(n_clusters=self.K, random_state=0).fit(Z)
+    def fit_clusters(self, X: Tensor) -> np.ndarray:
+        # TODO: Question: train common_net prior or just a single pass?
+        Z = self.encoder(X)
+        clusters = KMeans(n_clusters=self.K, random_state=0).fit(Z.detach().numpy())
         return clusters.labels_
 
     def create_batches(self, X_1: Tensor, X_2: Tensor, Z_1: Tensor, Z_2: Tensor) -> List[Tuple[Tuple[Tensor, Tensor], Tuple[Tensor, Tensor]]]:
@@ -87,7 +89,7 @@ class MLADTrainer:
             np.random.shuffle(coding_index)
             # TODO: we run the risk of training the model on the same data
             input_x2 = torch.cat((input_x2, self.train_set[coding_index, :]))
-            x_label = torch.cat((x_label, np.ones([len(coding_index), 1]) * i))
+            x_label = torch.cat((x_label, torch.ones([len(coding_index), 1]) * i))
 
         input_x1, input_x2, input_z1, input_z2, metric_label = self.split_siamese(
             input_x1, input_x2, x_label
@@ -124,7 +126,7 @@ class MLADTrainer:
         return density
 
     def compute_densities(self, test_set: Tensor, phi: Tensor, mu: Tensor, Sigma: Tensor) -> List[float]:
-        test_z = self.model.common_net.forward(test_set)
+        test_z = self.encoder(test_set)
         self.verbose and print(
             f'calculating GMM densities using \u03C6={phi.shape}, \u03BC={mu.shape}, \u03A3={Sigma.shape}')
         densities = []
@@ -175,7 +177,7 @@ class MLADTrainer:
         with torch.no_grad():
             # 1- estimate GMM parameters
             gmm_z = self.model.gmm_net.encode(self.train_set)
-            train_set_z = self.model.common_net.forward(self.train_set)
+            train_set_z = self.encoder(self.train_set)
             phi, mu, Sigma = estimate_GMM_params(gmm_z, train_set_z)
             # 2- compute densities based on computed GMM parameters
             densities = self.compute_densities(test_set, phi, mu, Sigma)

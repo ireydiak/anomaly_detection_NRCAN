@@ -1,15 +1,14 @@
 # -*- coding:utf-8 -*-
-import gc
 import warnings
-from typing import Callable, Type
+from typing import Callable
 
 import numpy as np
 import torch
 from tqdm import tqdm
-from datamanager.DataManager import DataManager
+from src.datamanager import DataManager
 
 
-class AETrainTestManager():
+class AETrainTestManager:
     """
     Class used to train and test model given model and query strategy
     """

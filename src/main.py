@@ -13,11 +13,11 @@ import argparse
 
 import numpy as np
 from torch import nn
-
+from torch import Tensor
 from trainer import SOMDAGMMTrainer
 import torch.optim as optim
 from utils.utils import check_dir, optimizer_setup
-from model import DAGMM, MemAutoEncoder as MemAE, MLAD, SOMDAGMM
+from model import DAGMM, Encoder, MemAutoEncoder as MemAE, MLAD, SOMDAGMM
 from datamanager import DataManager, KDD10Dataset, NSLKDDDataset, IDS2018Dataset
 from trainer import DAGMMTrainTestManager, MemAETrainer, MLADTrainer
 from viz.viz import plot_3D_latent, plot_energy_percentile
@@ -37,7 +37,7 @@ def argument_parser():
     )
     parser.add_argument('-m', '--model', type=str, default="DAGMM", choices=["AE", "DAGMM", "SOM-DAGMM", "MLAD", "MemAE"])
     parser.add_argument('-L', '--latent-dim', type=int, default=1)
-    parser.add_argument('-k', '--n-mixtures', type=int, default=4)
+    parser.add_argument('-K', '--n-mixtures', type=int, default=4)
     parser.add_argument('-d', '--dataset-path', type=str, help='Path to the dataset')
     parser.add_argument('--dataset', type=str, default="kdd10", choices=["kdd10", "nslkdd", "ids2018"])
     parser.add_argument('--batch-size', type=int, default=1024, help='The size of the training batch')
@@ -93,14 +93,16 @@ def resolve_optimizer(optimizer_str: str):
 def resolve_trainer(trainer_str: str, optimizer_factory, dataset, **kwargs):
     model, trainer = None, None
     device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
+    D = dataset.get_shape()[1]
+    L = kwargs.get('latent_dim')
     if trainer_str == 'DAGMM':
-        model = DAGMM(dataset.get_shape()[1])
+        model = DAGMM(D)
         trainer = DAGMMTrainTestManager(
             model=model, dm=dm, optimizer_factory=optimizer_factory
         )
     elif trainer_str == 'SOM-DAGMM':
         dagmm = DAGMM(
-            dataset.get_shape()[1],
+            D,
             gmm_layers=[(5, 10, nn.Tanh()), (None, None, nn.Dropout(0.5)), (10, 4, nn.Softmax(dim=-1))]
         )
         # TODO
@@ -113,7 +115,7 @@ def resolve_trainer(trainer_str: str, optimizer_factory, dataset, **kwargs):
             "neighborhood_function": "bubble",
             'n_epoch': 3000
         }
-        model = SOMDAGMM(dataset.get_shape()[1], dagmm, som_args=som_args)
+        model = SOMDAGMM(D, dagmm, som_args=som_args)
         trainer = SOMDAGMMTrainer(
             model=model, dm=dm, optimizer_factory=optimizer_factory
         )
@@ -123,18 +125,20 @@ def resolve_trainer(trainer_str: str, optimizer_factory, dataset, **kwargs):
     elif trainer_str == 'MemAE':
         print(f'training on {device}')
         model = MemAE(
-            dataset.get_shape()[1], kwargs.get('latent_dim'), kwargs.get('mem_dim'), kwargs.get('shrink_thres'), device
+            D, L, kwargs.get('mem_dim'), kwargs.get('shrink_thres'), device
         ).to(device)
         trainer = MemAETrainer(
             model=model, dm=dm, optimizer_factory=optimizer_factory, device=device
         )
     elif trainer_str == 'MLAD':
+        common_net = Encoder([(D, 64, nn.ReLU()), (64, 64, nn.ReLU()), (64, L, nn.Sigmoid())])
         model = MLAD(
-            D=dataset.get_shape()[1], L=kwargs.get('latent_dim'), K=kwargs.get('n_mixtures')
+            D=D, L=L, K=kwargs.get('n_mixtures'), common_net=common_net
         )
+        X = kwargs.get('train_set').dataset.X
         trainer = MLADTrainer(
-            train_set=kwargs.get('train_set'), model=model, dm=dm,
-            optim=optimizer_factory, D=dataset.get_shape()[1], device=device
+            train_set=torch.from_numpy(X).float(), model=model, dm=dm, encoder=common_net,
+            optim=optimizer_factory, D=D, device=device
         )
 
     return model, trainer
