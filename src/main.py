@@ -11,14 +11,12 @@ Authors:
 
 import argparse
 
-import numpy as np
 from torch import nn
-
 from trainer import SOMDAGMMTrainer
 import torch.optim as optim
 from utils.utils import check_dir, optimizer_setup
 from model import DAGMM, MemAutoEncoder as MemAE, SOMDAGMM
-from datamanager import DataManager, KDD10Dataset, NSLKDDDataset, IDS2018Dataset
+from datamanager import DataManager, KDD10Dataset, NSLKDDDataset, IDS2018Dataset, USBIDSDataset
 from trainer import DAGMMTrainTestManager, MemAETrainer
 from viz.viz import plot_3D_latent, plot_energy_percentile
 from datetime import datetime as dt
@@ -38,7 +36,7 @@ def argument_parser():
     parser.add_argument('-m', '--model', type=str, default="DAGMM", choices=["AE", "DAGMM", "SOM-DAGMM", "MLAD", "MemAE"])
     parser.add_argument('-L', '--latent-dim', type=int, default=1)
     parser.add_argument('-d', '--dataset-path', type=str, help='Path to the dataset')
-    parser.add_argument('--dataset', type=str, default="kdd10", choices=["kdd10", "nslkdd", "ids2018"])
+    parser.add_argument('--dataset', type=str, default="kdd10", choices=["kdd10", "nslkdd", "ids2018", "USBIDS"])
     parser.add_argument('--batch-size', type=int, default=1024, help='The size of the training batch')
     parser.add_argument('--optimizer', type=str, default="Adam", choices=["Adam", "SGD", "RMSProp"],
                         help="The optimizer to use for training the model")
@@ -147,7 +145,7 @@ if __name__ == "__main__":
 
     # split data in train and test sets
     # we train only on the majority class
-    train_set, test_set = dataset.one_class_split_train_test(test_perc=0.5, label=dataset.majority_cls_label)
+    train_set, test_set = dataset.one_class_split_train_test(test_perc=0.5, label=0)
     dm = DataManager(train_set, test_set, batch_size=batch_size, validation=0.1)
 
     # safely create save path
