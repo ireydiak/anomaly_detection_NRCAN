@@ -13,6 +13,7 @@ from sklearn import metrics
 
 from src.datamanager import DataManager
 from src.model import DUAD
+from sklearn.mixture import GaussianMixture
 
 
 class DUADTrainer:
@@ -29,6 +30,7 @@ class DUADTrainer:
         self.r = kwargs.get('r', 10)
         self.p = kwargs.get('p', 30)
         self.p0 = kwargs.get('p0', 35)
+        self.num_cluster = kwargs.get('num_cluster', 20)
 
         device_name = 'cuda:0' if use_cuda else 'cpu'
         if use_cuda and not torch.cuda.is_available():
@@ -44,6 +46,29 @@ class DUADTrainer:
 
         self.criterion = nn.MSELoss()
 
+    def re_evaluation(self, X, p, num_clusters=20):
+        gmm = GaussianMixture(n_components=num_clusters)
+        gmm.fit(X)
+        pred_label = gmm.predict(X)
+        X_means = torch.from_numpy(gmm.means_)
+
+        clusters_vars = []
+        for i in range(num_clusters):
+            var_ci = torch.sum((X[pred_label == i] - X_means[i].unsqueeze(dim=0)) ** 2)
+            var_ci /= (pred_label == i).sum()
+            clusters_vars.append(var_ci)
+
+        clusters_vars = torch.stack(clusters_vars)
+        q = torch.quantile(clusters_vars, (100 - p) / 100)
+
+        selected_clusters = (clusters_vars < q).nonzero().squeeze()
+        # pred_label_ = torch.from_numpy(pred_label).unsqueeze(dim=1)
+        indices_selection = torch.from_numpy(
+            np.array([pred in selected_clusters for pred in pred_label])).nonzero().squeeze()
+
+        return indices_selection
+
+
     def train(self, n_epochs: int):
         mean_loss = np.inf
         self.dm.update_train_set(self.dm.get_selected_indices())
@@ -56,10 +81,14 @@ class DUADTrainer:
             X.append(X_i[0])
             indices.append(X_i[2])
 
+        X = torch.cat(X, axis=0)
+        indices = torch.cat(indices, axis=0)
 
+        selected_indices = indices[self.re_evaluation(X, self.p0, self.num_cluster)]
+        self.dm.update_train_set(selected_indices)
+        train_ldr = self.dm.get_train_set()
 
-
-        L = self.dm.get_selected_indices()
+        L = selected_indices
         L_old = None
 
         while not np.all(L == L_old):
@@ -68,6 +97,19 @@ class DUADTrainer:
                 if epoch % self.r == 0:
                     # TODO
                     # Re-evaluate normality every r epoch
+                    print("\nRe-evaluation\n")
+                    X = []
+                    indices = []
+                    Z = []
+                    for i, X_i in enumerate(train_ldr, 0):
+                        X.append(X_i[0])
+                        indices.append(X_i[2])
+                        code, X_prime, h = self.model(X)
+
+
+                    X = torch.cat(X, axis=0)
+                    indices = torch.cat(indices, axis=0)
+
                     pass
                 else:
                     # TODO

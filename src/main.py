@@ -13,6 +13,9 @@ import argparse
 
 import numpy as np
 from torch import nn
+
+from src.model.DUAD import DUAD
+from src.trainer.DUADTrainer import DUADTrainer
 from trainer import SOMDAGMMTrainer
 import torch.optim as optim
 from utils.utils import check_dir, optimizer_setup
@@ -34,8 +37,8 @@ def argument_parser():
     parser = argparse.ArgumentParser(
         usage='\n python3 main.py -m [model] -d [dataset-path] --dataset [dataset] [hyper_parameters]'
     )
-    parser.add_argument('-m', '--model', type=str, default="DAGMM", choices=["AE", "DAGMM", "SOM-DAGMM", "MLAD", "MemAE"])
-    parser.add_argument('-L', '--latent-dim', type=int, default=1)
+    parser.add_argument('-m', '--model', type=str, default="DAGMM", choices=["AE", "DAGMM", "SOM-DAGMM", "MLAD", "MemAE", "DUAD"])
+    parser.add_argument('-lat', '--latent-dim', type=int, default=1)
     parser.add_argument('-d', '--dataset-path', type=str, help='Path to the dataset')
     parser.add_argument('--dataset', type=str, default="kdd10", choices=["Arrhythmia", "KDD10", "NSLKDD", "IDS2018", "USBIDS"])
     parser.add_argument('--batch-size', type=int, default=1024, help='The size of the training batch')
@@ -63,6 +66,13 @@ def argument_parser():
     parser.add_argument('--vizualization', type=bool, default=False)
 
     parser.add_argument('--n-som', help='number of SOM component', type=int, default=1)
+
+    # =======================DUAD=========================
+    parser.add_argument('--r', type=int, default=10, help='Number of epoch required to re-evaluate the selection')
+    parser.add_argument('--p_s', type=float, default=35, help='Variance threshold of initial selection')
+    parser.add_argument('--p_0', type=float, default=30, help='Variance threshold of re-evaluation selection')
+    parser.add_argument('--num-cluster', type=int, default=20, help='Number of clusters')
+
 
 
 
@@ -167,6 +177,11 @@ def resolve_trainer(trainer_str: str, optimizer_factory, **kwargs):
         trainer = MemAETrainer(
             model=model, dm=dm, optimizer_factory=optimizer_factory, device=device
         )
+    elif trainer_str == "DUAD":
+        model = DUAD(D, 10)
+        trainer = DUADTrainer(model=model, dm=dm, optimizer_factory=optimizer_factory, device=device,
+                              p=kwargs.get('p_s'), p_0=kwargs.get('p_0'), r=kwargs.get('r'),
+                              num_cluster=kwargs.get('num_cluster'))
 
     return model, trainer
 
@@ -177,7 +192,13 @@ if __name__ == "__main__":
     val_set = args.validation
     lambda_1 = args.lambda_energy
     lambda_2 = args.lambda_p
+    L = args.latent_dim
+
     n_som = args.n_som
+    p_s = args.p_s
+    p_0 = args.p_0
+    r = args.r
+    num_cluster = args.num_cluster
 
     # Dynamically load the Dataset instance
     clsname = globals()[f'{args.dataset}Dataset']
@@ -195,23 +216,35 @@ if __name__ == "__main__":
 
     optimizer = resolve_optimizer(args.optimizer)
 
-    for l in [1, 3, 7, 16, 30, 60]:
-        model, model_trainer = resolve_trainer(
-            args.model, optimizer, latent_dim=l, mem_dim=args.mem_dim, shrink_thres=args.shrink_thres,
-        n_som=n_som
-    )
+    # TODO
+    # define multiple latent dimensiono in trainers
 
-        if model and model_trainer:
-            metrics = model_trainer.train(args.num_epochs)
-            print('Finished learning process')
-            print('Evaluating model on test set')
-            # We test with the minority samples as the positive class
-            results, test_z, test_label, energy = model_trainer.evaluate_on_test_set(energy_threshold=args.p_threshold)
+    # for l in [1, 3, 7, 16, 30, 60]:
+    #     model, model_trainer = resolve_trainer(
+    #         args.model, optimizer, latent_dim=l, mem_dim=args.mem_dim, shrink_thres=args.shrink_thres,
+    #     n_som=n_som
+    # )
 
-            params = dict({"BatchSize": batch_size, "Epochs": args.num_epochs, "rho": args.rho}, **model.get_params())
-            store_results(results, params, args.model, args.dataset, args.dataset_path)
-            if args.vizualization and model in vizualizable_models:
-                plot_3D_latent(test_z, test_label)
-                plot_energy_percentile(energy)
-        else:
-            print(f'Error: Could not train {args.dataset} on model {args.model}')
+    model, model_trainer = resolve_trainer(
+            args.model, optimizer, latent_dim=L, mem_dim=args.mem_dim, shrink_thres=args.shrink_thres,
+            n_som=n_som,
+            r=r,
+            p_s=p_s,
+            p_0=p_0,
+            num_cluster=num_cluster,
+        )
+
+    if model and model_trainer:
+        metrics = model_trainer.train(args.num_epochs)
+        print('Finished learning process')
+        print('Evaluating model on test set')
+        # We test with the minority samples as the positive class
+        results, test_z, test_label, energy = model_trainer.evaluate_on_test_set(energy_threshold=args.p_threshold)
+
+        params = dict({"BatchSize": batch_size, "Epochs": args.num_epochs, "rho": args.rho}, **model.get_params())
+        store_results(results, params, args.model, args.dataset, args.dataset_path)
+        if args.vizualization and model in vizualizable_models:
+            plot_3D_latent(test_z, test_label)
+            plot_energy_percentile(energy)
+    else:
+        print(f'Error: Could not train {args.dataset} on model {args.model}')

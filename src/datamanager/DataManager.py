@@ -79,7 +79,7 @@ class DataManager:
         :return:
         train_loader and validation_loader
         """
-        self.train_selection_mask = 0
+        self.train_selection_mask[:] = 0
         self.train_selection_mask[selected_indices] = 1
         lbl_sample_idx = self.train_selection_mask.nonzero().squeeze()
         self.current_train_set = MySubset(self.train_set, lbl_sample_idx)
