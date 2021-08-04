@@ -61,8 +61,7 @@ class DAGMM(nn.Module):
         # :math:`z = [z_c, z_r]` with
         #   - :math:`z_c = h(x; \theta_e)`
         #   - :math:`z_r = f(x, x')`
-        code = self.ae.encoder(x)
-        x_prime = self.ae.decoder(code)
+        x_prime, code = self.ae(x)
         rel_euc_dist = self.relative_euclidean_dist(x, x_prime)
         cosim = self.cosim(x, x_prime)
         z_r = torch.cat([code, rel_euc_dist.unsqueeze(-1), cosim.unsqueeze(-1)], dim=1)

@@ -11,11 +11,8 @@ class AutoEncoder(nn.Module):
         super(AutoEncoder, self).__init__()
         self.encoder = create_network(enc_layers)
         self.decoder = create_network(dec_layers)
-
         self.L = dec_layers[0][0]
         self.code_shape = enc_layers[-1][1]
-        self.encoder = create_network(enc_layers)
-        self.decoder = create_network(dec_layers)
 
     def encode(self, X):
         return self.encoder(X)
@@ -24,6 +21,6 @@ class AutoEncoder(nn.Module):
         return self.decoder(X)
 
     def forward(self, X):
-        z = self.encode(X)
-        x_prime = self.decode(z)
+        z = self.encoder(X)
+        x_prime = self.decoder(z)
         return x_prime, z

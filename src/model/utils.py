@@ -7,5 +7,6 @@ def create_network(layers: List[Tuple]):
     for in_neuron, out_neuron, act_fn in layers:
         if in_neuron and out_neuron:
             net_layers.append(nn.Linear(in_neuron, out_neuron))
-        net_layers.append(act_fn)
+        if act_fn:
+            net_layers.append(act_fn)
     return nn.Sequential(*net_layers)

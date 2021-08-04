@@ -67,8 +67,7 @@ def argument_parser():
     return parser.parse_args()
 
 
-def store_results(results: dict, params: dict, model_name: str, dataset: str, path: str):
-
+def store_results(train_results: dict, model_params: dict, model_name: str, dataset_name: str, path: str):
     output_dir = f'../results/{dataset}'
     if not os.path.exists(output_dir):
         os.mkdir(output_dir)
@@ -76,9 +75,9 @@ def store_results(results: dict, params: dict, model_name: str, dataset: str, pa
         hdr = "Experiments on {}\n".format(dt.now().strftime("%d/%m/%Y %H:%M:%S"))
         f.write(hdr)
         f.write("-".join("" for _ in range(len(hdr))) + "\n")
-        f.write(f'{dataset} ({path.split("/")[-1].split(".")[0]})\n')
-        f.write(", ".join([f"{param_name}={param_val}" for param_name, param_val in params.items()]) + "\n")
-        f.write("\n".join([f"{met_name}: {res}" for met_name, res in results.items()]) + "\n")
+        f.write(f'{dataset_name} ({path.split("/")[-1].split(".")[0]})\n')
+        f.write(", ".join([f"{param_name}={param_val}" for param_name, param_val in model_params.items()]) + "\n")
+        f.write("\n".join([f"{met_name}: {res}" for met_name, res in train_results.items()]) + "\n")
         f.write("-".join("" for _ in range(len(hdr))) + "\n")
 
 
@@ -134,10 +133,15 @@ def resolve_trainer(trainer_str: str, optimizer_factory, dataset, **kwargs):
         model = MLAD(
             D=D, L=L, K=kwargs.get('n_mixtures')
         )
-        X = kwargs.get('train_set').dataset.X
+        train_set = kwargs.get('train_set').dataset.X
+        test_set = kwargs.get('test_set').dataset.X
         trainer = MLADTrainer(
-            train_set=torch.from_numpy(X).float(), model=model, dm=dm,
-            optim=optimizer_factory, D=D, device=device
+            train_set=torch.from_numpy(train_set).float(),
+            test_set=torch.from_numpy(test_set).float(),
+            model=model,
+            dm=dm,
+            optim=optimizer_factory,
+            device=device
         )
 
     return model, trainer
@@ -172,7 +176,8 @@ if __name__ == "__main__":
         mem_dim=args.mem_dim,
         n_mixtures=args.n_mixtures,
         shrink_thres=args.shrink_thres,
-        train_set=train_set
+        train_set=train_set,
+        test_set=test_set
     )
 
     if model and model_trainer:
@@ -180,11 +185,12 @@ if __name__ == "__main__":
         print('Finished learning process')
         print('Evaluating model on test set')
         # We test with the minority samples as the positive class
-        results, test_z, test_label, energy = model_trainer.evaluate_on_test_set(pos_label=dataset.majority_cls_label,
-                                                                                 energy_threshold=args.p_threshold)
+        results, test_z, test_label, energy = model_trainer.evaluate_on_test_set(
+            energy_threshold=args.p_threshold
+        )
 
         params = dict({"BatchSize": batch_size, "Epochs": args.num_epochs, "\u03C1": args.rho}, **model.get_params())
-        store_results(results, params, args.model, args.dataset, args.dataset_path, args.output_file)
+        store_results(results, params, args.model, args.dataset, args.dataset_path)
         if args.vizualization and model in vizualizable_models:
             plot_3D_latent(test_z, test_label)
             plot_energy_percentile(energy)
