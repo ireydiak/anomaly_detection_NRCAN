@@ -11,6 +11,7 @@ Authors:
 
 import argparse
 
+import numpy as np
 from torch import nn
 from trainer import SOMDAGMMTrainer
 import torch.optim as optim
