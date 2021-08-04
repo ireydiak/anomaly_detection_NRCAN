@@ -1,5 +1,3 @@
-from typing import Tuple, List
-
 import torch.nn as nn
 from .utils import create_network
 
@@ -27,5 +25,5 @@ class AutoEncoder(nn.Module):
 
     def forward(self, X):
         z = self.encode(X)
-        x_prime = self.decode(X)
+        x_prime = self.decode(z)
         return x_prime, z

@@ -131,13 +131,12 @@ def resolve_trainer(trainer_str: str, optimizer_factory, dataset, **kwargs):
             model=model, dm=dm, optimizer_factory=optimizer_factory, device=device
         )
     elif trainer_str == 'MLAD':
-        common_net = Encoder([(D, 64, nn.ReLU()), (64, 64, nn.ReLU()), (64, L, nn.Sigmoid())])
         model = MLAD(
-            D=D, L=L, K=kwargs.get('n_mixtures'), common_net=common_net
+            D=D, L=L, K=kwargs.get('n_mixtures')
         )
         X = kwargs.get('train_set').dataset.X
         trainer = MLADTrainer(
-            train_set=torch.from_numpy(X).float(), model=model, dm=dm, encoder=common_net,
+            train_set=torch.from_numpy(X).float(), model=model, dm=dm,
             optim=optimizer_factory, D=D, device=device
         )
 

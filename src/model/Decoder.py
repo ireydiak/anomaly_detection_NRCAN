@@ -13,4 +13,4 @@ class Decoder(nn.Module):
         self.dec = create_network(layers)
 
     def forward(self, X: torch.Tensor):
-        self.dec(X)
+        return self.dec(X)
