@@ -3,7 +3,7 @@ import torch.nn as nn
 import numpy as np
 
 from tqdm import trange
-from src.loss import EntropyLoss
+from loss import EntropyLoss
 from sklearn import metrics
 
 
@@ -70,7 +70,6 @@ class MemAETrainer:
             y_true = []
             for data in test_loader:
                 X, y = data[0].float().to(self.device), data[1]
-
                 # forward pass
                 X_prime, att = self.model(X)
                 err = torch.sqrt(

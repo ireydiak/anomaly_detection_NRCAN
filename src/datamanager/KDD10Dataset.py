@@ -14,8 +14,7 @@ class KDD10Dataset(Dataset):
     """
     This class is used to load KDD Cup 10% dataset as a pytorch Dataset
     """
-    majority_cls_label = 0
-    minority_cls_label = 1
+    name = 'KDD10'
 
     def __init__(self, path='../data/kdd10_train', pct=1.0):
         self.path = path

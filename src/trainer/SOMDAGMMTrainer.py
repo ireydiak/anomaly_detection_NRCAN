@@ -2,7 +2,7 @@ import warnings
 
 from sklearn.metrics import confusion_matrix
 from tqdm import trange
-from model.SOMDAGMM import SOMDAGMM
+from model import SOMDAGMM
 import torch
 import numpy as np
 from datamanager.DataManager import DataManager

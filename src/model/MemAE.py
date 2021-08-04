@@ -4,7 +4,7 @@ from .memory_module import MemoryUnit
 
 class MemAutoEncoder(nn.Module):
 
-    def __init__(self, D, L, mem_dim, shrink_thres=0.0025, device='cpu'):
+    def __init__(self, mem_dim: int, enc_layers: list, dec_layers: list, shrink_thres=0.0025, device='cpu'):
         """
         Implements model Memory AutoEncoder as described in the paper
         `Memorizing Normality to Detect Anomaly: Memory-augmented Deep Autoencoder (MemAE) for Unsupervised Anomaly Detection`.
@@ -30,27 +30,16 @@ class MemAutoEncoder(nn.Module):
         device: The Torch-compatible device used during training
         """
         super(MemAutoEncoder, self).__init__()
-        self.D = D
-        self.L = L
+        
+        self.D = enc_layers[0].in_features
+        self.L = enc_layers[-1].out_features
         self.encoder = nn.Sequential(
-            nn.Linear(D, 60),
-            nn.Tanh(),
-            nn.Linear(60, 30),
-            nn.Tanh(),
-            nn.Linear(30, 10),
-            nn.Tanh(),
-            nn.Linear(10, L)
-        )  # .to(device)
-        self.mem_rep = MemoryUnit(mem_dim, L, shrink_thres, device=device).to(device)
+           *enc_layers
+        ).to(device)
+        self.mem_rep = MemoryUnit(mem_dim, self.L, shrink_thres, device=device).to(device)
         self.decoder = nn.Sequential(
-            nn.Linear(L, 10),
-            nn.Tanh(),
-            nn.Linear(10, 30),
-            nn.Tanh(),
-            nn.Linear(30, 60),
-            nn.Tanh(),
-            nn.Linear(60, D)
-        )  # .to(device)
+           *dec_layers
+        ).to(device)
 
     def forward(self, x):
         f_e = self.encoder(x)

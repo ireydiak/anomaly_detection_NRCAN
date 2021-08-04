@@ -22,7 +22,7 @@ def parse_args() -> Tuple[str, str]:
     )
     parser.add_argument(
         '--backup', type=bool, default=False,
-        help='Save CSV files for the cleaning step'
+        help='Save a backup after the cleaning process to keep track of modifications.'
     )
 
     args = parser.parse_args()
