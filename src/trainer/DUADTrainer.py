@@ -1,15 +1,17 @@
 import warnings
 
 from sklearn.metrics import confusion_matrix
+from torch import nn
 from tqdm import trange
-from model.SOMDAGMM import SOMDAGMM
+
 import torch
 import numpy as np
-from datamanager.DataManager import DataManager
+
 from typing import Callable
 
 from sklearn import metrics
 
+from src.datamanager import DataManager
 from src.model import DUAD
 
 
@@ -40,39 +42,55 @@ class DUADTrainer:
         self.model = model.to(self.device)
         self.optim = optimizer_factory(self.model)
 
-    def train_som(self, X):
-        self.model.train_som(X)
+        self.criterion = nn.MSELoss()
 
     def train(self, n_epochs: int):
         mean_loss = np.inf
+        self.dm.update_train_set(self.dm.get_selected_indices())
         train_ldr = self.dm.get_train_set()
 
-        for epoch in range(n_epochs):
-            print(f"\nEpoch: {epoch + 1} of {n_epochs}")
-            loss = 0
-            with trange(len(train_ldr)) as t:
-                for i, X_i in enumerate(train_ldr, 0):
-                    train_inputs = X_i[0].to(self.device).float()
-                    loss += self.train_iter(train_inputs)
-                    mean_loss = loss / (i + 1)
-                    t.set_postfix(loss='{:05.3f}'.format(mean_loss))
-                    t.update()
+        # run clustering, select instances from low variance clusters
+        X = []
+        indices = []
+        for i, X_i in enumerate(train_ldr, 0):
+            X.append(X_i[0])
+            indices.append(X_i[2])
+
+
+
+
+        L = self.dm.get_selected_indices()
+        L_old = None
+
+        while not np.all(L == L_old):
+            for epoch in range(n_epochs):
+                print(f"\nEpoch: {epoch + 1} of {n_epochs}")
+                if epoch % self.r == 0:
+                    # TODO
+                    # Re-evaluate normality every r epoch
+                    pass
+                else:
+                    # TODO
+                    # Train with the current trainset
+                    loss = 0
+                    with trange(len(train_ldr)) as t:
+                        for i, X_i in enumerate(train_ldr, 0):
+                            train_inputs = X_i[0].to(self.device).float()
+                            loss += self.train_iter(train_inputs)
+                            mean_loss = loss / (i + 1)
+                            t.set_postfix(loss='{:05.3f}'.format(mean_loss))
+                            t.update()
+
         return mean_loss
 
     def train_iter(self, X):
-        self.optim.zero_grad()
 
-        # SOM-generated low-dimensional representation
-        code, X_prime, cosim, Z, gamma = self.model(X)
-
-        phi, mu, Sigma = self.model.compute_params(Z, gamma)
-        energy, penalty_term = self.model.estimate_sample_energy(Z, phi, mu, Sigma, device=self.device)
-
-        loss = self.model.compute_loss(X, X_prime, energy, penalty_term)
+        code, X_prime, h = self.model(X)
+        loss = self.criterion(X, X_prime)
 
         # Use autograd to compute the backward pass.
+        self.optim.zero_grad()
         loss.backward()
-
         # updates the weights using gradient descent
         self.optim.step()
 

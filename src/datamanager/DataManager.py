@@ -69,6 +69,9 @@ class DataManager:
     def get_current_training_set(self):
         return self.current_train_set
 
+    def get_selected_indices(self):
+        return self.train_selection_mask.nonzero().squeeze()
+
     def update_train_set(self, selected_indices):
         """
         This function update the training set with the new filter
