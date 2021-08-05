@@ -43,14 +43,18 @@ class IDS2018Dataset(Dataset):
     def get_data_index_by_label(self, label):
         return np.where(self.y == label)[0]
 
-    def split_train_test(self, test_perc=.2, seed=None):
-        if seed:
-            torch.manual_seed(seed)
-        num_test_sample = int(self.N * test_perc)
-        shuffled_idx = torch.randperm(self.N).long()
+    def split_train_test(self, test_perc=.2, seed=0):
+        # torch.manual_seed(seed)
+        num_test_sample = int(self.n * test_perc)
+        shuffled_idx = torch.randperm(self.n).long()
         train_set = Subset(self, shuffled_idx[num_test_sample:])
         test_set = Subset(self, shuffled_idx[:num_test_sample])
 
+        stat = {'l1': (self.y[shuffled_idx[num_test_sample:]] == 1).sum() / (self.n - num_test_sample),
+                'l0': (self.y[shuffled_idx[num_test_sample:]] == 0).sum() / (self.n - num_test_sample)}
+
+        print(f'Percentage of label 0:{stat["l0"]}'
+              f'\nPercentage of label 1:{stat["l1"]}')
         return train_set, test_set
 
     def one_class_split_train_test(self, test_perc=.2, label=0, seed=None):

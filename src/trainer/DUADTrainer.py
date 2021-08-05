@@ -1,4 +1,5 @@
 import warnings
+from copy import deepcopy
 
 from sklearn.metrics import confusion_matrix
 from torch import nn
@@ -14,6 +15,8 @@ from sklearn import metrics
 from src.datamanager import DataManager
 from src.model import DUAD
 from sklearn.mixture import GaussianMixture
+
+from src.viz.viz import plot_2D_latent
 
 
 class DUADTrainer:
@@ -61,13 +64,12 @@ class DUADTrainer:
         clusters_vars = torch.stack(clusters_vars)
         q = torch.quantile(clusters_vars, (100 - p) / 100)
 
-        selected_clusters = (clusters_vars < q).nonzero().squeeze()
+        selected_clusters = (clusters_vars <= q).nonzero().squeeze()
         # pred_label_ = torch.from_numpy(pred_label).unsqueeze(dim=1)
         indices_selection = torch.from_numpy(
             np.array([pred in selected_clusters for pred in pred_label])).nonzero().squeeze()
 
         return indices_selection
-
 
     def train(self, n_epochs: int):
         mean_loss = np.inf
@@ -76,41 +78,68 @@ class DUADTrainer:
 
         # run clustering, select instances from low variance clusters
         X = []
+        y = []
         indices = []
         for i, X_i in enumerate(train_ldr, 0):
             X.append(X_i[0])
             indices.append(X_i[2])
+            y.append(X_i[1])
 
         X = torch.cat(X, axis=0)
+        y = torch.cat(y, axis=0)
         indices = torch.cat(indices, axis=0)
+        print(np.unique(y.cpu().numpy()))
 
         selected_indices = indices[self.re_evaluation(X, self.p0, self.num_cluster)]
         self.dm.update_train_set(selected_indices)
         train_ldr = self.dm.get_train_set()
 
         L = selected_indices
-        L_old = None
-
-        while not np.all(L == L_old):
+        L_old = []
+        # print(set(L).difference(set(L_old)))
+        while set(L).difference(set(L_old)) != set():
             for epoch in range(n_epochs):
                 print(f"\nEpoch: {epoch + 1} of {n_epochs}")
-                if epoch % self.r == 0:
-                    # TODO
-                    # Re-evaluate normality every r epoch
-                    print("\nRe-evaluation\n")
-                    X = []
-                    indices = []
-                    Z = []
-                    for i, X_i in enumerate(train_ldr, 0):
-                        X.append(X_i[0])
-                        indices.append(X_i[2])
-                        code, X_prime, h = self.model(X)
+                if (epoch + 1) % self.r == 0:
+                    self.model.eval()
+                    L_old = deepcopy(L)
+                    with torch.no_grad():
+                        # TODO
+                        # Re-evaluate normality every r epoch
+                        print("\nRe-evaluation")
+                        indices = []
+                        Z = []
+                        X = []
+                        y = []
+                        X_loader = self.dm.get_init_train_loader()
+                        for i, X_i in enumerate(X_loader, 0):
+                            indices.append(X_i[2])
+                            train_inputs = X_i[0].to(self.device).float()
+                            code, X_prime, Z_r = self.model(train_inputs)
+                            Z_i = torch.cat([code, Z_r.unsqueeze(-1)], axis=1)
+                            Z.append(Z_i)
+                            X.append(X_i)
+                            y.append(X_i[1])
 
+                        # X = torch.cat(X, axis=0)
+                        indices = torch.cat(indices, axis=0)
+                        y = torch.cat(y, axis=0)
+                        Z = torch.cat(Z, axis=0)
+                        print(np.unique(y.cpu().numpy()))
 
-                    X = torch.cat(X, axis=0)
-                    indices = torch.cat(indices, axis=0)
+                        plot_2D_latent(Z.cpu(), y.cpu())
 
-                    pass
+                        selection_mask = self.re_evaluation(Z.cpu(), self.p, self.num_cluster)
+                        selected_indices = indices[selection_mask]
+                        self.dm.update_train_set(selected_indices)
+                        train_ldr = self.dm.get_train_set()
+
+                    # switch back to train mode
+                    self.model.train()
+                    L = selected_indices
+                    print(
+                        f"Back to training--size L_old:{len(L_old)}, L:{len(L)}, diff:{len(set(L_old).difference(set(L)))}\n")
+
                 else:
                     # TODO
                     # Train with the current trainset

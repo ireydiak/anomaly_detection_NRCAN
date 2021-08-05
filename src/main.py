@@ -208,8 +208,11 @@ if __name__ == "__main__":
 
     # split data in train and test sets
     # we train only on the majority class
-    train_set, test_set = dataset.one_class_split_train_test(test_perc=0.5, label=0)
-    dm = DataManager(train_set, test_set, batch_size=batch_size, validation=0.1)
+    if args.model == 'DUAD':
+        train_set, test_set = dataset.split_train_test(test_perc=0.5)
+    else:
+        train_set, test_set = dataset.one_class_split_train_test(test_perc=0.5, label=0)
+    dm = DataManager(train_set, test_set, batch_size=batch_size, validation=1e-3)
 
     # safely create save path
     check_dir(args.save_path)

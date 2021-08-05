@@ -1,3 +1,5 @@
+from copy import deepcopy
+
 import torch
 import numpy as np
 from torch.utils.data import Dataset, DataLoader, SubsetRandomSampler, Sampler, Subset
@@ -56,18 +58,24 @@ class DataManager:
         # Create a mask to track selection process
         self.train_selection_mask = torch.ones_like(shuffled_idx)
 
-        self.current_train_set = MySubset(train_dataset, self.train_selection_mask)
+        self.current_train_set = MySubset(train_dataset, self.train_selection_mask.nonzero().squeeze())
 
         # Create the loaders
         train_sampler, val_sampler = self.train_validation_split(
             len(self.train_set), self.validation, self.seed
         )
-        self.train_loader = DataLoader(self.train_set, self.batch_size, sampler=train_sampler, **self.kwargs)
+
+        self.init_train_loader = DataLoader(self.current_train_set, self.batch_size, sampler=train_sampler,
+                                            **self.kwargs)
+        self.train_loader = DataLoader(self.current_train_set, self.batch_size, sampler=train_sampler, **self.kwargs)
         self.validation_loader = DataLoader(self.train_set, self.batch_size, sampler=val_sampler, **self.kwargs)
         self.test_loader = DataLoader(test_dataset, batch_size, shuffle=True, **kwargs)
 
     def get_current_training_set(self):
         return self.current_train_set
+
+    def get_init_train_loader(self):
+        return self.init_train_loader
 
     def get_selected_indices(self):
         return self.train_selection_mask.nonzero().squeeze()

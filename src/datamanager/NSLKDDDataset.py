@@ -44,11 +44,23 @@ class NSLKDDDataset(Dataset):
         return np.load(path, allow_pickle=True)["kdd"]
 
     def split_train_test(self, test_perc=.2, seed=0):
+        # torch.manual_seed(seed)
         num_test_sample = int(self.N * test_perc)
         shuffled_idx = torch.randperm(self.N).long()
         train_set = Subset(self, shuffled_idx[num_test_sample:])
         test_set = Subset(self, shuffled_idx[:num_test_sample])
 
+        stat = {'l1': (self.y[shuffled_idx[num_test_sample:]] == 1).sum() / (self.N - num_test_sample),
+                'l0': (self.y[shuffled_idx[num_test_sample:]] == 0).sum() / (self.N - num_test_sample)}
+
+        print(f'Percentage of label 0:{stat["l0"]}'
+              f'\nPercentage of label 1:{stat["l1"]}')
+
+        # stat = {'l1': (self.y == 1).sum() / (self.N),
+        #         'l0': (self.y == 0).sum() / (self.N)}
+        #
+        # print(f'Percentage of label 0:{stat["l0"]}'
+        #       f'\nPercentage of label 1:{stat["l1"]}')
         return train_set, test_set
 
     def one_class_split_train_test(self, test_perc=.2, label=0, seed=0):
