@@ -16,11 +16,7 @@ from trainer import SOMDAGMMTrainer
 import torch.optim as optim
 from utils.utils import check_dir, optimizer_setup
 from model import DAGMM, MemAutoEncoder as MemAE, SOMDAGMM
-<<<<<<< HEAD
-from datamanager import ArrhythmiaDataset, DataManager, KDD10Dataset, NSLKDDDataset, IDS2018Dataset
-=======
-from datamanager import DataManager, KDD10Dataset, NSLKDDDataset, IDS2018Dataset, USBIDSDataset
->>>>>>> main
+from datamanager import ArrhythmiaDataset, DataManager, KDD10Dataset, NSLKDDDataset, IDS2018Dataset, USBIDSDataset
 from trainer import DAGMMTrainTestManager, MemAETrainer
 from viz.viz import plot_3D_latent, plot_energy_percentile
 from datetime import datetime as dt
@@ -29,6 +25,7 @@ import os
 
 
 vizualizable_models = ["AE", "DAGMM", "SOM-DAGMM"]
+
 
 def argument_parser():
     """
