@@ -15,11 +15,12 @@ import numpy as np
 from torch import nn
 
 from src.model.DUAD import DUAD
+from src.trainer.AETrainer import AETrainer
 from src.trainer.DUADTrainer import DUADTrainer
 from trainer import SOMDAGMMTrainer
 import torch.optim as optim
 from utils.utils import check_dir, optimizer_setup
-from model import DAGMM, MemAutoEncoder as MemAE, SOMDAGMM
+from model import DAGMM, MemAutoEncoder as MemAE, SOMDAGMM, AutoEncoder as AE
 from datamanager import ArrhythmiaDataset, DataManager, KDD10Dataset, NSLKDDDataset, IDS2018Dataset
 from trainer import DAGMMTrainTestManager, MemAETrainer
 from viz.viz import plot_3D_latent, plot_energy_percentile
@@ -106,7 +107,7 @@ def resolve_trainer(trainer_str: str, optimizer_factory, **kwargs):
     device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
     D = dataset.get_shape()[1]
     L = kwargs.get("latent_dim", 1)
-    if trainer_str == 'DAGMM' or trainer_str == 'SOM-DAGMM':
+    if trainer_str == 'DAGMM' or trainer_str == 'SOM-DAGMM' or trainer_str == 'AE':
         if dataset.name == 'Arrhythmia':
             enc_layers = [(D, 10, nn.Tanh()), (10, L, None)]
             dec_layers = [(L, 10, nn.Tanh()), (10, D, None)]
@@ -119,6 +120,11 @@ def resolve_trainer(trainer_str: str, optimizer_factory, **kwargs):
         if trainer_str == 'DAGMM':
             model = DAGMM(D, ae_layers=(enc_layers, dec_layers), gmm_layers=gmm_layers)
             trainer = DAGMMTrainTestManager(
+                model=model, dm=dm, optimizer_factory=optimizer_factory
+            )
+        elif trainer_str == 'AE':
+            model = AE(enc_layers, dec_layers)
+            trainer = AETrainer(
                 model=model, dm=dm, optimizer_factory=optimizer_factory
             )
         else:
@@ -209,7 +215,7 @@ if __name__ == "__main__":
     # split data in train and test sets
     # we train only on the majority class
     if args.model == 'DUAD':
-        train_set, test_set = dataset.split_train_test(test_perc=0.5)
+        train_set, test_set = dataset.one_class_split_train_test(test_perc=0.50)
     else:
         train_set, test_set = dataset.one_class_split_train_test(test_perc=0.5, label=0)
     dm = DataManager(train_set, test_set, batch_size=batch_size, validation=1e-3)

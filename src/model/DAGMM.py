@@ -35,7 +35,7 @@ class DAGMM(nn.Module):
         else:
             enc_layers = ae_layers[0]
             dec_layers = ae_layers[1]
-        
+
         gmm_layers = gmm_layers or [(3, 10, nn.Tanh()), (None, None, nn.Dropout(0.5)), (10, 4, nn.Softmax(dim=-1))]
 
         self.ae = AE(enc_layers, dec_layers)
@@ -160,31 +160,73 @@ class DAGMM(nn.Module):
         gamma_sum = torch.sum(gamma, dim=0)
         phi = gamma_sum / N
 
+        # phi = torch.mean(gamma, dim=0)
+
         # K x D
         # :math: `\mu = (I * gamma_sum)^{-1} * (\gamma^T * z)`
         mu = torch.sum(gamma.unsqueeze(-1) * z.unsqueeze(1), dim=0) / gamma_sum.unsqueeze(-1)
         # mu = torch.linalg.inv(torch.diag(gamma_sum)) @ (gamma.T @ z)
-
-        # Covariance (K x D x D)
-        covs = []
-        for i in range(0, K):
-            xm = z - mu[i]
-            cov = 1 / gamma_sum[i] * ((gamma[:, i].unsqueeze(-1) * xm).T @ xm)
-            cov += 1e-12
-            covs.append(cov)
 
         mu_z = z.unsqueeze(1) - mu.unsqueeze(0)
         cov_mat = mu_z.unsqueeze(-1) @ mu_z.unsqueeze(-2)
         cov_mat = gamma.unsqueeze(-1).unsqueeze(-1) * cov_mat
         cov_mat = torch.sum(cov_mat, dim=0) / gamma_sum.unsqueeze(-1).unsqueeze(-1)
 
+        # ==============
+        K, N, D = gamma.shape[1], z.shape[0], z.shape[1]
+        # (K,)
+        gamma_sum = torch.sum(gamma, dim=0)
+        # prob de x_i pour chaque cluster k
+        phi_ = gamma_sum / N
+
+        # K x D
+        # :math: `\mu = (I * gamma_sum)^{-1} * (\gamma^T * z)`
+        mu_ = torch.sum(gamma.unsqueeze(-1) * z.unsqueeze(1), dim=0) / gamma_sum.unsqueeze(-1)
+        # Covariance (K x D x D)
+
         self.phi = phi.data
         self.mu = mu.data
         self.cov_mat = cov_mat
-        self.covs = covs
+        # self.covs = covs
         # self.cov_mat = covs
 
         return phi, mu, cov_mat
+
+    def compute_GMM_params(z, gamma):
+        # n_mixtures, n_features, n_samples
+        K, N, D = gamma.shape[1], z.shape[0], z.shape[1]
+        # (K,)
+        gamma_sum = torch.sum(gamma, dim=0)
+        # prob de x_i pour chaque cluster k
+        phi_ = gamma_sum / N
+
+        # K x D
+        # :math: `\mu = (I * gamma_sum)^{-1} * (\gamma^T * z)`
+        mu_ = torch.sum(gamma.unsqueeze(-1) * z.unsqueeze(1), dim=0) / gamma_sum.unsqueeze(-1)
+        # Covariance (K x D x D)
+        covs = []
+        for i in range(0, K):
+            devs = z - mu_[i]
+            cov = 1 / gamma_sum[i] * ((gamma[:, i].unsqueeze(-1) * devs).T @ devs)
+            cov += 1e-12
+            covs.append(cov)
+
+        devs = z.unsqueeze(1) - mu_.unsqueeze(0)
+        # Sigma = devs.unsqueeze(-1) @ devs.unsqueeze(-2)
+        # Sigma = gamma.unsqueeze(-1).unsqueeze(-1) * Sigma
+        # Sigma = torch.sum(Sigma, dim=0) / gamma_sum.unsqueeze(-1).unsqueeze(-1)
+        device_name = 'cuda:0' if torch.cuda.is_available() else 'cpu'
+        device = torch.device(device_name)
+        Sigma = torch.zeros([K, D, D]).to(device)
+
+        for k in range(0, K):
+            sig_tmp = torch.zeros([D, D]).to(device)
+            for i in range(0, N):
+                d = (z[i, :] - mu_[k, :]).unsqueeze(0)
+                sig_tmp = sig_tmp + gamma[i, k] * (d.T @ d)
+            # Sigma[k, :, :] = sig_tmp / N
+            Sigma[k, :, :] = sig_tmp / gamma_sum[k]
+        return phi_, mu_, Sigma
 
     def mv_normal_cholesky(self, z: torch.Tensor, mu: torch.Tensor, Sigma: torch.Tensor):
         N, D = z.shape[0], z.shape[1]
@@ -218,7 +260,7 @@ class DAGMM(nn.Module):
 
         # Avoid non-invertible covariance matrix by adding small values (eps)
         d = z.shape[1]
-        eps = 1e-5
+        eps = 1e-12
         cov_mat = cov_mat + (torch.eye(d)).to(device) * eps
         # N x K x D
         mu_z = z.unsqueeze(1) - mu.unsqueeze(0)

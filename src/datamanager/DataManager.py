@@ -51,7 +51,7 @@ class DataManager:
         self.kwargs = kwargs
         self.seed = seed
 
-        torch.manual_seed(seed)
+        # torch.manual_seed(seed)
         n = len(train_dataset)
         shuffled_idx = torch.randperm(n).long()
 

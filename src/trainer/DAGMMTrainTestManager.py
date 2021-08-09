@@ -8,6 +8,8 @@ from datamanager.DataManager import DataManager
 from sklearn import metrics
 import torch.nn as nn
 
+from src.utils.metrics import score_recall_precision
+
 
 class DAGMMTrainTestManager:
     """
@@ -111,7 +113,7 @@ class DAGMMTrainTestManager:
         """
         Train the model until reaching complete_data_ratio of labeled instances
         """
-
+        print(f'Training with {self.__class__.__name__}')
         # self.model.reset_weights()
 
         # Initialize metrics container
@@ -243,6 +245,8 @@ class DAGMMTrainTestManager:
 
             # switch back to train mode
             self.model.train()
+
+            score_recall_precision(combined_energy, test_energy, test_labels)
 
             return res, test_z, test_labels, combined_energy
 

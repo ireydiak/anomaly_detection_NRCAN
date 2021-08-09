@@ -37,6 +37,7 @@ class SOMDAGMMTrainer:
         self.model.train_som(X)
 
     def train(self, n_epochs: int):
+        print(f'Training with {self.__class__.__name__}')
         mean_loss = np.inf
         train_ldr = self.dm.get_train_set()
 

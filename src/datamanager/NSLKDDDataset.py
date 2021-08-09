@@ -77,5 +77,20 @@ class NSLKDDDataset(Dataset):
         test_set = Subset(self, remaining_index)
         return train_set, test_set
 
+    def one_class_split_train_test_inject(self, test_perc=.2, label=0, inject_p=0, seed=0):
+        label_data_index = self.get_data_index_by_label(label=label)
+        label_data_to_inject_index = self.get_data_index_by_label(label=1 - label)
+        num_test_sample = int(len(label_data_index) * test_perc)
+        shuffled_idx = torch.randperm(len(label_data_index)).long()
+        train_set = Subset(self, label_data_index[shuffled_idx[num_test_sample:]])
+
+        remaining_index = np.concatenate([label_data_index[shuffled_idx[:num_test_sample]],
+                                          self.get_data_index_by_label(label=0 if label == 1 else 1)])
+
+        print(f'Size of data with label ={label} :', 100 * len(label_data_index) / self.N)
+
+        test_set = Subset(self, remaining_index)
+        return train_set, test_set
+
     def get_shape(self):
         return self.X.shape
