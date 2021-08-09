@@ -11,15 +11,14 @@ Authors:
 
 import argparse
 
-import numpy as np
 from torch import nn
-from torch import Tensor
-from trainer import SOMDAGMMTrainer
+from model import DAGMM, Encoder, MemAutoEncoder as MemAE, MLAD, SOMDAGMM
+from trainer import DAGMMTrainTestManager, MemAETrainer, MLADTrainer, SOMDAGMMTrainer
 import torch.optim as optim
 from utils.utils import check_dir, optimizer_setup
-from model import DAGMM, Encoder, MemAutoEncoder as MemAE, MLAD, SOMDAGMM
-from datamanager import DataManager, KDD10Dataset, NSLKDDDataset, IDS2018Dataset
-from trainer import DAGMMTrainTestManager, MemAETrainer, MLADTrainer
+from model import DAGMM, MemAutoEncoder as MemAE, SOMDAGMM
+from datamanager import ArrhythmiaDataset, DataManager, KDD10Dataset, NSLKDDDataset, IDS2018Dataset, USBIDSDataset
+from trainer import DAGMMTrainTestManager, MemAETrainer
 from viz.viz import plot_3D_latent, plot_energy_percentile
 from datetime import datetime as dt
 import torch
@@ -39,7 +38,7 @@ def argument_parser():
     parser.add_argument('-L', '--latent-dim', type=int, default=1)
     parser.add_argument('-K', '--n-mixtures', type=int, default=4)
     parser.add_argument('-d', '--dataset-path', type=str, help='Path to the dataset')
-    parser.add_argument('--dataset', type=str, default="kdd10", choices=["kdd10", "nslkdd", "ids2018"])
+    parser.add_argument('--dataset', type=str, default="kdd10", choices=["Arrhythmia", "KDD10", "NSLKDD", "IDS2018", "USBIDS"])
     parser.add_argument('--batch-size', type=int, default=1024, help='The size of the training batch')
     parser.add_argument('--optimizer', type=str, default="Adam", choices=["Adam", "SGD", "RMSProp"],
                         help="The optimizer to use for training the model")
@@ -68,7 +67,7 @@ def argument_parser():
 
 
 def store_results(train_results: dict, model_params: dict, model_name: str, dataset_name: str, path: str):
-    output_dir = f'../results/{dataset}'
+    output_dir = f'../results/{dataset_name}'
     if not os.path.exists(output_dir):
         os.mkdir(output_dir)
     with open(output_dir + '/' + f'{model_name}_results.txt', 'a') as f:
@@ -121,10 +120,69 @@ def resolve_trainer(trainer_str: str, optimizer_factory, dataset, **kwargs):
         som_train_data = dataset.split_train_test()[0]
         data = [som_train_data[i][0] for i in range(len(som_train_data))]
         trainer.train_som(data)
+    if trainer_str == 'DAGMM' or trainer_str == 'SOM-DAGMM':
+        if dataset.name == 'Arrhythmia':
+            enc_layers = [(D, 10, nn.Tanh()), (10, L, None)]
+            dec_layers = [(L, 10, nn.Tanh()), (10, D, None)]
+            gmm_layers = [(4, 10, nn.Tanh()), (None, None, nn.Dropout(0.5)), (10, 2, nn.Softmax(dim=-1))]
+        else:
+            enc_layers = [(D, 60, nn.Tanh()), (60, 30, nn.Tanh()), (30, 10, nn.Tanh()), (10, L, None)]
+            dec_layers = [(L, 10, nn.Tanh()), (10, 30, nn.Tanh()), (30, 60, nn.Tanh()), (60, D, None)]
+            gmm_layers = [(3, 10, nn.Tanh()), (None, None, nn.Dropout(0.5)), (10, 4, nn.Softmax(dim=-1))]
+        
+        if trainer_str == 'DAGMM':
+            model = DAGMM(D, ae_layers=(enc_layers, dec_layers), gmm_layers=gmm_layers)
+            trainer = DAGMMTrainTestManager(
+                model=model, dm=dm, optimizer_factory=optimizer_factory
+            )
+        else:
+            dagmm = DAGMM(
+            enc_layers, dec_layers,
+                gmm_layers=[(5, 10, nn.Tanh()), (None, None, nn.Dropout(0.5)), (10, 4, nn.Softmax(dim=-1))]
+            )
+            # TODO
+            # set these values according to the used dataset
+            grid_length = 40  # int(5 * np.sqrt(len(dataset)))
+            som_args = {
+                "x": grid_length,
+                "y": grid_length,
+                "lr": 0.6,
+                "neighborhood_function": "bubble",
+                'n_epoch': 3000
+            }
+            model = SOMDAGMM(dataset.get_shape()[1], dagmm, som_args=som_args)
+            trainer = SOMDAGMMTrainer(
+                model=model, dm=dm, optimizer_factory=optimizer_factory
+            )
+            som_train_data = dataset.split_train_test()[0]
+            data = [som_train_data[i][0] for i in range(len(som_train_data))]
+            trainer.train_som(data)
     elif trainer_str == 'MemAE':
         print(f'training on {device}')
+        if dataset.name == 'Arrhythmia':
+            enc_layers = [
+                nn.Linear(D, 10), nn.Tanh(),
+                nn.Linear(10, L)
+            ]
+            dec_layers = [
+                nn.Linear(L, 10), nn.Tanh(),
+                nn.Linear(10, D)
+            ]
+        else:
+            enc_layers = [
+                nn.Linear(D, 60), nn.Tanh(),
+                nn.Linear(60, 30), nn.Tanh(),
+                nn.Linear(30, 10), nn.Tanh(),
+                nn.Linear(10, L)
+            ]
+            dec_layers = [
+                nn.Linear(L, 10), nn.Tanh(),
+                nn.Linear(10, 30), nn.Tanh(),
+                nn.Linear(30, 60), nn.Tanh(),
+                nn.Linear(60, D)
+            ]
         model = MemAE(
-            D, L, kwargs.get('mem_dim'), kwargs.get('shrink_thres'), device
+             kwargs.get('mem_dim'), enc_layers, dec_layers, kwargs.get('shrink_thres'), device
         ).to(device)
         trainer = MemAETrainer(
             model=model, dm=dm, optimizer_factory=optimizer_factory, device=device
@@ -155,14 +213,14 @@ if __name__ == "__main__":
     lambda_2 = args.lambda_p
 
     # Dynamically load the Dataset instance
-    clsname = globals()[f'{args.dataset.upper()}Dataset']
+    clsname = globals()[f'{args.dataset}Dataset']
     dataset = clsname(args.dataset_path, args.pct)
 
     batch_size = len(dataset) if args.batch_size < 0 else args.batch_size
 
     # split data in train and test sets
     # we train only on the majority class
-    train_set, test_set = dataset.one_class_split_train_test(test_perc=0.5, label=dataset.majority_cls_label)
+    train_set, test_set = dataset.one_class_split_train_test(test_perc=0.5, label=0)
     dm = DataManager(train_set, test_set, batch_size=batch_size, validation=0.1)
 
     # safely create save path
