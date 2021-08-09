@@ -12,8 +12,7 @@ class NSLKDDDataset(Dataset):
     """
     This class is used to load NSL-KDD Cup dataset as a pytorch Dataset
     """
-    majority_cls_label = 0
-    minority_cls_label = 1
+    name = 'NSLKDD'
 
     def __init__(self, path='../data/kddcup_data', pct: float=1.0):
         self.path = path

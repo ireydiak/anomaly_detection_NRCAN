@@ -8,6 +8,7 @@ class GMM(nn.Module):
     def __init__(self, layers):
         super(GMM, self).__init__()
         self.net = self.create_network(layers)
+        self.K = layers[-1][1]
 
     def create_network(self, layers: List[Tuple]):
         net_layers = []
