@@ -73,6 +73,8 @@ def argument_parser():
     parser.add_argument('--p_s', type=float, default=35, help='Variance threshold of initial selection')
     parser.add_argument('--p_0', type=float, default=30, help='Variance threshold of re-evaluation selection')
     parser.add_argument('--num-cluster', type=int, default=20, help='Number of clusters')
+    parser.add_argument('--inj-rate', type=float, default=0.0, help='Anomalous injection rate')
+
 
 
 
@@ -206,6 +208,8 @@ if __name__ == "__main__":
     r = args.r
     num_cluster = args.num_cluster
 
+    inject_perc = args.inj_rate
+
     # Dynamically load the Dataset instance
     clsname = globals()[f'{args.dataset}Dataset']
     dataset = clsname(args.dataset_path, args.pct)
@@ -215,9 +219,9 @@ if __name__ == "__main__":
     # split data in train and test sets
     # we train only on the majority class
     if args.model == 'DUAD':
-        train_set, test_set = dataset.one_class_split_train_test(test_perc=0.50)
+        train_set, test_set = dataset.one_class_split_train_test_inject(test_perc=0.50, inject_perc=inject_perc)
     else:
-        train_set, test_set = dataset.one_class_split_train_test(test_perc=0.5, label=0)
+        train_set, test_set = dataset.one_class_split_train_test_inject(test_perc=0.50, inject_perc=inject_perc) #dataset.one_class_split_train_test(test_perc=0.5, label=0)
     dm = DataManager(train_set, test_set, batch_size=batch_size, validation=1e-3)
 
     # safely create save path

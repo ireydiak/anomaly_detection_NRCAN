@@ -18,7 +18,7 @@ class KDD10Dataset(Dataset):
 
     def __init__(self, path='../data/kdd10_train', pct=1.0):
         self.path = path
-    
+
         # load data
         if os.path.exists(path) and path.endswith('.npz'):
             X = np.load(path)['kdd']
@@ -110,6 +110,36 @@ class KDD10Dataset(Dataset):
             [label_data_index[shuffled_idx[:num_test_sample]],
              self.get_data_index_by_label(label=0 if label == 1 else 1)]
         )
+
+        print(f'Size of data with label ={label} :', len(label_data_index) / self.n)
+
+        test_set = Subset(self, remaining_index)
+
+        return train_set, test_set
+
+    def one_class_split_train_test_inject(self, test_perc=.2, label=0, inject_perc=0.0, seed=None):
+        if seed:
+            torch.manual_seed(seed)
+
+        # all_indices = torch.arange(self.n).long()
+        all_indices = torch.ones(self.n)
+        label_data_index = self.get_data_index_by_label(label=label)
+        num_test_sample = int(len(label_data_index) * test_perc)
+        shuffled_idx = torch.randperm(len(label_data_index)).long()
+        label_selected_indices = label_data_index[shuffled_idx[num_test_sample:]]
+
+        label_inv_data_index = self.get_data_index_by_label(label=1 - label)
+        num_data_to_inject = int(len(label_data_index) * (1 - test_perc) * inject_perc / (1 - inject_perc))
+        assert num_data_to_inject < len(label_inv_data_index)
+
+        shuffled_idx = torch.randperm(len(label_inv_data_index)).long()
+        label_inv_selected_indices = label_inv_data_index[shuffled_idx[:num_data_to_inject]]
+
+        train_indices = np.concatenate([label_selected_indices, label_inv_selected_indices])
+        train_set = Subset(self, train_indices)
+
+        all_indices[train_indices] = 0
+        remaining_index = all_indices.nonzero().squeeze()
 
         print(f'Size of data with label ={label} :', len(label_data_index) / self.n)
 

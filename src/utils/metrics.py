@@ -42,3 +42,19 @@ def score_recall_precision(combined_score, test_score, test_labels, pos_label=1)
               f"Recall:{recall:.3f}, "
               f"F-score:{f_score:.3f}, "
               f"\nconfusion-matrix: {cm}\n\n")
+
+
+def score_recall_precision_w_thresold(combined_score, test_score, test_labels, pos_label=1, threshold=80.0):
+    thresh = np.percentile(combined_score, threshold)
+    print("Threshold :", thresh)
+
+    # Prediction using the threshold value
+    y_pred = (test_score > thresh).astype(int)
+    y_true = test_labels.astype(int)
+
+    accuracy = accuracy_score(y_true, y_pred)
+    precision, recall, f_score, _ = precision_recall_fscore_support(y_true, y_pred, average='binary',
+                                                                            pos_label=pos_label)
+    res = {"Accuracy": accuracy, "Precision": precision, "Recall": recall, "F1-Score": f_score}
+
+    return res

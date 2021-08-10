@@ -18,6 +18,7 @@ from src.datamanager import DataManager
 from src.model import DUAD
 from sklearn.mixture import GaussianMixture
 
+from src.utils.metrics import score_recall_precision
 from src.viz.viz import plot_2D_latent, plot_energy_percentile
 
 
@@ -33,8 +34,8 @@ class DUADTrainer:
         self.dm = dm
 
         self.r = kwargs.get('r', 10)
-        self.p = kwargs.get('p', 30)
-        self.p0 = kwargs.get('p0', 35)
+        self.p = kwargs.get('p_s', 30)
+        self.p0 = kwargs.get('p_0', 35)
         self.num_cluster = kwargs.get('num_cluster', 20)
 
         device_name = 'cuda:0' if use_cuda else 'cpu'
@@ -53,7 +54,7 @@ class DUADTrainer:
 
     def re_evaluation(self, X, p, num_clusters=20):
         # uv = np.unique(X, axis=0)
-        gmm = GaussianMixture(n_components=num_clusters)
+        gmm = GaussianMixture(n_components=num_clusters, max_iter=400)
         gmm.fit(X)
         pred_label = gmm.predict(X)
         X_means = torch.from_numpy(gmm.means_)
@@ -71,29 +72,56 @@ class DUADTrainer:
 
         selected_clusters = (clusters_vars <= q).nonzero().squeeze()
         # pred_label_ = torch.from_numpy(pred_label).unsqueeze(dim=1)
+
+        selection_mask = [pred in list(selected_clusters.cpu().numpy()) for pred in pred_label]
         indices_selection = torch.from_numpy(
-            np.array([pred in selected_clusters for pred in pred_label])).nonzero().squeeze()
+            np.array(selection_mask)).nonzero().squeeze()
 
         return indices_selection
 
     def train(self, n_epochs: int):
         print(f'Training with {self.__class__.__name__}')
         mean_loss = np.inf
-        # self.dm.update_train_set(self.dm.get_selected_indices())
+        self.dm.update_train_set(self.dm.get_selected_indices())
         train_ldr = self.dm.get_train_set()
 
         # run clustering, select instances from low variance clusters
+        # run clustering, select instances from low variance clusters
+        X = []
+        y = []
+        indices = []
+        for i, X_i in enumerate(train_ldr, 0):
+            X.append(X_i[0])
+            indices.append(X_i[2])
+            y.append(X_i[1])
+
+        X = torch.cat(X, axis=0)
+        y = torch.cat(y, axis=0)
+
+        indices = torch.cat(indices, axis=0)
+
+        # selected_indices = indices[self.re_evaluation(X, self.p0, self.num_cluster)]
+
+        sel_from_clustering = self.re_evaluation(X, self.p0, self.num_cluster)
+        selected_indices = indices[sel_from_clustering]
+
+        print(f"label 0 ratio:{(y == 0).sum() / len(y)}"
+              f"\n")
+        print(f"label 1 ratio:{(y == 1).sum() / len(y)}"
+              f"\n")
+        print(f"selected label 0 ratio:{(y[sel_from_clustering] == 0).sum() / len(y)}"
+              f"\n")
+        print(f"selected label 1 ratio:{(y[sel_from_clustering] == 1).sum() / len(y)}"
+              f"\n")
 
 
-        # sel_from_clustering = self.re_evaluation(X, self.p0, self.num_cluster)
-        # selected_indices = indices[sel_from_clustering]
-        # print(f"label 0 ratio:{(y[sel_from_clustering] == 0).sum() / len(y)}"
-        #       f"")
+        self.dm.update_train_set(selected_indices)
+        train_ldr = self.dm.get_train_set()
         # TODO
         # to uncomment
         # self.dm.update_train_set(selected_indices)
 
-        train_ldr = self.dm.get_train_set()
+        # train_ldr = self.dm.get_train_set()
 
         L = []
         L_old = [-1]
@@ -101,7 +129,7 @@ class DUADTrainer:
         while len(set(L_old).difference(set(L))) != 0:
             for epoch in range(n_epochs):
                 print(f"\nEpoch: {epoch + 1} of {n_epochs}")
-                if False and (epoch + 1) % self.r == 0:
+                if (epoch + 1) % self.r == 0:
                     self.model.eval()
                     L_old = deepcopy(L)
                     with torch.no_grad():
@@ -133,9 +161,9 @@ class DUADTrainer:
                         selected_indices = indices[selection_mask]
                         y_s = y[selection_mask.cpu().numpy()]
 
-                        print(f"label 0 ratio:{(y_s == 0).sum() / len(y_s)}"
+                        print(f"selected label 0 ratio:{(y_s == 0).sum() / len(y)}"
                               f"")
-                        print(f"label 1 ratio:{(y_s == 1).sum() / len(y_s)}"
+                        print(f"selected label 1 ratio:{(y_s == 1).sum() / len(y)}"
                               f"")
 
                         self.dm.update_train_set(selected_indices)
@@ -152,7 +180,6 @@ class DUADTrainer:
                     # TODO
                     # Train with the current trainset
                     loss = 0
-
                     with trange(len(train_ldr)) as t:
                         for i, X_i in enumerate(train_ldr, 0):
                             train_inputs = X_i[0].to(self.device).float()
@@ -160,8 +187,8 @@ class DUADTrainer:
                             mean_loss = loss / (i + 1)
                             t.set_postfix(loss='{:05.3f}'.format(mean_loss))
                             t.update()
-            # self.evaluate_on_test_set()
-            break
+            self.evaluate_on_test_set()
+            # break
         return mean_loss
 
     def train__(self, n_epochs: int):
@@ -325,50 +352,8 @@ class DUADTrainer:
             test_labels = np.concatenate(test_labels, axis=0)
 
             combined_score = np.concatenate([train_score, test_score], axis=0)
-            # plot_energy_percentile(combined_score)
 
-            # apc = average_precision_score(test_labels, test_score)
-            #
-            # precision, recall, thresholds = precision_recall_curve(test_labels, test_score)
-            #
-
-
-            # print(f"Precision:{precision}"
-            #       f"\nRecall:{recall}"
-            #       f"\nthresholds:{thresholds}"
-            #       f"\nAPR:{apc}")
-            # print(apc)
-
-            # print((np.unique(test_labels)))
-            # Search for best threshold
-
-            q = np.linspace(0, 99, 100)
-            thresholds = np.percentile(combined_score, q)
-
-            result_search = []
-            confusion_matrices = []
-            for thresh, qi in zip(thresholds, q):
-                print(f"Threshold :{thresh:.3f}--> {qi:.3f}")
-
-                # Prediction using the threshold value
-                y_pred = (test_score > thresh).astype(int)
-                y_true = test_labels.astype(int)
-
-                accuracy = metrics.accuracy_score(y_true, y_pred)
-                precision, recall, f_score, _ = metrics.precision_recall_fscore_support(y_true, y_pred,
-                                                                                        average='binary',
-                                                                                        pos_label=pos_label)
-                cm = confusion_matrix(y_true, y_pred, labels=[1, 0])
-                confusion_matrices.append(cm)
-                result_search.append([accuracy, precision, recall, f_score])
-
-                print(f"\nAccuracy:{accuracy:.3f}, "
-                      f"Precision:{precision:.3f}, "
-                      f"Recall:{recall:.3f}, "
-                      f"F-score:{f_score:.3f}, "
-                      f"\nconfusion-matrix: {cm}\n\n")
-                if f_score == 0:
-                    break
+            score_recall_precision(combined_score, test_score, test_labels)
 
             # switch back to train mode
             self.model.train()
