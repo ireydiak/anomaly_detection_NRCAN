@@ -97,9 +97,6 @@ class AETrainer:
                 # forward pass
                 code, X_prime = self.model(train_inputs)
 
-                # (X - X_prime)
-
-                # train_score.append(h_x.cpu().numpy())
                 train_score.append(((train_inputs - X_prime) ** 2).sum(axis=-1).squeeze().cpu().numpy())
             train_score = np.concatenate(train_score, axis=0)
 
@@ -112,11 +109,9 @@ class AETrainer:
                 test_inputs, label_inputs = data[0].float().to(self.device), data[1]
 
                 # forward pass
-                # forward pass
                 code, X_prime = self.model(test_inputs)
 
                 test_score.append(((test_inputs - X_prime) ** 2).sum(axis=-1).squeeze().cpu().numpy())
-                # test_score.append(h_x.cpu().numpy())
                 test_z.append(code.cpu().numpy())
                 test_labels.append(label_inputs.numpy())
 
@@ -125,38 +120,11 @@ class AETrainer:
             test_labels = np.concatenate(test_labels, axis=0)
 
             combined_score = np.concatenate([train_score, test_score], axis=0)
-            # plot_energy_percentile(combined_score)
-
-            # apc = average_precision_score(test_labels, test_score)
-            #
-            # precision, recall, thresholds = precision_recall_curve(test_labels, test_score)
-            #
-
-            # print(f"Precision:{precision}"
-            #       f"\nRecall:{recall}"
-            #       f"\nthresholds:{thresholds}"
-            #       f"\nAPR:{apc}")
-            # print(apc)
-
-            # print((np.unique(test_labels)))
-            # Search for best threshold
 
             score_recall_precision(combined_score, test_score, test_labels)
 
             # switch back to train mode
             self.model.train()
 
-            # result_search = np.array(result_search)
-            # best_result = np.max(result_search, axis=0)
-            # idx_best_result = np.argmax(result_search, axis=0)
-            #
-            # res = {"Accuracy": best_result[0],
-            #        "Precision": best_result[1],
-            #        "Recall": best_result[2],
-            #        "F1-Score": [3],
-            #        'Confusion': confusion_matrices[idx_best_result],
-            #        'Best threshold': thresholds[idx_best_result]
-            #
-            #        }
             res = {}
             return res, test_z, test_labels, combined_score

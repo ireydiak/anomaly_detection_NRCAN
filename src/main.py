@@ -30,8 +30,8 @@ from datetime import datetime as dt
 import torch
 import os
 
-
 vizualizable_models = ["AE", "DAGMM", "SOM-DAGMM"]
+
 
 def argument_parser():
     """
@@ -40,10 +40,12 @@ def argument_parser():
     parser = argparse.ArgumentParser(
         usage='\n python3 main.py -m [model] -d [dataset-path] --dataset [dataset] [hyper_parameters]'
     )
-    parser.add_argument('-m', '--model', type=str, default="DAGMM", choices=["AE", "DAGMM", "SOM-DAGMM", "MLAD", "MemAE", "DUAD"])
+    parser.add_argument('-m', '--model', type=str, default="DAGMM",
+                        choices=["AE", "DAGMM", "SOM-DAGMM", "MLAD", "MemAE", "DUAD"])
     parser.add_argument('-lat', '--latent-dim', type=int, default=1)
     parser.add_argument('-d', '--dataset-path', type=str, help='Path to the dataset')
-    parser.add_argument('--dataset', type=str, default="kdd10", choices=["Arrhythmia", "KDD10", "NSLKDD", "IDS2018", "USBIDS"])
+    parser.add_argument('--dataset', type=str, default="kdd10",
+                        choices=["Arrhythmia", "KDD10", "NSLKDD", "IDS2018", "USBIDS"])
     parser.add_argument('--batch-size', type=int, default=1024, help='The size of the training batch')
     parser.add_argument('--optimizer', type=str, default="Adam", choices=["Adam", "SGD", "RMSProp"],
                         help="The optimizer to use for training the model")
@@ -76,10 +78,6 @@ def argument_parser():
     parser.add_argument('--p_0', type=float, default=30, help='Variance threshold of re-evaluation selection')
     parser.add_argument('--num-cluster', type=int, default=20, help='Number of clusters')
     parser.add_argument('--inj-rate', type=float, default=0.0, help='Anomalous injection rate')
-
-
-
-
 
     return parser.parse_args()
 
@@ -182,7 +180,7 @@ def resolve_trainer(trainer_str: str, optimizer_factory, **kwargs):
                 nn.Linear(60, D)
             ]
         model = MemAE(
-             kwargs.get('mem_dim'), enc_layers, dec_layers, kwargs.get('shrink_thres'), device
+            kwargs.get('mem_dim'), enc_layers, dec_layers, kwargs.get('shrink_thres'), device
         ).to(device)
         trainer = MemAETrainer(
             model=model, dm=dm, optimizer_factory=optimizer_factory, device=device
@@ -229,20 +227,14 @@ if __name__ == "__main__":
 
     optimizer = resolve_optimizer(args.optimizer)
 
-    if args.model == 'MemAE':
-        for l in [1, 3, 7, 16, 30, 60]:
-            model, model_trainer = resolve_trainer(
-                args.model, optimizer, latent_dim=l, mem_dim=args.mem_dim, shrink_thres=args.shrink_thres
-            )
-    else:
-        model, model_trainer = resolve_trainer(
-            args.model, optimizer, latent_dim=L, mem_dim=args.mem_dim, shrink_thres=args.shrink_thres,
-            n_som=n_som,
-            r=r,
-            p_s=p_s,
-            p_0=p_0,
-            num_cluster=num_cluster,
-        )
+    model, model_trainer = resolve_trainer(
+        args.model, optimizer, latent_dim=L, mem_dim=args.mem_dim, shrink_thres=args.shrink_thres,
+        n_som=n_som,
+        r=r,
+        p_s=p_s,
+        p_0=p_0,
+        num_cluster=num_cluster,
+    )
 
     if model and model_trainer:
         metrics = model_trainer.train(args.num_epochs)
