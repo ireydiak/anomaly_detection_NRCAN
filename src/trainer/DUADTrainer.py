@@ -126,7 +126,7 @@ class DUADTrainer:
         L = []
         L_old = [-1]
         # print(set(L).difference(set(L_old)))
-        while len(set(L_old).difference(set(L))) != 0:
+        while len(set(L_old).difference(set(L))) <= 10:
             for epoch in range(n_epochs):
                 print(f"\nEpoch: {epoch + 1} of {n_epochs}")
                 if (epoch + 1) % self.r == 0:

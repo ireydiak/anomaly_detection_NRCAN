@@ -22,6 +22,8 @@ import torch.optim as optim
 from utils.utils import check_dir, optimizer_setup
 from model import DAGMM, MemAutoEncoder as MemAE, SOMDAGMM, AutoEncoder as AE
 from datamanager import ArrhythmiaDataset, DataManager, KDD10Dataset, NSLKDDDataset, IDS2018Dataset
+from model import DAGMM, MemAutoEncoder as MemAE, SOMDAGMM
+from datamanager import ArrhythmiaDataset, DataManager, KDD10Dataset, NSLKDDDataset, IDS2018Dataset, USBIDSDataset
 from trainer import DAGMMTrainTestManager, MemAETrainer
 from viz.viz import plot_3D_latent, plot_energy_percentile
 from datetime import datetime as dt
@@ -218,10 +220,8 @@ if __name__ == "__main__":
 
     # split data in train and test sets
     # we train only on the majority class
-    if args.model == 'DUAD':
-        train_set, test_set = dataset.one_class_split_train_test_inject(test_perc=0.50, inject_perc=inject_perc)
-    else:
-        train_set, test_set = dataset.one_class_split_train_test_inject(test_perc=0.50, inject_perc=inject_perc) #dataset.one_class_split_train_test(test_perc=0.5, label=0)
+
+    train_set, test_set = dataset.one_class_split_train_test_inject(test_perc=0.50, inject_perc=inject_perc)
     dm = DataManager(train_set, test_set, batch_size=batch_size, validation=1e-3)
 
     # safely create save path
@@ -229,16 +229,13 @@ if __name__ == "__main__":
 
     optimizer = resolve_optimizer(args.optimizer)
 
-    # TODO
-    # define multiple latent dimensiono in trainers
-
-    # for l in [1, 3, 7, 16, 30, 60]:
-    #     model, model_trainer = resolve_trainer(
-    #         args.model, optimizer, latent_dim=l, mem_dim=args.mem_dim, shrink_thres=args.shrink_thres,
-    #     n_som=n_som
-    # )
-
-    model, model_trainer = resolve_trainer(
+    if args.model == 'MemAE':
+        for l in [1, 3, 7, 16, 30, 60]:
+            model, model_trainer = resolve_trainer(
+                args.model, optimizer, latent_dim=l, mem_dim=args.mem_dim, shrink_thres=args.shrink_thres
+            )
+    else:
+        model, model_trainer = resolve_trainer(
             args.model, optimizer, latent_dim=L, mem_dim=args.mem_dim, shrink_thres=args.shrink_thres,
             n_som=n_som,
             r=r,
