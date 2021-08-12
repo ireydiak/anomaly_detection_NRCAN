@@ -8,6 +8,8 @@ from datamanager.DataManager import DataManager
 from sklearn import metrics
 import torch.nn as nn
 
+from src.utils.metrics import score_recall_precision, score_recall_precision_w_thresold
+
 
 class DAGMMTrainTestManager:
     """
@@ -111,7 +113,7 @@ class DAGMMTrainTestManager:
         """
         Train the model until reaching complete_data_ratio of labeled instances
         """
-
+        print(f'Training with {self.__class__.__name__}')
         # self.model.reset_weights()
 
         # Initialize metrics container
@@ -224,26 +226,14 @@ class DAGMMTrainTestManager:
 
             combined_energy = np.concatenate([train_energy, test_energy], axis=0)
 
-            thresh = np.percentile(combined_energy, energy_threshold)
-            print("Threshold :", thresh)
+            res = score_recall_precision_w_thresold(combined_energy, test_energy, test_labels, pos_label=1,
+                                                    threshold=energy_threshold)
 
-            # Prediction using the threshold value
-            y_pred = (test_energy > thresh).astype(int)
-            y_true = test_labels.astype(int)
-
-            accuracy = metrics.accuracy_score(y_true, y_pred)
-            precision, recall, f_score, _ = metrics.precision_recall_fscore_support(y_true, y_pred, average='binary', pos_label=pos_label)
-            res = {"Accuracy": accuracy, "Precision": precision, "Recall": recall, "F1-Score": f_score}
-
-            print(f"Accuracy:{accuracy}, "
-                  f"Precision:{precision}, "
-                  f"Recall:{recall}, "
-                  f"F-score:{f_score}, "
-                  f"\nconfusion-matrix: {confusion_matrix(y_true, y_pred)}")
+            print(res)
 
             # switch back to train mode
             self.model.train()
 
+            score_recall_precision(combined_energy, test_energy, test_labels)
+
             return res, test_z, test_labels, combined_energy
-
-

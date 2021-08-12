@@ -18,6 +18,7 @@ class MemAETrainer:
         self.entropy_loss_weight = entropy_loss_weight
 
     def train(self, n_epochs: int):
+        print(f'Training with {self.__class__.__name__}')
         mean_loss = np.inf
         train_ldr = self.dm.get_train_set()
 

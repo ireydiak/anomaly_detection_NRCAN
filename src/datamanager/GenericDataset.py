@@ -100,6 +100,11 @@ class GenericDataset(Dataset):
         train_set = Subset(self, shuffled_idx[num_test_sample:])
         test_set = Subset(self, shuffled_idx[:num_test_sample])
 
+        stat = {'l1': (self.y[shuffled_idx[num_test_sample:]] == 1).sum() / (self.n - num_test_sample),
+                'l0': (self.y[shuffled_idx[num_test_sample:]] == 0).sum() / (self.n - num_test_sample)}
+
+        print(f'Percentage of label 0:{stat["l0"]}'
+              f'\nPercentage of label 1:{stat["l1"]}')
         return train_set, test_set
 
     def one_class_split_train_test(self, test_perc=.2, label=0, seed=0):
