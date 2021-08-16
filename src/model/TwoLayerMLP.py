@@ -3,7 +3,7 @@ import torch.nn as nn
 
 
 class TwoLayerMLP(nn.Module):
-    def __init__(self, in_features: int, out_features: int, negative_slope=0.2, p=0.5):
+    def __init__(self, in_features: int, out_features: int, negative_slope=1e-2, p=0.5):
         super(TwoLayerMLP, self).__init__()
         self.input_space = in_features
         self.out_space = out_features
@@ -12,11 +12,9 @@ class TwoLayerMLP(nn.Module):
             nn.LeakyReLU(negative_slope),
             nn.Dropout(p),
         )
-        self.fc_2 = nn.Sequential(
-            nn.Linear(out_features, 1)
-        )
+        self.fc_2 = nn.Linear(out_features, 1)
 
     def forward(self, X):
-        y = self.fc_1(X)
-        logits = self.fc_2(y)
-        return logits, y
+        mid_layer = self.fc_1(X)
+        logits = self.fc_2(mid_layer)
+        return logits, mid_layer

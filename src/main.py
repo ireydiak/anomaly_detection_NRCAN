@@ -15,9 +15,9 @@ from torch import nn
 from trainer import SOMDAGMMTrainer
 import torch.optim as optim
 from utils.utils import check_dir, optimizer_setup
-from model import DAGMM, MemAutoEncoder as MemAE, SOMDAGMM
+from model import ALAD, DAGMM, MemAutoEncoder as MemAE, SOMDAGMM
 from datamanager import ArrhythmiaDataset, DataManager, KDD10Dataset, NSLKDDDataset, IDS2018Dataset, USBIDSDataset
-from trainer import DAGMMTrainTestManager, MemAETrainer
+from trainer import ALADTrainer, DAGMMTrainTestManager, MemAETrainer
 from viz.viz import plot_3D_latent, plot_energy_percentile
 from datetime import datetime as dt
 import torch
@@ -34,7 +34,7 @@ def argument_parser():
     parser = argparse.ArgumentParser(
         usage='\n python3 main.py -m [model] -d [dataset-path] --dataset [dataset] [hyper_parameters]'
     )
-    parser.add_argument('-m', '--model', type=str, default="DAGMM", choices=["AE", "DAGMM", "SOM-DAGMM", "MLAD", "MemAE"])
+    parser.add_argument('-m', '--model', type=str, default="DAGMM", choices=["AE", "ALAD", "DAGMM", "SOM-DAGMM", "MLAD", "MemAE"])
     parser.add_argument('-L', '--latent-dim', type=int, default=1)
     parser.add_argument('-d', '--dataset-path', type=str, help='Path to the dataset')
     parser.add_argument('--dataset', type=str, default="kdd10", choices=["Arrhythmia", "KDD10", "NSLKDD", "IDS2018", "USBIDS"])
@@ -89,9 +89,9 @@ def resolve_optimizer(optimizer_str: str):
 
 def resolve_trainer(trainer_str: str, optimizer_factory, **kwargs):
     model, trainer = None, None
-    device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
+    device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
     D = dataset.get_shape()[1]
-    L = kwargs.get("latent_dim", 1)
+    L = kwargs.get("latent_dim", D//2)
     if trainer_str == 'DAGMM' or trainer_str == 'SOM-DAGMM':
         if dataset.name == 'Arrhythmia':
             enc_layers = [(D, 10, nn.Tanh()), (10, L, None)]
@@ -130,7 +130,6 @@ def resolve_trainer(trainer_str: str, optimizer_factory, **kwargs):
             data = [som_train_data[i][0] for i in range(len(som_train_data))]
             trainer.train_som(data)
     elif trainer_str == 'MemAE':
-        print(f'training on {device}')
         if dataset.name == 'Arrhythmia':
             enc_layers = [
                 nn.Linear(D, 10), nn.Tanh(),
@@ -159,6 +158,18 @@ def resolve_trainer(trainer_str: str, optimizer_factory, **kwargs):
         trainer = MemAETrainer(
             model=model, dm=dm, optimizer_factory=optimizer_factory, device=device
         )
+    elif trainer_str == 'ALAD':
+        bsize = kwargs.get('batch_size', None)
+        assert batch_size
+        model = ALAD(D, L).to(device)
+        trainer = ALADTrainer(
+            model=model, 
+            dm=dm,
+            optimizer_factory=optimizer_factory,
+            device=device,
+            batch_size=bsize,
+            L=L
+        )
 
     return model, trainer
 
@@ -186,22 +197,22 @@ if __name__ == "__main__":
 
     optimizer = resolve_optimizer(args.optimizer)
 
-    for l in [1, 3, 7, 16, 30, 60]:
-        model, model_trainer = resolve_trainer(
-            args.model, optimizer, latent_dim=l, mem_dim=args.mem_dim, shrink_thres=args.shrink_thres
-        )
+    model, model_trainer = resolve_trainer(
+        args.model, optimizer, 
+        latent_dim=args.latent_dim, mem_dim=args.mem_dim, shrink_thres=args.shrink_thres, batch_size=batch_size
+    )
 
-        if model and model_trainer:
-            metrics = model_trainer.train(args.num_epochs)
-            print('Finished learning process')
-            print('Evaluating model on test set')
-            # We test with the minority samples as the positive class
-            results, test_z, test_label, energy = model_trainer.evaluate_on_test_set(energy_threshold=args.p_threshold)
+    if model and model_trainer:
+        metrics = model_trainer.train(args.num_epochs)
+        print('Finished learning process')
+        print('Evaluating model on test set')
+        # We test with the minority samples as the positive class
+        results, test_z, test_label, energy = model_trainer.evaluate_on_test_set(energy_threshold=args.p_threshold)
 
-            params = dict({"BatchSize": batch_size, "Epochs": args.num_epochs, "rho": args.rho}, **model.get_params())
-            store_results(results, params, args.model, args.dataset, args.dataset_path)
-            if args.vizualization and model in vizualizable_models:
-                plot_3D_latent(test_z, test_label)
-                plot_energy_percentile(energy)
-        else:
-            print(f'Error: Could not train {args.dataset} on model {args.model}')
+        params = dict({"BatchSize": batch_size, "Epochs": args.num_epochs, "rho": args.rho}, **model.get_params())
+        store_results(results, params, args.model, args.dataset, args.dataset_path)
+        if args.vizualization and model in vizualizable_models:
+            plot_3D_latent(test_z, test_label)
+            plot_energy_percentile(energy)
+    else:
+        print(f'Error: Could not train {args.dataset} on model {args.model}')
