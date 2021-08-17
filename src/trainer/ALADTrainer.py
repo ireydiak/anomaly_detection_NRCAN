@@ -2,88 +2,96 @@ import torch
 import torch.nn as nn
 import numpy as np
 from tqdm import trange
-
+from torch import optim
+from torch.autograd import Variable
+from sklearn.metrics import precision_recall_curve, roc_auc_score, auc
+torch.autograd.set_detect_anomaly(True)
 
 class ALADTrainer:
-    def __init__(self, model: nn.Module, dm, optimizer_factory, device, batch_size, L):
+    def __init__(self, model: nn.Module, dm, device, batch_size, L, learning_rate, optimizer_factory=None):
+        assert optimizer_factory is None
         self.model = model
         self.device = device
-        self.optim = optimizer_factory(self.model)
         self.dm = dm
         self.batch_size = batch_size
         self.L = L
-
-    def train(self, n_epochs: int):
-        mean_loss = 0
-        train_ldr = self.dm.get_train_set()
-
-        for epoch in range(n_epochs):
-            print(f"\nEpoch: {epoch + 1} of {n_epochs}")
-            with trange(len(train_ldr)) as t:
-                for _, X_i in enumerate(train_ldr, 0):
-                    train_inputs = X_i[0].to(self.device).float()
-                    Z = torch.Tensor(np.random.normal(size=[self.batch_size, self.L])).to(self.device)
-                    loss_gen, loss_enc, dis_loss_xz, dis_loss_xx, dis_loss_zz  = self.train_iter(train_inputs, Z)
-                    t.set_postfix(
-                        loss_gen='{:05.4f}'.format(loss_gen),
-                        loss_enc='{:05.4f}'.format(loss_enc),
-                        dis_loss_xz='{:05.4f}'.format(dis_loss_xz),
-                        dis_loss_xx='{:05.4f}'.format(dis_loss_xx),
-                        dis_loss_zz='{:05.4f}'.format(dis_loss_zz)
-                    )
-                    t.update()
-                    mean_loss += (loss_gen + loss_enc + dis_loss_xz + dis_loss_xx + dis_loss_zz)
-        return mean_loss / n_epochs
-    
-    def train_iter(self, X, Z):
-        l_encoder, l_generator, x_logit_real, x_logit_fake, z_logit_real, z_logit_fake = self.model(X, Z)
-        loss_gen, loss_enc, dis_loss_xz, dis_loss_xx, dis_loss_zz = self.model.compute_loss(l_encoder, l_generator, x_logit_real, x_logit_fake, z_logit_real, z_logit_fake)
-        
-        self.optim.zero_grad()
-
-        # Use autograd to compute the backward pass.
-        for loss in [loss_gen, loss_enc, dis_loss_xz, dis_loss_xx, dis_loss_zz]:
-            loss.backward(retain_graph=True)
-
-        # updates the weights using gradient descent
-        self.optim.step()
-
-        return loss_gen.item(), loss_enc.item(), dis_loss_xz.item(), dis_loss_xx.item(), dis_loss_zz.item()
+        self.lr = learning_rate
+        self.optim_ge = optim.Adam(
+            list(self.model.G.parameters()) + list(self.model.E.parameters()),
+            lr=self.lr, betas=(0.5, 0.999) 
+        )
+        self.optim_d = optim.Adam(
+            list(self.model.D_xz.parameters()) + list(self.model.D_zz.parameters()) + list(self.model.D_xx.parameters()),
+            lr=self.lr, betas=(0.5, 0.999)
+        )
 
     def evaluate_on_test_set(self, **kwargs):
-        raise Exception("Unimplemented")
-        # """
-        # function that evaluate the model on the test set every iteration of the
-        # active learning process
-        # """
-        # test_loader = self.dm.get_test_set()
+        labels, scores = [], []
+        test_ldr = self.dm.get_test_set()
+        self.model.eval()
 
-        # # Change the model to evaluation mode
-        # self.model.eval()
-        # res = {"Accuracy": -1, "Precision": -1, "Recall": -1, "F1-Score": -1}
+        with torch.no_grad():
+            for X_i, label in test_ldr[1]:
+                X = X_i.float().to(self.device)
+                _, feature_real = self.model.D_xx(X, X)
+                _, feature_gen = self.model.D_xx(X, self.model.G(self.model.E(X)))
+                score = torch.sum(torch.abs(feature_real - feature_gen), dim=1)
+                scores.append(score.cpu())
+                labels.append(label.cpu())
+        scores = torch.cat(scores, dim=0)
+        labels = torch.cat(labels, dim=0)
+        precision, recall, thresholds = precision_recall_curve(labels, scores)
+        print('ROC AUC score: {:.2f}'.format(roc_auc_score(labels, scores) * 100))
 
-        # with torch.no_grad():
-        #     errors = []
-        #     rec_errors = []
-        #     y_true = []
-        #     for data in test_loader:
-        #         X, y = data[0].float().to(self.device), data[1]
-        #         # forward pass
-        #         X_prime, att = self.model(X)
-        #         err = torch.sqrt(
-        #             torch.sum((X_prime - X) ** 2, dim=1)
-        #         )
-        #         y_true.extend(y.cpu().tolist())
-        #         rec_errors.extend(err.cpu().tolist())
-        #         errors.append(torch.mean(err).item())
-        #     y_true = np.array(y_true)
-        #     thresh = np.mean(np.array(errors))
-        #     y_pred = np.where(rec_errors >= thresh, 1, 0)
-        #     res['Accuracy'] = metrics.accuracy_score(y_true, y_pred)
-        #     res['Precision'], res['Recall'], res['F1-Score'], _ = metrics.precision_recall_fscore_support(y_true, y_pred, average='binary', pos_label=pos_label)
-        #     print(','.join([f'{key_name}: {key_val}' for key_name, key_val in res.items()]))
+        return labels, scores
 
-        #     # switch back to train mode
-        #     self.model.train()
+    def train_iter(self, X):
+        # Cleaning gradients
+        self.optim_ge.zero_grad()
+        self.optim_d.zero_grad()
+        # Labels
+        y_true = Variable(torch.zeros(X.size(0), 1)).to(self.device)
+        y_fake = Variable(torch.ones(X.size(0), 1)).to(self.device)
+        # Forward pass
+        out_truexz, out_fakexz, out_truezz, out_fakezz, out_truexx, out_fakexx = self.model(X)
+        # Compute loss
+        # Discriminators Losses
+        loss_dxz = self.criterion(out_truexz, y_true) + self.criterion(out_fakexz, y_fake)
+        loss_dzz = self.criterion(out_truezz, y_true) + self.criterion(out_fakezz, y_fake)
+        loss_dxx = self.criterion(out_truexx, y_true) + self.criterion(out_fakexx, y_fake)
+        loss_d = loss_dxz + loss_dzz + loss_dxx
+        # Generator losses
+        loss_gexz = self.criterion(out_fakexz, y_true) + self.criterion(out_truexz, y_fake)
+        loss_gezz = self.criterion(out_fakezz, y_true) + self.criterion(out_truezz, y_fake)
+        loss_gexx = self.criterion(out_fakexx, y_true) + self.criterion(out_truexx, y_fake)
+        cycle_consistency = loss_gexx + loss_gezz
+        loss_ge = loss_gexz + cycle_consistency
+        # Backward pass
+        loss_d.backward(retain_graph=True)
+        loss_ge.backward()
 
-        #     return res, 0, 0, 0
+        self.optim_d.step()
+        self.optim_ge.step()
+
+        return loss_d.item(), loss_ge.item()
+
+    def train(self, n_epochs):
+        train_ldr = self.dm.get_train_set()
+        # TODO: test with nn.BCE()
+        self.criterion = nn.BCEWithLogitsLoss()
+        for epoch in range(n_epochs):
+            print(f"\nEpoch: {epoch + 1} of {n_epochs}")
+            ge_losses = 0
+            d_losses = 0
+            with trange(len(train_ldr)) as t:
+                 for _, X_i in enumerate(train_ldr, 0):
+                    train_inputs = X_i[0].to(self.device).float()
+                    loss_d, loss_ge = self.train_iter(train_inputs)
+                    d_losses += loss_d
+                    ge_losses += loss_ge
+                    t.set_postfix(
+                        loss_d='{:05.4f}'.format(loss_d),
+                        loss_ge='{:05.4f}'.format(loss_ge),
+                    )
+                    t.update()
+        return 0

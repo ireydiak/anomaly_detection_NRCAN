@@ -160,14 +160,15 @@ def resolve_trainer(trainer_str: str, optimizer_factory, **kwargs):
         )
     elif trainer_str == 'ALAD':
         bsize = kwargs.get('batch_size', None)
-        assert batch_size
-        model = ALAD(D, L).to(device)
+        lr = kwargs.get('learning_rate', None),
+        assert batch_size and lr
+        model = ALAD(D, L, device=device).to(device)
         trainer = ALADTrainer(
             model=model, 
             dm=dm,
-            optimizer_factory=optimizer_factory,
             device=device,
             batch_size=bsize,
+            learning_rate=lr[0],
             L=L
         )
 
@@ -199,7 +200,7 @@ if __name__ == "__main__":
 
     model, model_trainer = resolve_trainer(
         args.model, optimizer, 
-        latent_dim=args.latent_dim, mem_dim=args.mem_dim, shrink_thres=args.shrink_thres, batch_size=batch_size
+        latent_dim=args.latent_dim, mem_dim=args.mem_dim, shrink_thres=args.shrink_thres, batch_size=batch_size, learning_rate=args.lr
     )
 
     if model and model_trainer:
