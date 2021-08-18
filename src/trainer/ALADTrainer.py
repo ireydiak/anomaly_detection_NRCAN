@@ -4,7 +4,7 @@ import numpy as np
 from tqdm import trange
 from torch import optim
 from torch.autograd import Variable
-from sklearn.metrics import precision_recall_curve, roc_auc_score, auc
+from sklearn.metrics import precision_recall_curve, roc_auc_score, auc, precision_recall_fscore_support
 torch.autograd.set_detect_anomaly(True)
 
 class ALADTrainer:
@@ -31,7 +31,7 @@ class ALADTrainer:
         self.model.eval()
 
         with torch.no_grad():
-            for X_i, label in test_ldr[1]:
+            for X_i, label in test_ldr:
                 X = X_i.float().to(self.device)
                 _, feature_real = self.model.D_xx(X, X)
                 _, feature_gen = self.model.D_xx(X, self.model.G(self.model.E(X)))
@@ -40,6 +40,11 @@ class ALADTrainer:
                 labels.append(label.cpu())
         scores = torch.cat(scores, dim=0)
         labels = torch.cat(labels, dim=0)
+
+        per = np.percentile(scores, 80)  
+        y_pred = (scores >= per)
+    
+        print(precision_recall_fscore_support(labels.numpy().astype(int), y_pred.numpy().astype(int), average='binary'))
         precision, recall, thresholds = precision_recall_curve(labels, scores)
         print('ROC AUC score: {:.2f}'.format(roc_auc_score(labels, scores) * 100))
 
@@ -78,6 +83,7 @@ class ALADTrainer:
     def train(self, n_epochs):
         train_ldr = self.dm.get_train_set()
         # TODO: test with nn.BCE()
+        # self.criterion = nn.BCEWithLogitsLoss()
         self.criterion = nn.BCEWithLogitsLoss()
         for epoch in range(n_epochs):
             print(f"\nEpoch: {epoch + 1} of {n_epochs}")

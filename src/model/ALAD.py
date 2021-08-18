@@ -56,6 +56,7 @@ class ALAD(nn.Module):
 class Encoder(nn.Module):
     def __init__(self, in_features, latent_dim, negative_slope=0.2):
         super(Encoder, self).__init__()
+        self.latent_dim = latent_dim
         self.fc_1 = nn.Sequential(
             nn.Linear(in_features, latent_dim * 2),
             nn.LeakyReLU(negative_slope),
