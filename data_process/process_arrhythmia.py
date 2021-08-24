@@ -3,7 +3,6 @@ from collections import defaultdict
 import pandas as pd
 import numpy as np
 from sklearn.preprocessing import MinMaxScaler
-import category_encoders as ce
 import warnings
 import utils
 import os

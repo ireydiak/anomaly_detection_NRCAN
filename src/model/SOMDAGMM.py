@@ -5,6 +5,8 @@ from minisom import MiniSom
 
 from model import DAGMM
 
+from src.model.AbstractModel import AbstractModel
+
 default_som_args = {
     "x": 32,
     "y": 32,
@@ -15,7 +17,7 @@ default_som_args = {
 }
 
 
-class SOMDAGMM(nn.Module):
+class SOMDAGMM(AbstractModel):
     def __init__(self, input_len: int, dagmm: DAGMM, som_args: dict = None, **kwargs):
         super(SOMDAGMM, self).__init__()
         self.som_args = som_args or default_som_args

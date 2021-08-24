@@ -2,8 +2,10 @@ from typing import Tuple, List
 
 import torch.nn as nn
 
+from src.model.AbstractModel import AbstractModel
 
-class AutoEncoder(nn.Module):
+
+class AutoEncoder(AbstractModel):
     """
     Implements a Deep Auto Encoder
     """

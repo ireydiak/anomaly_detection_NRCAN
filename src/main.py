@@ -10,6 +10,7 @@ Authors:
 """
 
 import argparse
+from collections import defaultdict
 
 import numpy as np
 from torch import nn
@@ -42,6 +43,7 @@ def argument_parser():
     )
     parser.add_argument('-m', '--model', type=str, default="DAGMM",
                         choices=["AE", "DAGMM", "SOM-DAGMM", "MLAD", "MemAE", "DUAD"])
+    parser.add_argument('--n-runs', help='number of runs of the experiment', type=int, default=1)
     parser.add_argument('-lat', '--latent-dim', type=int, default=1)
     parser.add_argument('-d', '--dataset-path', type=str, help='Path to the dataset')
     parser.add_argument('--dataset', type=str, default="kdd10",
@@ -201,6 +203,7 @@ if __name__ == "__main__":
     lambda_1 = args.lambda_energy
     lambda_2 = args.lambda_p
     L = args.latent_dim
+    n_runs = args.n_runs
 
     n_som = args.n_som
     p_s = args.p_s
@@ -237,14 +240,29 @@ if __name__ == "__main__":
     )
 
     if model and model_trainer:
-        metrics = model_trainer.train(args.num_epochs)
-        print('Finished learning process')
-        print('Evaluating model on test set')
-        # We test with the minority samples as the positive class
-        results, test_z, test_label, energy = model_trainer.evaluate_on_test_set(energy_threshold=args.p_threshold)
+        # Training and evaluation on different runs
+        all_results = defaultdict(list)
+        for r in range(n_runs):
+            print(f"Run number {r}\n")
+            metrics = model_trainer.train(args.num_epochs)
+            print('Finished learning process')
+            print('Evaluating model on test set')
+
+            # We test with the minority samples as the positive class
+            results, test_z, test_label, energy = model_trainer.evaluate_on_test_set(energy_threshold=args.p_threshold)
+            for k, v in results.items():
+                all_results[k].append(v)
+            model.reset()
+
+        # Calculate Means and Stds of metrics
+        final_results = defaultdict()
+        for k, v in all_results.items():
+            print('Averaging results')
+            final_results[f'{k}_mean'] = np.mean(v)
+            final_results[f'{k}_std'] = np.std(v)
 
         params = dict({"BatchSize": batch_size, "Epochs": args.num_epochs, "rho": args.rho}, **model.get_params())
-        store_results(results, params, args.model, args.dataset, args.dataset_path)
+        store_results(final_results, params, args.model, args.dataset, args.dataset_path)
         if args.vizualization and model in vizualizable_models:
             plot_3D_latent(test_z, test_label)
             plot_energy_percentile(energy)
