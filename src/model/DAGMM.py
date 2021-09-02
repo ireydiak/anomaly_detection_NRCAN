@@ -15,7 +15,8 @@ class DAGMM(AbstractModel):
     Simply put, it's an end-to-end trained auto-encoder network complemented by a distinct gaussian mixture network.
     """
 
-    def __init__(self, input_size, ae_layers=None, gmm_layers=None, lambda_1=0.1, lambda_2=0.005, device='cpu'):
+    def __init__(self, input_size, ae_layers=None, gmm_layers=None, lambda_1=0.1, lambda_2=0.005, device='cpu',
+                 reg_covar=1e-12):
         """
         DAGMM constructor
 
@@ -52,6 +53,7 @@ class DAGMM(AbstractModel):
         self.lambda_1 = lambda_1
         self.lambda_2 = lambda_2
         self.device = device
+        self.reg_covar = reg_covar
 
     def forward(self, x: torch.Tensor):
         """
@@ -114,6 +116,69 @@ class DAGMM(AbstractModel):
     def relative_euclidean_dist(self, x, x_prime):
         return (x - x_prime).norm(2, dim=1) / x.norm(2, dim=1)
 
+    def compute_params(self, z: torch.Tensor, gamma: torch.Tensor):
+        r"""
+        Estimates the parameters of the GMM.
+        Implements the following formulas (p.5):
+            :math:`\hat{\phi_k} = \sum_{i=1}^N \frac{\hat{\gamma_{ik}}}{N}`
+            :math:`\hat{\mu}_k = \frac{\sum{i=1}^N \hat{\gamma_{ik} z_i}}{\sum{i=1}^N \hat{\gamma_{ik}}}`
+            :math:`\hat{\Sigma_k} = \frac{
+                \sum{i=1}^N \hat{\gamma_{ik}} (z_i - \hat{\mu_k}) (z_i - \hat{\mu_k})^T}
+                {\sum{i=1}^N \hat{\gamma_{ik}}
+            }`
+
+        The second formula was modified to use matrices instead:
+            :math:`\hat{\mu}_k = (I * \Gamma)^{-1} (\gamma^T z)`
+
+        Parameters
+        ----------
+        z: N x D matrix (n_samples, n_features)
+        gamma: N x K matrix (n_samples, n_mixtures)
+
+
+        Returns
+        -------
+
+        """
+        N = z.shape[0]
+        K = gamma.shape[1]
+
+        # K
+        gamma_sum = torch.sum(gamma, dim=0)
+        phi = gamma_sum / N
+
+        # phi = torch.mean(gamma, dim=0)
+
+        # K x D
+        # :math: `\mu = (I * gamma_sum)^{-1} * (\gamma^T * z)`
+        mu = torch.sum(gamma.unsqueeze(-1) * z.unsqueeze(1), dim=0) / gamma_sum.unsqueeze(-1)
+        # mu = torch.linalg.inv(torch.diag(gamma_sum)) @ (gamma.T @ z)
+
+        mu_z = z.unsqueeze(1) - mu.unsqueeze(0)
+        cov_mat = mu_z.unsqueeze(-1) @ mu_z.unsqueeze(-2)
+        cov_mat = gamma.unsqueeze(-1).unsqueeze(-1) * cov_mat
+        cov_mat = torch.sum(cov_mat, dim=0) / gamma_sum.unsqueeze(-1).unsqueeze(-1)
+
+        # ==============
+        K, N, D = gamma.shape[1], z.shape[0], z.shape[1]
+        # (K,)
+        gamma_sum = torch.sum(gamma, dim=0)
+        # prob de x_i pour chaque cluster k
+        phi_ = gamma_sum / N
+
+        # K x D
+        # :math: `\mu = (I * gamma_sum)^{-1} * (\gamma^T * z)`
+        mu_ = torch.sum(gamma.unsqueeze(-1) * z.unsqueeze(1), dim=0) / gamma_sum.unsqueeze(-1)
+        # Covariance (K x D x D)
+
+        self.phi = phi.data
+        self.mu = mu.data
+        self.cov_mat = cov_mat
+        # self.covs = covs
+        # self.cov_mat = covs
+
+        return phi, mu, cov_mat
+
     def estimate_sample_energy(self, z, phi=None, mu=None, cov_mat=None, average_energy=True, device='cpu'):
         if phi is None:
             phi = self.phi
@@ -126,7 +191,7 @@ class DAGMM(AbstractModel):
 
         # Avoid non-invertible covariance matrix by adding small values (eps)
         d = z.shape[1]
-        eps = 1e-12
+        eps = self.reg_covar
         cov_mat = cov_mat + (torch.eye(d)).to(device) * eps
         # N x K x D
         mu_z = z.unsqueeze(1) - mu.unsqueeze(0)

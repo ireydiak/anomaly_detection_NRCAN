@@ -18,7 +18,7 @@ from src.datamanager import DataManager
 from src.model import DUAD
 from sklearn.mixture import GaussianMixture
 
-from src.utils.metrics import score_recall_precision
+from src.utils.metrics import score_recall_precision, score_recall_precision_w_thresold
 from src.viz.viz import plot_2D_latent, plot_energy_percentile
 
 
@@ -84,6 +84,7 @@ class DUADTrainer:
         mean_loss = np.inf
         self.dm.update_train_set(self.dm.get_selected_indices())
         train_ldr = self.dm.get_train_set()
+        REEVAL_LIMIT = 20
 
         # run clustering, select instances from low variance clusters
         # run clustering, select instances from low variance clusters
@@ -114,7 +115,6 @@ class DUADTrainer:
         print(f"selected label 1 ratio:{(y[sel_from_clustering] == 1).sum() / len(y)}"
               f"\n")
 
-
         self.dm.update_train_set(selected_indices)
         train_ldr = self.dm.get_train_set()
         # TODO
@@ -126,7 +126,8 @@ class DUADTrainer:
         L = []
         L_old = [-1]
         # print(set(L).difference(set(L_old)))
-        while len(set(L_old).difference(set(L))) <= 10:
+        reev_count = 0
+        while len(set(L_old).difference(set(L))) <= 10 or reev_count > REEVAL_LIMIT:
             for epoch in range(n_epochs):
                 print(f"\nEpoch: {epoch + 1} of {n_epochs}")
                 if (epoch + 1) % self.r == 0:
@@ -187,7 +188,7 @@ class DUADTrainer:
                             mean_loss = loss / (i + 1)
                             t.set_postfix(loss='{:05.3f}'.format(mean_loss))
                             t.update()
-            self.evaluate_on_test_set()
+            # self.evaluate_on_test_set()
             # break
         return mean_loss
 
@@ -309,6 +310,7 @@ class DUADTrainer:
         function that evaluate the model on the test set
         """
 
+        energy_threshold = kwargs.get('energy_threshold', 80)
         test_loader = self.dm.get_test_set()
         # Change the model to evaluation mode
         self.model.eval()
@@ -353,6 +355,9 @@ class DUADTrainer:
 
             combined_score = np.concatenate([train_score, test_score], axis=0)
 
+            res = score_recall_precision_w_thresold(combined_score, test_score, test_labels, pos_label=pos_label,
+                                                    threshold=energy_threshold)
+
             score_recall_precision(combined_score, test_score, test_labels)
 
             # switch back to train mode
@@ -370,5 +375,5 @@ class DUADTrainer:
             #        'Best threshold': thresholds[idx_best_result]
             #
             #        }
-            res = {}
+            # res = {}
             return res, test_z, test_labels, combined_score

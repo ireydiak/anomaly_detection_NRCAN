@@ -43,6 +43,10 @@ def argument_parser():
     )
     parser.add_argument('-m', '--model', type=str, default="DAGMM",
                         choices=["AE", "DAGMM", "SOM-DAGMM", "MLAD", "MemAE", "DUAD"])
+
+    parser.add_argument('-rt', '--run-type', type=str, default="train",
+                        choices=["train", "test"])
+
     parser.add_argument('--n-runs', help='number of runs of the experiment', type=int, default=1)
     parser.add_argument('-lat', '--latent-dim', type=int, default=1)
     parser.add_argument('-d', '--dataset-path', type=str, help='Path to the dataset')
@@ -79,7 +83,12 @@ def argument_parser():
     parser.add_argument('--p_s', type=float, default=35, help='Variance threshold of initial selection')
     parser.add_argument('--p_0', type=float, default=30, help='Variance threshold of re-evaluation selection')
     parser.add_argument('--num-cluster', type=int, default=20, help='Number of clusters')
-    parser.add_argument('--inj-rate', type=float, default=0.0, help='Anomalous injection rate')
+
+    #=======================DAGMM==========================
+    parser.add_argument('--reg-covar', type=float, default=1e-6, help="Non - negative regularization added to the "
+                                                                      "diagonal of covariance. Allows to assure that "
+                                                                      "the covariance matrices are all positive.")
+
 
     return parser.parse_args()
 
@@ -111,20 +120,21 @@ def resolve_trainer(trainer_str: str, optimizer_factory, **kwargs):
     device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
     D = dataset.get_shape()[1]
     L = kwargs.get("latent_dim", 1)
+    reg_covar = kwargs.get("reg_covar", 1e-12)
     if trainer_str == 'DAGMM' or trainer_str == 'SOM-DAGMM' or trainer_str == 'AE':
         if dataset.name == 'Arrhythmia':
             enc_layers = [(D, 10, nn.Tanh()), (10, L, None)]
             dec_layers = [(L, 10, nn.Tanh()), (10, D, None)]
-            gmm_layers = [(4, 10, nn.Tanh()), (None, None, nn.Dropout(0.5)), (10, 2, nn.Softmax(dim=-1))]
+            gmm_layers = [(L+2, 10, nn.Tanh()), (None, None, nn.Dropout(0.5)), (10, 2, nn.Softmax(dim=-1))]
         else:
             enc_layers = [(D, 60, nn.Tanh()), (60, 30, nn.Tanh()), (30, 10, nn.Tanh()), (10, L, None)]
             dec_layers = [(L, 10, nn.Tanh()), (10, 30, nn.Tanh()), (30, 60, nn.Tanh()), (60, D, None)]
-            gmm_layers = [(3, 10, nn.Tanh()), (None, None, nn.Dropout(0.5)), (10, 4, nn.Softmax(dim=-1))]
+            gmm_layers = [(L+2, 10, nn.Tanh()), (None, None, nn.Dropout(0.5)), (10, 4, nn.Softmax(dim=-1))]
 
         if trainer_str == 'DAGMM':
-            model = DAGMM(D, ae_layers=(enc_layers, dec_layers), gmm_layers=gmm_layers)
+            model = DAGMM(D, ae_layers=(enc_layers, dec_layers), gmm_layers=gmm_layers, reg_covar=reg_covar)
             trainer = DAGMMTrainTestManager(
-                model=model, dm=dm, optimizer_factory=optimizer_factory
+                model=model, dm=dm, optimizer_factory=optimizer_factory,
             )
         elif trainer_str == 'AE':
             model = AE(enc_layers, dec_layers)
@@ -133,15 +143,21 @@ def resolve_trainer(trainer_str: str, optimizer_factory, **kwargs):
             )
         else:
             gmm_input = kwargs.get('n_som', 1) * 2 + kwargs.get('latent_dim', 1) + 2
+            if dataset.name == 'Arrhythmia':
+                gmm_layers = [(gmm_input, 10, nn.Tanh()), (None, None, nn.Dropout(0.5)), (10, 2, nn.Softmax(dim=-1))]
+            else:
+                gmm_layers = [(gmm_input, 10, nn.Tanh()), (None, None, nn.Dropout(0.5)), (10, 4, nn.Softmax(dim=-1))]
+
+
             dagmm = DAGMM(
                 dataset.get_shape()[1],
-                gmm_layers=[(gmm_input, 10, nn.Tanh()),
-                            (None, None, nn.Dropout(0.5)),
-                            (10, 4, nn.Softmax(dim=-1))]
+                ae_layers=(enc_layers, dec_layers),
+                gmm_layers=gmm_layers, reg_covar=reg_covar
             )
             # TODO
             # set these values according to the used dataset
-            grid_length = int(np.sqrt(5 * np.sqrt(len(dataset))))
+            grid_length = int(np.sqrt(5 * np.sqrt(len(dataset)))) // 2
+            grid_length = 32 if grid_length > 32 else grid_length
             som_args = {
                 "x": grid_length,
                 "y": grid_length,
@@ -211,8 +227,6 @@ if __name__ == "__main__":
     r = args.r
     num_cluster = args.num_cluster
 
-    inject_perc = args.inj_rate
-
     # Dynamically load the Dataset instance
     clsname = globals()[f'{args.dataset}Dataset']
     dataset = clsname(args.dataset_path, args.pct)
@@ -222,7 +236,7 @@ if __name__ == "__main__":
     # split data in train and test sets
     # we train only on the majority class
 
-    train_set, test_set = dataset.one_class_split_train_test_inject(test_perc=0.50, inject_perc=inject_perc)
+    train_set, test_set = dataset.one_class_split_train_test_inject(test_perc=0.50, inject_perc=args.rho)
     dm = DataManager(train_set, test_set, batch_size=batch_size, validation=1e-3)
 
     # safely create save path
@@ -237,13 +251,14 @@ if __name__ == "__main__":
         p_s=p_s,
         p_0=p_0,
         num_cluster=num_cluster,
+        reg_covar=args.reg_covar
     )
 
     if model and model_trainer:
         # Training and evaluation on different runs
         all_results = defaultdict(list)
         for r in range(n_runs):
-            print(f"Run number {r}\n")
+            print(f"Run number {r}/{n_runs}")
             metrics = model_trainer.train(args.num_epochs)
             print('Finished learning process')
             print('Evaluating model on test set')
@@ -255,16 +270,20 @@ if __name__ == "__main__":
             model.reset()
 
         # Calculate Means and Stds of metrics
+        print('Averaging results')
         final_results = defaultdict()
         for k, v in all_results.items():
-            print('Averaging results')
             final_results[f'{k}_mean'] = np.mean(v)
             final_results[f'{k}_std'] = np.std(v)
 
         params = dict({"BatchSize": batch_size, "Epochs": args.num_epochs, "rho": args.rho}, **model.get_params())
         store_results(final_results, params, args.model, args.dataset, args.dataset_path)
+
         if args.vizualization and model in vizualizable_models:
             plot_3D_latent(test_z, test_label)
             plot_energy_percentile(energy)
     else:
         print(f'Error: Could not train {args.dataset} on model {args.model}')
+
+    # TODO
+    # Run a saved model for test purpose

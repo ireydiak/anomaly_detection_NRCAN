@@ -46,3 +46,8 @@ class AutoEncoder(AbstractModel):
         output = self.encoder(x)
         output = self.decoder(output)
         return x, output
+
+    def get_params(self) -> dict:
+        return {
+            "L": self.L,
+        }
