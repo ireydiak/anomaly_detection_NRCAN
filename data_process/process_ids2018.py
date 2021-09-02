@@ -224,7 +224,7 @@ def normalize_step(df: pd.DataFrame, cols: list, base_path: str, fname: str):
 if __name__ == '__main__':
     # Assumes `path` points to the location of the original CSV files.
     # `path` must only contain CSV files and not other file types such as folders. 
-    path, export_path = utils.parse_args()
+    path, export_path, backup = utils.parse_args()
     # 0 - Prepare folder structure
     utils.prepare(export_path)
     path_to_clean = f"{export_path}/{utils.folder_struct['clean_step']}/cicids2018_clean.csv"
