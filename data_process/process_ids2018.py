@@ -239,7 +239,7 @@ if __name__ == '__main__':
     
     # 2 - Normalize numerical values and treat categorical values
     to_process = [
-        (list(set(COLS) - set(COLS_TO_DROP) - {'Dst Port', 'Label'}), 'feature_group_5'),
+        (list(set(COLS) - set(COLS_TO_DROP) - {'Label'}), 'feature_group_5'),
         (["Dst Port", *rank_7_otf_7], 'feature_group_4'),
         (["Dst Port", *rank_6_otf_7], 'feature_group_3'),
         (["Dst Port", *rank_5_otf_7], 'feature_group_2'),
