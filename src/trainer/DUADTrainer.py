@@ -117,11 +117,6 @@ class DUADTrainer:
 
         self.dm.update_train_set(selected_indices)
         train_ldr = self.dm.get_train_set()
-        # TODO
-        # to uncomment
-        # self.dm.update_train_set(selected_indices)
-
-        # train_ldr = self.dm.get_train_set()
 
         L = []
         L_old = [-1]
@@ -253,7 +248,7 @@ class DUADTrainer:
                         Z = torch.cat(Z, axis=0)
                         y = torch.cat(y, axis=0).cpu().numpy()
 
-                        plot_2D_latent(Z.cpu(), y)
+                        # plot_2D_latent(Z.cpu(), y)
 
                         selection_mask = self.re_evaluation(Z.cpu(), self.p, self.num_cluster)
                         selected_indices = indices[selection_mask]
@@ -363,17 +358,4 @@ class DUADTrainer:
             # switch back to train mode
             self.model.train()
 
-            # result_search = np.array(result_search)
-            # best_result = np.max(result_search, axis=0)
-            # idx_best_result = np.argmax(result_search, axis=0)
-            #
-            # res = {"Accuracy": best_result[0],
-            #        "Precision": best_result[1],
-            #        "Recall": best_result[2],
-            #        "F1-Score": [3],
-            #        'Confusion': confusion_matrices[idx_best_result],
-            #        'Best threshold': thresholds[idx_best_result]
-            #
-            #        }
-            # res = {}
             return res, test_z, test_labels, combined_score

@@ -13,14 +13,16 @@ import argparse
 from collections import defaultdict
 
 import numpy as np
+from recforest import RecForest
 from torch import nn
 
 from src.model.DUAD import DUAD
 from src.trainer.AETrainer import AETrainer
 from src.trainer.DUADTrainer import DUADTrainer
+from src.utils.metrics import score_recall_precision, score_recall_precision_w_thresold
 from trainer import SOMDAGMMTrainer
 import torch.optim as optim
-from utils.utils import check_dir, optimizer_setup
+from utils.utils import check_dir, optimizer_setup, get_X_from_loader
 from model import DAGMM, MemAutoEncoder as MemAE, SOMDAGMM, AutoEncoder as AE
 from datamanager import ArrhythmiaDataset, DataManager, KDD10Dataset, NSLKDDDataset, IDS2018Dataset
 from model import DAGMM, MemAutoEncoder as MemAE, SOMDAGMM
@@ -32,6 +34,7 @@ import torch
 import os
 
 vizualizable_models = ["AE", "DAGMM", "SOM-DAGMM"]
+SKLEAN_MODEL = ['OC-SVM', 'RECFOREST']
 
 
 def argument_parser():
@@ -42,7 +45,7 @@ def argument_parser():
         usage='\n python3 main.py -m [model] -d [dataset-path] --dataset [dataset] [hyper_parameters]'
     )
     parser.add_argument('-m', '--model', type=str, default="DAGMM",
-                        choices=["AE", "DAGMM", "SOM-DAGMM", "MLAD", "MemAE", "DUAD"])
+                        choices=["AE", "DAGMM", "SOM-DAGMM", "MLAD", "MemAE", "DUAD", 'OC-SVM', 'RECFOREST'])
 
     parser.add_argument('-rt', '--run-type', type=str, default="train",
                         choices=["train", "test"])
@@ -242,7 +245,28 @@ if __name__ == "__main__":
     # safely create save path
     check_dir(args.save_path)
 
+    # For models based on sklearn like APIs
+
+    if args.model in SKLEAN_MODEL:
+        X_train, _ = get_X_from_loader(dm.get_train_set())
+        X_test, y_test = get_X_from_loader(dm.get_test_set())
+        print(f'Start training: {args.model}')
+        if args.model == 'RECFOREST':
+            model = RecForest()
+            model.fit(X_train)
+            anomaly_score = model.predict(X_test)
+            score_recall_precision(anomaly_score, anomaly_score, y_test)
+            res = score_recall_precision_w_thresold(anomaly_score, anomaly_score, y_test, pos_label=1,
+                                                    threshold=args.p_threshold)
+            params = dict({"BatchSize": batch_size, "Epochs": args.num_epochs, "rho": args.rho,
+                           'threshold': args.p_threshold})
+            store_results(res, params, args.model, args.dataset, args.dataset_path)
+            exit(0)
+
     optimizer = resolve_optimizer(args.optimizer)
+
+
+
 
     model, model_trainer = resolve_trainer(
         args.model, optimizer, latent_dim=L, mem_dim=args.mem_dim, shrink_thres=args.shrink_thres,
@@ -276,7 +300,8 @@ if __name__ == "__main__":
             final_results[f'{k}_mean'] = np.mean(v)
             final_results[f'{k}_std'] = np.std(v)
 
-        params = dict({"BatchSize": batch_size, "Epochs": args.num_epochs, "rho": args.rho}, **model.get_params())
+        params = dict({"BatchSize": batch_size, "Epochs": args.num_epochs, "rho": args.rho,
+                       'threshold':args.p_threshold}, **model.get_params())
         store_results(final_results, params, args.model, args.dataset, args.dataset_path)
 
         if args.vizualization and model in vizualizable_models:
