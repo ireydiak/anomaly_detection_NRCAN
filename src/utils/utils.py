@@ -1,4 +1,5 @@
 import os
+from collections import defaultdict
 
 import numpy as np
 import torch
@@ -54,6 +55,17 @@ def get_X_from_loader(loader):
     y = torch.cat(y, axis=0)
     return X.numpy(), y.numpy()
 
+
+def average_results(results: dict):
+    """
+        Calculate Means and Stds of metrics in @results
+    """
+
+    final_results = defaultdict()
+    for k, v in results.items():
+        final_results[f'{k}_mean'] = np.mean(v)
+        final_results[f'{k}_std'] = np.std(v)
+    return final_results
 
 def optimizer_setup(optimizer_class: Type[torch.optim.Optimizer], **hyperparameters) -> Callable[
     [torch.nn.Module], torch.optim.Optimizer]:

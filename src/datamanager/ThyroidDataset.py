@@ -1,9 +1,9 @@
 from . import AbstractDataset
 
 
-class ArrhythmiaDataset(AbstractDataset):
+class ThyroidDataset(AbstractDataset):
 
-    name = 'Arrhythmia'
+    name = 'ann_thyroid'
 
     def npz_key(self):
-        return "arrhythmia"
+        return "thyroid"

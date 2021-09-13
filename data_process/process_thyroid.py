@@ -7,24 +7,31 @@ import warnings
 import utils
 import os
 from typing import Tuple, Any
-from scipy.io import loadmat 
+from scipy.io import loadmat
 from datetime import datetime as dt
+
 # import warnings
 
 warnings.filterwarnings('ignore')
 
 
-def clean_step(path_to_dataset: str, export_path: str, backup: bool = False) -> Tuple[Any, defaultdict]:
+# link to the dataset http://odds.cs.stonybrook.edu/thyroid-disease-dataset/
+
+def clean_step(path_to_dataset: str, export_path: str, backup: bool = False) -> Tuple[Any, Any, defaultdict]:
     # Keep a trace of the cleaning step
     stats = defaultdict()
     stats["Dropped Columns"] = []
     stats["Dropped NaN Columns"] = []
     stats["NaN/INF Rows"] = 0
 
-    # 1- Merge all files
-    print([path_to_dataset + '/' + f for f in os.listdir(path_to_dataset)])
-    dfs = [pd.read_csv(path_to_dataset + '/' + f, header=None, sep=' ') for f in os.listdir(path_to_dataset)]
-    df = pd.concat(dfs)
+    # 1- Load file
+    if not path_to_dataset.endswith(".mat"):
+        raise Exception(f"{__file__} can only process .mat files")
+    mat = loadmat(path_to_dataset)
+    X = mat['X']  # variable in mat file
+    y = mat['y'].reshape(-1)
+    # now make a data frame, setting the time stamps as the index
+    df = pd.DataFrame(X, columns=None)
 
     # Remove leading and trailing spaces from columns names
     total_rows = len(df)
@@ -69,14 +76,15 @@ def clean_step(path_to_dataset: str, export_path: str, backup: bool = False) -> 
         elif type(val) != str:
             stats[key] = str(val)
 
-    return df, stats
+    return df, y, stats
 
 
-def normalize_step(df: pd.DataFrame, base_path: str, backup:bool = False):
+def normalize_step(df: pd.DataFrame, y: np.ndarray, base_path: str, backup: bool = False):
     print(f'Processing {len(df.columns)} features')
 
-    y = df.iloc[:, -1].apply(lambda x: 0 if x == 1 else 1).to_numpy()
-    df.drop(columns=df.columns[-1], inplace=True)
+    # y = df.iloc[:, -1].apply(lambda x: 1 if x == 2 else 0).to_numpy()
+    # df.drop(columns=df.columns[-1], inplace=True)
+
     # Split numerical and non-numerical columns
     num_cols = df.select_dtypes(exclude=["object", "category"]).columns.tolist()
     cat_cols = df.select_dtypes(include=["category", "object"]).columns.tolist()
@@ -117,9 +125,9 @@ if __name__ == '__main__':
         df = pd.read_csv(path_to_clean)
     else:
         # 1 - Clean the data (remove invalid rows and columns)
-        df, clean_stats = clean_step(path, export_path, backup)
+        df, y, clean_stats = clean_step(path, export_path, backup)
         # Save info about cleaning step
         utils.save_stats(export_path + '/ann_thyroid_info.csv', clean_stats)
 
     # 2 - Normalize numerical values and treat categorical values
-    normalize_step(df, export_path)
+    normalize_step(df, y, export_path)
