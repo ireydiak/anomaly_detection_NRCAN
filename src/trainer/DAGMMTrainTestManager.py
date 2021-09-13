@@ -2,10 +2,13 @@ import warnings
 from typing import Callable, Type
 import numpy as np
 import torch
+from sklearn.metrics import confusion_matrix
 from tqdm import tqdm
 from datamanager.DataManager import DataManager
 from sklearn import metrics
 import torch.nn as nn
+
+from src.utils.metrics import score_recall_precision, score_recall_precision_w_thresold
 
 
 class DAGMMTrainTestManager:
@@ -110,7 +113,7 @@ class DAGMMTrainTestManager:
         """
         Train the model until reaching complete_data_ratio of labeled instances
         """
-
+        print(f'Training with {self.__class__.__name__}')
         # self.model.reset_weights()
 
         # Initialize metrics container
@@ -139,11 +142,12 @@ class DAGMMTrainTestManager:
         # GPUtil.showUtilization()
         return metrics
 
-    def evaluate_on_test_set(self, energy_threshold=80, pos_label=1):
+    def evaluate_on_test_set(self, pos_label=1, **kwargs):
         """
         function that evaluate the model on the test set every iteration of the
         active learning process
         """
+        energy_threshold = kwargs.get('energy_threshold', 80)
         test_loader = self.dm.get_test_set()
         N = gamma_sum = mu_sum = cov_mat_sum = 0
 
@@ -222,22 +226,14 @@ class DAGMMTrainTestManager:
 
             combined_energy = np.concatenate([train_energy, test_energy], axis=0)
 
-            thresh = np.percentile(combined_energy, energy_threshold)
-            print("Threshold :", thresh)
+            res = score_recall_precision_w_thresold(combined_energy, test_energy, test_labels, pos_label=1,
+                                                    threshold=energy_threshold)
 
-            # Prediction using the threshold value
-            y_pred = (test_energy > thresh).astype(int)
-            y_true = test_labels.astype(int)
+            print(res)
 
-            accuracy = metrics.accuracy_score(y_true, y_pred)
-            precision, recall, f_score, _ = metrics.precision_recall_fscore_support(y_true, y_pred, average='binary', pos_label=pos_label)
-            res = {"Accuracy": accuracy, "Precision": precision, "Recall": recall, "F1-Score": f_score}
-            print("Accuracy : {:0.4f}, Precision : {:0.4f}, Recall : {:0.4f}, F-score : {:0.4f}".format(
-                accuracy, precision, recall, f_score)
-            )
             # switch back to train mode
             self.model.train()
 
+            score_recall_precision(combined_energy, test_energy, test_labels)
+
             return res, test_z, test_labels, combined_energy
-
-

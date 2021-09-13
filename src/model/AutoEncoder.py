@@ -2,15 +2,16 @@ from typing import Tuple, List
 
 import torch.nn as nn
 
+from src.model.AbstractModel import AbstractModel
 
-class AutoEncoder(nn.Module):
+
+class AutoEncoder(AbstractModel):
     """
     Implements a Deep Auto Encoder
     """
 
     def __init__(self, enc_layers, dec_layers):
         super(AutoEncoder, self).__init__()
-
         self.L = dec_layers[0][0]
         self.code_shape = enc_layers[-1][1]
         self.encoder = self._make_linear(enc_layers)
@@ -44,4 +45,9 @@ class AutoEncoder(nn.Module):
         """
         output = self.encoder(x)
         output = self.decoder(output)
-        return output
+        return x, output
+
+    def get_params(self) -> dict:
+        return {
+            "L": self.L,
+        }

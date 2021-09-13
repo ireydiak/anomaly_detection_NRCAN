@@ -1,4 +1,6 @@
 import os
+
+import numpy as np
 import torch
 import torch.nn.functional as F
 from typing import Type, Callable
@@ -38,7 +40,23 @@ def check_file_exists(path):
         os.makedirs(directory)
 
 
-def optimizer_setup(optimizer_class: Type[torch.optim.Optimizer], **hyperparameters) -> Callable[[torch.nn.Module], torch.optim.Optimizer]:
+def get_X_from_loader(loader):
+    """
+    This function returns the data set X from the provided @loader
+    """
+
+    X = []
+    y = []
+    for i, X_i in enumerate(loader, 0):
+        X.append(X_i[0])
+        y.append(X_i[1])
+    X = torch.cat(X, axis=0)
+    y = torch.cat(y, axis=0)
+    return X.numpy(), y.numpy()
+
+
+def optimizer_setup(optimizer_class: Type[torch.optim.Optimizer], **hyperparameters) -> Callable[
+    [torch.nn.Module], torch.optim.Optimizer]:
     """
     Creates a factory method that can instanciate optimizer_class with the given
     hyperparameters.
@@ -55,6 +73,7 @@ def optimizer_setup(optimizer_class: Type[torch.optim.Optimizer], **hyperparamet
     -------
 
     """
+
     def f(model):
         return optimizer_class(model.parameters(), **hyperparameters)
 
