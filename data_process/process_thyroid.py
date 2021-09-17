@@ -83,6 +83,14 @@ def normalize_step(df: pd.DataFrame, y: np.ndarray, base_path: str, backup: bool
     print(f'Processing {len(df.columns)} features')
 
     # y = df.iloc[:, -1].apply(lambda x: 1 if x == 2 else 0).to_numpy()
+
+    # inverse labels
+
+    # inliers_mask = y == 0
+    # ouliers_mask = y == 1
+    # y[inliers_mask] = 1
+    # y[ouliers_mask] = 0
+
     # df.drop(columns=df.columns[-1], inplace=True)
 
     # Split numerical and non-numerical columns

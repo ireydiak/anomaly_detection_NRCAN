@@ -2,7 +2,7 @@ from typing import Tuple, List
 
 import torch.nn as nn
 
-from src.model.AbstractModel import AbstractModel
+from .AbstractModel import AbstractModel
 
 
 class AutoEncoder(AbstractModel):

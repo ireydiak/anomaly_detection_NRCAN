@@ -3,9 +3,9 @@ import torch
 import torch.nn as nn
 from minisom import MiniSom
 
-from src.model import DAGMM
-from src.model import AutoEncoder as AE
-from src.model.AbstractModel import AbstractModel
+
+from .AutoEncoder import AutoEncoder as AE
+from .AbstractModel import AbstractModel
 
 
 class DUAD(AbstractModel):

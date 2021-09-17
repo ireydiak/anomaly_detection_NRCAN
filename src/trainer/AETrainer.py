@@ -14,12 +14,11 @@ from typing import Callable
 
 from sklearn import metrics
 
-from src.datamanager import DataManager
-from src.model import DUAD
+from datamanager import DataManager
+from model import DUAD
 from sklearn.mixture import GaussianMixture
 
-from src.utils.metrics import score_recall_precision, score_recall_precision_w_thresold
-from src.viz.viz import plot_2D_latent, plot_energy_percentile
+from utils.metrics import score_recall_precision, score_recall_precision_w_thresold
 
 
 class AETrainer:

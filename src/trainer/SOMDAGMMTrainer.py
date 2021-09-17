@@ -10,6 +10,8 @@ from typing import Callable
 
 from sklearn import metrics
 
+from utils import score_recall_precision
+
 
 class SOMDAGMMTrainer:
 
@@ -182,5 +184,8 @@ class SOMDAGMMTrainer:
 
             # switch back to train mode
             self.model.train()
+
+            # dump different metrics
+            score_recall_precision(combined_energy, test_energy, test_labels)
 
             return res, test_z, test_labels, combined_energy

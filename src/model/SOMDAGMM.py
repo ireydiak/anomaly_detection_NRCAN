@@ -3,9 +3,9 @@ import torch
 import torch.nn as nn
 from minisom import MiniSom
 
-from model import DAGMM
+from .DAGMM import DAGMM
 
-from src.model.AbstractModel import AbstractModel
+from .AbstractModel import AbstractModel
 
 default_som_args = {
     "x": 32,

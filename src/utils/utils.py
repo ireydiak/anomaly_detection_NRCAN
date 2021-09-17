@@ -43,9 +43,8 @@ def check_file_exists(path):
 
 def get_X_from_loader(loader):
     """
-    This function returns the data set X from the provided @loader
+    This function returns the data set X from the provided pytorch @loader
     """
-
     X = []
     y = []
     for i, X_i in enumerate(loader, 0):
@@ -63,8 +62,8 @@ def average_results(results: dict):
 
     final_results = defaultdict()
     for k, v in results.items():
-        final_results[f'{k}_mean'] = np.mean(v)
-        final_results[f'{k}_std'] = np.std(v)
+        final_results[f'{k}'] = f"{np.mean(v):.3f}({np.std(v):.3f})"
+        # final_results[f'{k}_std'] = np.std(v)
     return final_results
 
 def optimizer_setup(optimizer_class: Type[torch.optim.Optimizer], **hyperparameters) -> Callable[

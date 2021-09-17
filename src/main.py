@@ -16,10 +16,10 @@ import numpy as np
 from recforest import RecForest
 from torch import nn
 
-from src.model.DUAD import DUAD
-from src.trainer.AETrainer import AETrainer
-from src.trainer.DUADTrainer import DUADTrainer
-from src.utils.metrics import score_recall_precision, score_recall_precision_w_thresold
+from model.DUAD import DUAD
+from trainer.AETrainer import AETrainer
+from trainer.DUADTrainer import DUADTrainer
+from utils.metrics import score_recall_precision, score_recall_precision_w_thresold
 from trainer import SOMDAGMMTrainer
 import torch.optim as optim
 from utils.utils import check_dir, optimizer_setup, get_X_from_loader, average_results
@@ -125,13 +125,13 @@ def resolve_trainer(trainer_str: str, optimizer_factory, **kwargs):
     L = kwargs.get("latent_dim", 1)
     reg_covar = kwargs.get("reg_covar", 1e-12)
     if trainer_str == 'DAGMM' or trainer_str == 'SOM-DAGMM' or trainer_str == 'AE':
-        if dataset.name == 'Arrhythmia':
+        if dataset.name == 'Arrhythmia' or (dataset.name == 'Thyroid' and trainer_str != 'DAGMM'):
             enc_layers = [(D, 10, nn.Tanh()), (10, L, None)]
             dec_layers = [(L, 10, nn.Tanh()), (10, D, None)]
             gmm_layers = [(L + 2, 10, nn.Tanh()), (None, None, nn.Dropout(0.5)), (10, 2, nn.Softmax(dim=-1))]
-        elif dataset.name == 'Thyroid':
-            enc_layers = [(D, 10, nn.Tanh()), (10, L, None)]
-            dec_layers = [(L, 10, nn.Tanh()), (10, D, None)]
+        elif dataset.name == 'Thyroid' and trainer_str == 'DAGMM':
+            enc_layers = [(D, 12, nn.Tanh()), (12, 4, nn.Tanh()), (4, L, None)]
+            dec_layers = [(L, 4, nn.Tanh()), (4, 12, nn.Tanh()), (12, D, None)]
             gmm_layers = [(L + 2, 10, nn.Tanh()), (None, None, nn.Dropout(0.5)), (10, 2, nn.Softmax(dim=-1))]
         else:
             enc_layers = [(D, 60, nn.Tanh()), (60, 30, nn.Tanh()), (30, 10, nn.Tanh()), (10, L, None)]
@@ -314,7 +314,7 @@ if __name__ == "__main__":
                        'threshold': args.p_threshold}, **model.get_params())
         store_results(final_results, params, args.model, args.dataset, args.dataset_path)
 
-        if args.vizualization and model in vizualizable_models:
+        if args.vizualization and args.model in vizualizable_models:
             plot_3D_latent(test_z, test_label)
             plot_energy_percentile(energy)
     else:
