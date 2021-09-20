@@ -5,7 +5,7 @@ import numpy as np
 from model import AutoEncoder as AE
 from model import GMM
 
-from src.model.AbstractModel import AbstractModel
+from .AbstractModel import AbstractModel
 
 
 class DAGMM(AbstractModel):

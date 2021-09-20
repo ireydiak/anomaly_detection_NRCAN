@@ -16,17 +16,18 @@ import numpy as np
 from recforest import RecForest
 from torch import nn
 
-from src.model.DUAD import DUAD
-from src.trainer.AETrainer import AETrainer
-from src.trainer.DUADTrainer import DUADTrainer
-from src.utils.metrics import score_recall_precision, score_recall_precision_w_thresold
+from model.DUAD import DUAD
+from trainer.AETrainer import AETrainer
+from trainer.DUADTrainer import DUADTrainer
+from utils.metrics import score_recall_precision, score_recall_precision_w_thresold
 from trainer import SOMDAGMMTrainer
 import torch.optim as optim
-from utils.utils import check_dir, optimizer_setup, get_X_from_loader
+from utils.utils import check_dir, optimizer_setup, get_X_from_loader, average_results
 from model import DAGMM, MemAutoEncoder as MemAE, SOMDAGMM, AutoEncoder as AE
 from datamanager import ArrhythmiaDataset, DataManager, KDD10Dataset, NSLKDDDataset, IDS2018Dataset
 from model import DAGMM, MemAutoEncoder as MemAE, SOMDAGMM
-from datamanager import ArrhythmiaDataset, DataManager, KDD10Dataset, NSLKDDDataset, IDS2018Dataset, USBIDSDataset
+from datamanager import ArrhythmiaDataset, DataManager, KDD10Dataset, NSLKDDDataset, IDS2018Dataset, USBIDSDataset, \
+    ThyroidDataset
 from trainer import DAGMMTrainTestManager, MemAETrainer
 from viz.viz import plot_3D_latent, plot_energy_percentile
 from datetime import datetime as dt
@@ -57,7 +58,7 @@ def argument_parser():
 
     parser.add_argument('-d', '--dataset-path', type=str, help='Path to the dataset')
     parser.add_argument('--dataset', type=str, default="kdd10",
-                        choices=["Arrhythmia", "KDD10", "NSLKDD", "IDS2018", "USBIDS"])
+                        choices=["Arrhythmia", "KDD10", "NSLKDD", "IDS2018", "USBIDS", "Thyroid"])
     parser.add_argument('--batch-size', type=int, default=1024, help='The size of the training batch')
     parser.add_argument('--optimizer', type=str, default="Adam", choices=["Adam", "SGD", "RMSProp"],
                         help="The optimizer to use for training the model")
@@ -90,11 +91,10 @@ def argument_parser():
     parser.add_argument('--p_0', type=float, default=30, help='Variance threshold of re-evaluation selection')
     parser.add_argument('--num-cluster', type=int, default=20, help='Number of clusters')
 
-    #=======================DAGMM==========================
+    # =======================DAGMM==========================
     parser.add_argument('--reg-covar', type=float, default=1e-6, help="Non - negative regularization added to the "
                                                                       "diagonal of covariance. Allows to assure that "
                                                                       "the covariance matrices are all positive.")
-
 
     return parser.parse_args()
 
@@ -128,14 +128,18 @@ def resolve_trainer(trainer_str: str, optimizer_factory, **kwargs):
     L = kwargs.get("latent_dim", 1)
     reg_covar = kwargs.get("reg_covar", 1e-12)
     if trainer_str == 'DAGMM' or trainer_str == 'SOM-DAGMM' or trainer_str == 'AE':
-        if dataset.name == 'Arrhythmia':
+        if dataset.name == 'Arrhythmia' or (dataset.name == 'Thyroid' and trainer_str != 'DAGMM'):
             enc_layers = [(D, 10, nn.Tanh()), (10, L, None)]
             dec_layers = [(L, 10, nn.Tanh()), (10, D, None)]
-            gmm_layers = [(L+2, 10, nn.Tanh()), (None, None, nn.Dropout(0.5)), (10, 2, nn.Softmax(dim=-1))]
+            gmm_layers = [(L + 2, 10, nn.Tanh()), (None, None, nn.Dropout(0.5)), (10, 2, nn.Softmax(dim=-1))]
+        elif dataset.name == 'Thyroid' and trainer_str == 'DAGMM':
+            enc_layers = [(D, 12, nn.Tanh()), (12, 4, nn.Tanh()), (4, L, None)]
+            dec_layers = [(L, 4, nn.Tanh()), (4, 12, nn.Tanh()), (12, D, None)]
+            gmm_layers = [(L + 2, 10, nn.Tanh()), (None, None, nn.Dropout(0.5)), (10, 2, nn.Softmax(dim=-1))]
         else:
             enc_layers = [(D, 60, nn.Tanh()), (60, 30, nn.Tanh()), (30, 10, nn.Tanh()), (10, L, None)]
             dec_layers = [(L, 10, nn.Tanh()), (10, 30, nn.Tanh()), (30, 60, nn.Tanh()), (60, D, None)]
-            gmm_layers = [(L+2, 10, nn.Tanh()), (None, None, nn.Dropout(0.5)), (10, 4, nn.Softmax(dim=-1))]
+            gmm_layers = [(L + 2, 10, nn.Tanh()), (None, None, nn.Dropout(0.5)), (10, 4, nn.Softmax(dim=-1))]
 
         if trainer_str == 'DAGMM':
             model = DAGMM(D, ae_layers=(enc_layers, dec_layers), gmm_layers=gmm_layers, reg_covar=reg_covar)
@@ -153,7 +157,6 @@ def resolve_trainer(trainer_str: str, optimizer_factory, **kwargs):
                 gmm_layers = [(gmm_input, 10, nn.Tanh()), (None, None, nn.Dropout(0.5)), (10, 2, nn.Softmax(dim=-1))]
             else:
                 gmm_layers = [(gmm_input, 10, nn.Tanh()), (None, None, nn.Dropout(0.5)), (10, 4, nn.Softmax(dim=-1))]
-
 
             dagmm = DAGMM(
                 dataset.get_shape()[1],
@@ -252,17 +255,30 @@ if __name__ == "__main__":
     if args.model in SKLEAN_MODEL:
         X_train, _ = get_X_from_loader(dm.get_train_set())
         X_test, y_test = get_X_from_loader(dm.get_test_set())
-        print(f'Start training: {args.model}')
+        print(f'Starting training: {args.model}')
         if args.model == 'RECFOREST':
-            model = RecForest()
-            model.fit(X_train)
-            anomaly_score = model.predict(X_test)
-            score_recall_precision(anomaly_score, anomaly_score, y_test)
-            res = score_recall_precision_w_thresold(anomaly_score, anomaly_score, y_test, pos_label=1,
-                                                    threshold=args.p_threshold)
+
+            all_results = defaultdict(list)
+            for r in range(n_runs):
+                print(f"Run number {r}/{n_runs}")
+                model = RecForest()
+                model.fit(X_train)
+                print('Finished learning process')
+                anomaly_score_test = model.predict(X_test)
+                anomaly_score_train = model.predict(X_train)
+                anomaly_score = np.concatenate([anomaly_score_train, anomaly_score_test])
+                # dump metrics with different thresholds
+                score_recall_precision(anomaly_score, anomaly_score_test, y_test)
+                results = score_recall_precision_w_thresold(anomaly_score, anomaly_score_test, y_test, pos_label=1,
+                                                            threshold=args.p_threshold)
+                for k, v in results.items():
+                    all_results[k].append(v)
+
             params = dict({"BatchSize": batch_size, "Epochs": args.num_epochs, "rho": args.rho,
                            'threshold': args.p_threshold})
-            store_results(res, params, args.model, args.dataset, args.dataset_path)
+            print('Averaging results')
+            final_results = average_results(all_results)
+            store_results(final_results, params, args.model, args.dataset, args.dataset_path)
             exit(0)
 
     optimizer = resolve_optimizer(args.optimizer)
@@ -294,16 +310,13 @@ if __name__ == "__main__":
 
         # Calculate Means and Stds of metrics
         print('Averaging results')
-        final_results = defaultdict()
-        for k, v in all_results.items():
-            final_results[f'{k}_mean'] = np.mean(v)
-            final_results[f'{k}_std'] = np.std(v)
+        final_results = average_results(all_results)
 
         params = dict({"BatchSize": batch_size, "Epochs": args.num_epochs, "rho": args.rho,
-                       'threshold':args.p_threshold}, **model.get_params())
+                       'threshold': args.p_threshold}, **model.get_params())
         store_results(final_results, params, args.model, args.dataset, args.dataset_path)
 
-        if args.vizualization and model in vizualizable_models:
+        if args.vizualization and args.model in vizualizable_models:
             plot_3D_latent(test_z, test_label)
             plot_energy_percentile(energy)
     else:

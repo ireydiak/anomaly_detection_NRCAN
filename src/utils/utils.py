@@ -1,4 +1,5 @@
 import os
+from collections import defaultdict
 
 import numpy as np
 import torch
@@ -42,9 +43,8 @@ def check_file_exists(path):
 
 def get_X_from_loader(loader):
     """
-    This function returns the data set X from the provided @loader
+    This function returns the data set X from the provided pytorch @loader
     """
-
     X = []
     y = []
     for i, X_i in enumerate(loader, 0):
@@ -54,6 +54,17 @@ def get_X_from_loader(loader):
     y = torch.cat(y, axis=0)
     return X.numpy(), y.numpy()
 
+
+def average_results(results: dict):
+    """
+        Calculate Means and Stds of metrics in @results
+    """
+
+    final_results = defaultdict()
+    for k, v in results.items():
+        final_results[f'{k}'] = f"{np.mean(v):.3f}({np.std(v):.3f})"
+        # final_results[f'{k}_std'] = np.std(v)
+    return final_results
 
 def optimizer_setup(optimizer_class: Type[torch.optim.Optimizer], **hyperparameters) -> Callable[
     [torch.nn.Module], torch.optim.Optimizer]:
