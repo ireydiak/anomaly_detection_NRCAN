@@ -33,11 +33,12 @@ from viz.viz import plot_3D_latent, plot_energy_percentile
 from datetime import datetime as dt
 from sklearn import metrics
 from sklearn.svm import OneClassSVM
+from sklearn.neighbors import LocalOutlierFactor
 import torch
 import os
 
 vizualizable_models = ["AE", "DAGMM", "SOM-DAGMM"]
-SKLEAN_MODEL = ['OC-SVM', 'RECFOREST']
+SKLEAN_MODEL = ['OC-SVM', 'RECFOREST', 'LOF']
 
 
 def argument_parser():
@@ -48,7 +49,7 @@ def argument_parser():
         usage='\n python3 main.py -m [model] -d [dataset-path] --dataset [dataset] [hyper_parameters]'
     )
     parser.add_argument('-m', '--model', type=str, default="DAGMM",
-                        choices=["AE", "DAGMM", "SOM-DAGMM", "MLAD", "MemAE", "DUAD", 'OC-SVM', 'RECFOREST'])
+                        choices=["AE", "DAGMM", "SOM-DAGMM", "MLAD", "MemAE", "DUAD", 'OC-SVM', 'RECFOREST', 'LOF'])
 
     parser.add_argument('-rt', '--run-type', type=str, default="train",
                         choices=["train", "test"])
@@ -256,30 +257,40 @@ if __name__ == "__main__":
         X_train, _ = get_X_from_loader(dm.get_train_set())
         X_test, y_test = get_X_from_loader(dm.get_test_set())
         print(f'Starting training: {args.model}')
+
         if args.model == 'RECFOREST':
+            model = RecForest()
+        elif args.model == 'OC-SVM':
+            model = OneClassSVM(kernel='linear', shrinking=False, verbose=True)
+        elif args.model == 'LOF':
+            model = LocalOutlierFactor(novelty=True)
 
-            all_results = defaultdict(list)
-            for r in range(n_runs):
-                print(f"Run number {r}/{n_runs}")
-                model = RecForest()
-                model.fit(X_train)
-                print('Finished learning process')
-                anomaly_score_test = model.predict(X_test)
-                anomaly_score_train = model.predict(X_train)
-                anomaly_score = np.concatenate([anomaly_score_train, anomaly_score_test])
-                # dump metrics with different thresholds
-                score_recall_precision(anomaly_score, anomaly_score_test, y_test)
-                results = score_recall_precision_w_thresold(anomaly_score, anomaly_score_test, y_test, pos_label=1,
-                                                            threshold=args.p_threshold)
-                for k, v in results.items():
-                    all_results[k].append(v)
+        all_results = defaultdict(list)
+        for r in range(n_runs):
+            print(f"Run number {r}/{n_runs}")
+            model = RecForest()
+            model.fit(X_train)
+            print('Finished learning process')
 
-            params = dict({"BatchSize": batch_size, "Epochs": args.num_epochs, "rho": args.rho,
-                           'threshold': args.p_threshold})
-            print('Averaging results')
-            final_results = average_results(all_results)
-            store_results(final_results, params, args.model, args.dataset, args.dataset_path)
-            exit(0)
+            anomaly_score_test = model.predict(X_test)
+            anomaly_score_train = model.predict(X_train)
+
+            anomaly_score = np.concatenate([anomaly_score_train, anomaly_score_test])
+
+            # dump metrics with different thresholds
+            score_recall_precision(anomaly_score, anomaly_score_test, y_test)
+            results = score_recall_precision_w_thresold(anomaly_score, anomaly_score_test, y_test, pos_label=1,
+                                                        threshold=args.p_threshold)
+
+            for k, v in results.items():
+                all_results[k].append(v)
+
+        params = dict({"BatchSize": batch_size, "Epochs": args.num_epochs, "rho": args.rho,
+                       'threshold': args.p_threshold})
+        print('Averaging results')
+        final_results = average_results(all_results)
+        store_results(final_results, params, args.model, args.dataset, args.dataset_path)
+        exit(0)
 
     optimizer = resolve_optimizer(args.optimizer)
 
