@@ -15,6 +15,7 @@ class ALADTrainer:
         self.dm = dm
         self.batch_size = batch_size
         self.L = L
+        self.criterion = nn.BCEWithLogitsLoss()
         self.lr = learning_rate
         self.optim_ge = optim.Adam(
             list(self.model.G.parameters()) + list(self.model.E.parameters()),
@@ -26,7 +27,7 @@ class ALADTrainer:
         )
 
     def evaluate_on_test_set(self, **kwargs):
-        labels, scores = [], []
+        labels, scores_l1, scores_l2 = [], [], []
         test_ldr = self.dm.get_test_set()
         self.model.eval()
 
@@ -35,20 +36,28 @@ class ALADTrainer:
                 X = X_i.float().to(self.device)
                 _, feature_real = self.model.D_xx(X, X)
                 _, feature_gen = self.model.D_xx(X, self.model.G(self.model.E(X)))
-                score = torch.sum(torch.abs(feature_real - feature_gen), dim=1)
-                scores.append(score.cpu())
+                score_l1 = torch.sum(torch.abs(feature_real - feature_gen), dim=1)
+                score_l2 = torch.linalg.norm(feature_real - feature_gen, 2, keepdim=False, dim=1)
+                
+                scores_l1.append(score_l1.cpu())
+                scores_l2.append(score_l2.cpu())
                 labels.append(label.cpu())
-        scores = torch.cat(scores, dim=0)
+        scores_l1 = torch.cat(scores_l1, dim=0)
+        scores_l2 = torch.cat(scores_l2, dim=0)
         labels = torch.cat(labels, dim=0)
 
-        per = np.percentile(scores, 80)  
-        y_pred = (scores >= per)
+        per_l1 = np.percentile(scores_l1, 80)  
+        y_pred_l1 = (scores_l1 >= per_l1)
+        per_l2 = np.percentile(scores_l2, 80)  
+        y_pred_l2 = (scores_l2 >= per_l2)
     
-        print(precision_recall_fscore_support(labels.numpy().astype(int), y_pred.numpy().astype(int), average='binary'))
-        precision, recall, thresholds = precision_recall_curve(labels, scores)
-        print('ROC AUC score: {:.2f}'.format(roc_auc_score(labels, scores) * 100))
+        print(precision_recall_fscore_support(labels.numpy().astype(int), y_pred_l1.numpy().astype(int), average='binary'))
+        print(precision_recall_fscore_support(labels.numpy().astype(int), y_pred_l2.numpy().astype(int), average='binary'))
 
-        return labels, scores
+        print('ROC AUC score l1: {:.2f}'.format(roc_auc_score(labels, scores_l1) * 100))
+        print('ROC AUC score l2: {:.2f}'.format(roc_auc_score(labels, scores_l2) * 100))
+
+        return labels, scores_l1
 
     def train_iter(self, X):
         # Cleaning gradients
@@ -84,7 +93,6 @@ class ALADTrainer:
         train_ldr = self.dm.get_train_set()
         # TODO: test with nn.BCE()
         # self.criterion = nn.BCEWithLogitsLoss()
-        self.criterion = nn.BCEWithLogitsLoss()
         for epoch in range(n_epochs):
             print(f"\nEpoch: {epoch + 1} of {n_epochs}")
             ge_losses = 0

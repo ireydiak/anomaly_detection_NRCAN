@@ -133,7 +133,7 @@ class DiscriminatorXX(nn.Module):
         return logits, mid_layer
 
 class DiscriminatorXZ(nn.Module):
-    def __init__(self, in_features, out_features, latent_dim, negative_slope=1e-4, p=0.5, n_classes=1):
+    def __init__(self, in_features, out_features, latent_dim, negative_slope=0.2, p=0.5, n_classes=1):
         super(DiscriminatorXZ, self).__init__()
         self.in_features = in_features
         self.out_features = out_features
