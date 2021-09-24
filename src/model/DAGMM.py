@@ -5,10 +5,10 @@ import numpy as np
 from model import AutoEncoder as AE
 from model import GMM
 
-from .AbstractModel import AbstractModel
+from .BaseModel import BaseModel
 
 
-class DAGMM(AbstractModel):
+class DAGMM(BaseModel):
     """
     This class proposes an unofficial implementation of the DAGMM architecture proposed in
     https://sites.cs.ucsb.edu/~bzong/doc/iclr18-dagmm.pdf.
