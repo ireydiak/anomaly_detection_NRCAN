@@ -10,20 +10,24 @@ Authors:
 """
 
 import argparse
+from collections import defaultdict
 
 import numpy as np
+from recforest import RecForest
 from torch import nn
 
-from src.model.DUAD import DUAD
-from src.trainer.AETrainer import AETrainer
-from src.trainer.DUADTrainer import DUADTrainer
+from model.DUAD import DUAD
+from trainer.AETrainer import AETrainer
+from trainer.DUADTrainer import DUADTrainer
+from utils.metrics import score_recall_precision, score_recall_precision_w_thresold
 from trainer import SOMDAGMMTrainer
 import torch.optim as optim
-from utils.utils import check_dir, optimizer_setup
+from utils.utils import check_dir, optimizer_setup, get_X_from_loader, average_results
 from model import DAGMM, MemAutoEncoder as MemAE, SOMDAGMM, AutoEncoder as AE
 from datamanager import ArrhythmiaDataset, DataManager, KDD10Dataset, NSLKDDDataset, IDS2018Dataset
 from model import DAGMM, MemAutoEncoder as MemAE, SOMDAGMM
-from datamanager import ArrhythmiaDataset, DataManager, KDD10Dataset, NSLKDDDataset, IDS2018Dataset, USBIDSDataset
+from datamanager import ArrhythmiaDataset, DataManager, KDD10Dataset, NSLKDDDataset, IDS2018Dataset, USBIDSDataset, \
+    ThyroidDataset
 from trainer import DAGMMTrainTestManager, MemAETrainer
 from viz.viz import plot_3D_latent, plot_energy_percentile
 from datetime import datetime as dt
@@ -31,6 +35,7 @@ import torch
 import os
 
 vizualizable_models = ["AE", "DAGMM", "SOM-DAGMM"]
+SKLEAN_MODEL = ['OC-SVM', 'RECFOREST']
 
 
 def argument_parser():
@@ -41,11 +46,16 @@ def argument_parser():
         usage='\n python3 main.py -m [model] -d [dataset-path] --dataset [dataset] [hyper_parameters]'
     )
     parser.add_argument('-m', '--model', type=str, default="DAGMM",
-                        choices=["AE", "DAGMM", "SOM-DAGMM", "MLAD", "MemAE", "DUAD"])
+                        choices=["AE", "DAGMM", "SOM-DAGMM", "MLAD", "MemAE", "DUAD", 'OC-SVM', 'RECFOREST'])
+
+    parser.add_argument('-rt', '--run-type', type=str, default="train",
+                        choices=["train", "test"])
+
+    parser.add_argument('--n-runs', help='number of runs of the experiment', type=int, default=1)
     parser.add_argument('-lat', '--latent-dim', type=int, default=1)
     parser.add_argument('-d', '--dataset-path', type=str, help='Path to the dataset')
     parser.add_argument('--dataset', type=str, default="kdd10",
-                        choices=["Arrhythmia", "KDD10", "NSLKDD", "IDS2018", "USBIDS"])
+                        choices=["Arrhythmia", "KDD10", "NSLKDD", "IDS2018", "USBIDS", "Thyroid"])
     parser.add_argument('--batch-size', type=int, default=1024, help='The size of the training batch')
     parser.add_argument('--optimizer', type=str, default="Adam", choices=["Adam", "SGD", "RMSProp"],
                         help="The optimizer to use for training the model")
@@ -77,7 +87,11 @@ def argument_parser():
     parser.add_argument('--p_s', type=float, default=35, help='Variance threshold of initial selection')
     parser.add_argument('--p_0', type=float, default=30, help='Variance threshold of re-evaluation selection')
     parser.add_argument('--num-cluster', type=int, default=20, help='Number of clusters')
-    parser.add_argument('--inj-rate', type=float, default=0.0, help='Anomalous injection rate')
+
+    # =======================DAGMM==========================
+    parser.add_argument('--reg-covar', type=float, default=1e-6, help="Non - negative regularization added to the "
+                                                                      "diagonal of covariance. Allows to assure that "
+                                                                      "the covariance matrices are all positive.")
 
     return parser.parse_args()
 
@@ -109,20 +123,25 @@ def resolve_trainer(trainer_str: str, optimizer_factory, **kwargs):
     device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
     D = dataset.get_shape()[1]
     L = kwargs.get("latent_dim", 1)
+    reg_covar = kwargs.get("reg_covar", 1e-12)
     if trainer_str == 'DAGMM' or trainer_str == 'SOM-DAGMM' or trainer_str == 'AE':
-        if dataset.name == 'Arrhythmia':
+        if dataset.name == 'Arrhythmia' or (dataset.name == 'Thyroid' and trainer_str != 'DAGMM'):
             enc_layers = [(D, 10, nn.Tanh()), (10, L, None)]
             dec_layers = [(L, 10, nn.Tanh()), (10, D, None)]
-            gmm_layers = [(4, 10, nn.Tanh()), (None, None, nn.Dropout(0.5)), (10, 2, nn.Softmax(dim=-1))]
+            gmm_layers = [(L + 2, 10, nn.Tanh()), (None, None, nn.Dropout(0.5)), (10, 2, nn.Softmax(dim=-1))]
+        elif dataset.name == 'Thyroid' and trainer_str == 'DAGMM':
+            enc_layers = [(D, 12, nn.Tanh()), (12, 4, nn.Tanh()), (4, L, None)]
+            dec_layers = [(L, 4, nn.Tanh()), (4, 12, nn.Tanh()), (12, D, None)]
+            gmm_layers = [(L + 2, 10, nn.Tanh()), (None, None, nn.Dropout(0.5)), (10, 2, nn.Softmax(dim=-1))]
         else:
             enc_layers = [(D, 60, nn.Tanh()), (60, 30, nn.Tanh()), (30, 10, nn.Tanh()), (10, L, None)]
             dec_layers = [(L, 10, nn.Tanh()), (10, 30, nn.Tanh()), (30, 60, nn.Tanh()), (60, D, None)]
-            gmm_layers = [(3, 10, nn.Tanh()), (None, None, nn.Dropout(0.5)), (10, 4, nn.Softmax(dim=-1))]
+            gmm_layers = [(L + 2, 10, nn.Tanh()), (None, None, nn.Dropout(0.5)), (10, 4, nn.Softmax(dim=-1))]
 
         if trainer_str == 'DAGMM':
-            model = DAGMM(D, ae_layers=(enc_layers, dec_layers), gmm_layers=gmm_layers)
+            model = DAGMM(D, ae_layers=(enc_layers, dec_layers), gmm_layers=gmm_layers, reg_covar=reg_covar)
             trainer = DAGMMTrainTestManager(
-                model=model, dm=dm, optimizer_factory=optimizer_factory
+                model=model, dm=dm, optimizer_factory=optimizer_factory,
             )
         elif trainer_str == 'AE':
             model = AE(enc_layers, dec_layers)
@@ -131,15 +150,20 @@ def resolve_trainer(trainer_str: str, optimizer_factory, **kwargs):
             )
         else:
             gmm_input = kwargs.get('n_som', 1) * 2 + kwargs.get('latent_dim', 1) + 2
+            if dataset.name == 'Arrhythmia':
+                gmm_layers = [(gmm_input, 10, nn.Tanh()), (None, None, nn.Dropout(0.5)), (10, 2, nn.Softmax(dim=-1))]
+            else:
+                gmm_layers = [(gmm_input, 10, nn.Tanh()), (None, None, nn.Dropout(0.5)), (10, 4, nn.Softmax(dim=-1))]
+
             dagmm = DAGMM(
                 dataset.get_shape()[1],
-                gmm_layers=[(gmm_input, 10, nn.Tanh()),
-                            (None, None, nn.Dropout(0.5)),
-                            (10, 4, nn.Softmax(dim=-1))]
+                ae_layers=(enc_layers, dec_layers),
+                gmm_layers=gmm_layers, reg_covar=reg_covar
             )
             # TODO
             # set these values according to the used dataset
-            grid_length = int(np.sqrt(5 * np.sqrt(len(dataset))))
+            grid_length = int(np.sqrt(5 * np.sqrt(len(dataset)))) // 2
+            grid_length = 32 if grid_length > 32 else grid_length
             som_args = {
                 "x": grid_length,
                 "y": grid_length,
@@ -201,14 +225,13 @@ if __name__ == "__main__":
     lambda_1 = args.lambda_energy
     lambda_2 = args.lambda_p
     L = args.latent_dim
+    n_runs = args.n_runs
 
     n_som = args.n_som
     p_s = args.p_s
     p_0 = args.p_0
     r = args.r
     num_cluster = args.num_cluster
-
-    inject_perc = args.inj_rate
 
     # Dynamically load the Dataset instance
     clsname = globals()[f'{args.dataset}Dataset']
@@ -219,11 +242,56 @@ if __name__ == "__main__":
     # split data in train and test sets
     # we train only on the majority class
 
-    train_set, test_set = dataset.one_class_split_train_test_inject(test_perc=0.50, inject_perc=inject_perc)
+    train_set, test_set = dataset.one_class_split_train_test_inject(test_perc=0.50, inject_perc=args.rho)
     dm = DataManager(train_set, test_set, batch_size=batch_size, validation=1e-3)
 
     # safely create save path
     check_dir(args.save_path)
+
+    # For models based on sklearn like APIs
+
+    if args.model in SKLEAN_MODEL:
+        X_train, _ = get_X_from_loader(dm.get_train_set())
+        X_test, y_test = get_X_from_loader(dm.get_test_set())
+        print(f'Starting training: {args.model}')
+        if args.model == 'RECFOREST':
+
+            all_results = defaultdict(list)
+            for r in range(n_runs):
+                print(f"Run number {r}/{n_runs}")
+                model = RecForest(n_jobs=-1, random_state=42)
+                model.fit(X_train)
+                print('Finished learning process')
+
+                anomaly_score_train = []
+                anomaly_score_test = []
+                # prediction for the training set
+                for i, X_i in enumerate(dm.get_train_set(), 0):
+                    anomaly_score_train.append(model.predict(X_i[0].numpy()))
+                anomaly_score_train = np.concatenate(anomaly_score_train)
+                #
+                # prediction for the test set
+                for i, X_i in enumerate(dm.get_test_set(), 0):
+                    anomaly_score_test.append(model.predict(X_i[0].numpy()))
+                anomaly_score_test = np.concatenate(anomaly_score_test)
+
+                # anomaly_score_test = model.predict(X_test)
+                # anomaly_score_train = model.predict(X_train)
+
+                anomaly_score = np.concatenate([anomaly_score_train, anomaly_score_test])
+                # dump metrics with different thresholds
+                score_recall_precision(anomaly_score, anomaly_score_test, y_test)
+                results = score_recall_precision_w_thresold(anomaly_score, anomaly_score_test, y_test, pos_label=1,
+                                                            threshold=args.p_threshold)
+                for k, v in results.items():
+                    all_results[k].append(v)
+
+            params = dict({"BatchSize": batch_size, "Epochs": args.num_epochs, "rho": args.rho,
+                           'threshold': args.p_threshold})
+            print('Averaging results')
+            final_results = average_results(all_results)
+            store_results(final_results, params, args.model, args.dataset, args.dataset_path)
+            exit(0)
 
     optimizer = resolve_optimizer(args.optimizer)
 
@@ -234,19 +302,37 @@ if __name__ == "__main__":
         p_s=p_s,
         p_0=p_0,
         num_cluster=num_cluster,
+        reg_covar=args.reg_covar
     )
 
     if model and model_trainer:
-        metrics = model_trainer.train(args.num_epochs)
-        print('Finished learning process')
-        print('Evaluating model on test set')
-        # We test with the minority samples as the positive class
-        results, test_z, test_label, energy = model_trainer.evaluate_on_test_set(energy_threshold=args.p_threshold)
+        # Training and evaluation on different runs
+        all_results = defaultdict(list)
+        for r in range(n_runs):
+            print(f"Run number {r}/{n_runs}")
+            metrics = model_trainer.train(args.num_epochs)
+            print('Finished learning process')
+            print('Evaluating model on test set')
 
-        params = dict({"BatchSize": batch_size, "Epochs": args.num_epochs, "rho": args.rho}, **model.get_params())
-        store_results(results, params, args.model, args.dataset, args.dataset_path)
-        if args.vizualization and model in vizualizable_models:
+            # We test with the minority samples as the positive class
+            results, test_z, test_label, energy = model_trainer.evaluate_on_test_set(energy_threshold=args.p_threshold)
+            for k, v in results.items():
+                all_results[k].append(v)
+            model.reset()
+
+        # Calculate Means and Stds of metrics
+        print('Averaging results')
+        final_results = average_results(all_results)
+
+        params = dict({"BatchSize": batch_size, "Epochs": args.num_epochs, "rho": args.rho,
+                       'threshold': args.p_threshold}, **model.get_params())
+        store_results(final_results, params, args.model, args.dataset, args.dataset_path)
+
+        if args.vizualization and args.model in vizualizable_models:
             plot_3D_latent(test_z, test_label)
             plot_energy_percentile(energy)
     else:
         print(f'Error: Could not train {args.dataset} on model {args.model}')
+
+    # TODO
+    # Run a saved model for test purpose

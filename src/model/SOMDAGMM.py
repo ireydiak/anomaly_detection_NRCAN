@@ -3,7 +3,9 @@ import torch
 import torch.nn as nn
 from minisom import MiniSom
 
-from model import DAGMM
+from .DAGMM import DAGMM
+
+from .BaseModel import BaseModel
 
 default_som_args = {
     "x": 32,
@@ -15,7 +17,7 @@ default_som_args = {
 }
 
 
-class SOMDAGMM(nn.Module):
+class SOMDAGMM(BaseModel):
     def __init__(self, input_len: int, dagmm: DAGMM, som_args: dict = None, **kwargs):
         super(SOMDAGMM, self).__init__()
         self.som_args = som_args or default_som_args
@@ -38,7 +40,6 @@ class SOMDAGMM(nn.Module):
 
     def forward(self, X):
         # DAGMM's latent feature, the reconstruction error and gamma
-        # _, X_prime, _, z_r = self.dagmm.forward_end_dec(X)
         code, X_prime, cosim, z_r = self.dagmm.forward_end_dec(X)
         # Concatenate SOM's features with DAGMM's
         z_r_s = []
@@ -49,8 +50,6 @@ class SOMDAGMM(nn.Module):
             z_r_s.append(z_s_i)
         z_r_s.append(z_r)
         Z = torch.cat(z_r_s, dim=1)
-
-        # Z = z_r
 
         # estimation network
         gamma = self.dagmm.forward_estimation_net(Z)

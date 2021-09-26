@@ -2,8 +2,10 @@ from typing import Tuple, List
 
 import torch.nn as nn
 
+from .BaseModel import BaseModel
 
-class AutoEncoder(nn.Module):
+
+class AutoEncoder(BaseModel):
     """
     Implements a Deep Auto Encoder
     """
@@ -44,3 +46,8 @@ class AutoEncoder(nn.Module):
         output = self.encoder(x)
         output = self.decoder(output)
         return x, output
+
+    def get_params(self) -> dict:
+        return {
+            "L": self.L,
+        }

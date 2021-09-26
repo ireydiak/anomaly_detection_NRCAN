@@ -17,13 +17,14 @@ class AbstractDataset(Dataset):
         if pct < 1.0:
             # Keeps `pct` percent of the original data while preserving
             # the normal/anomaly ratio
-            anomaly_idx = np.where(X[:, -1] == ANOMALY_LABEL)
-            normal_idx = np.where(X[:, -1] == NORMAL_LABEL)
+            anomaly_idx = np.where(X[:, -1] == ANOMALY_LABEL)[0]
+            normal_idx = np.where(X[:, -1] == NORMAL_LABEL)[0]
             np.random.shuffle(anomaly_idx)
             np.random.shuffle(normal_idx)
+
             X = np.concatenate(
-                X[anomaly_idx[:int(len(anomaly_idx) * pct), ]],
-                X[normal_idx[:int(len(normal_idx) * pct), ]]
+                (X[anomaly_idx[:int(len(anomaly_idx) * pct)]],
+                X[normal_idx[:int(len(normal_idx) * pct)]])
             )
             self.X = X[:, :-1]
             self.y = X[:, -1]

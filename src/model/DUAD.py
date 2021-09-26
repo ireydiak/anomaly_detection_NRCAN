@@ -3,11 +3,12 @@ import torch
 import torch.nn as nn
 from minisom import MiniSom
 
-from src.model import DAGMM
-from src.model import AutoEncoder as AE
+
+from .AutoEncoder import AutoEncoder as AE
+from .BaseModel import BaseModel
 
 
-class DUAD(nn.Module):
+class DUAD(BaseModel):
     def __init__(self, input_size, r, p0=.35, p=.30, ae_layers=None, **kwargs):
         super(DUAD, self).__init__()
 
@@ -39,8 +40,8 @@ class DUAD(nn.Module):
 
     def get_params(self) -> dict:
         params = dict(
-            p=self.p,
-            p0=self.p0,
-            r=self.r
+            duad_p=self.p,
+            duad_p0=self.p0,
+            duad_r=self.r
         )
         return params

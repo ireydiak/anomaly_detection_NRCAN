@@ -14,12 +14,11 @@ from typing import Callable
 
 from sklearn import metrics
 
-from src.datamanager import DataManager
-from src.model import DUAD
+from datamanager import DataManager
+from model import DUAD
 from sklearn.mixture import GaussianMixture
 
-from src.utils.metrics import score_recall_precision
-from src.viz.viz import plot_2D_latent, plot_energy_percentile
+from utils.metrics import score_recall_precision, score_recall_precision_w_thresold
 
 
 class AETrainer:
@@ -83,6 +82,7 @@ class AETrainer:
         """
 
         test_loader = self.dm.get_test_set()
+        energy_threshold = kwargs.get('energy_threshold', 80)
         # Change the model to evaluation mode
         self.model.eval()
         train_score = []
@@ -122,9 +122,10 @@ class AETrainer:
             combined_score = np.concatenate([train_score, test_score], axis=0)
 
             score_recall_precision(combined_score, test_score, test_labels)
+            res = score_recall_precision_w_thresold(combined_score, test_score, test_labels, pos_label=pos_label,
+                                                    threshold=energy_threshold)
 
             # switch back to train mode
             self.model.train()
 
-            res = {}
             return res, test_z, test_labels, combined_score

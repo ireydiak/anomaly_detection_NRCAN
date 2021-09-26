@@ -6,15 +6,18 @@ from sklearn.preprocessing import MinMaxScaler
 import warnings
 import utils
 import os
-from typing import Tuple
-from scipy.io import loadmat 
+from typing import Tuple, Any
+from scipy.io import loadmat
 from datetime import datetime as dt
+
 # import warnings
 
 warnings.filterwarnings('ignore')
 
 
-def clean_step(path_to_dataset: str, export_path: str, backup: bool = False) -> Tuple[pd.DataFrame, dict]:
+# link to the dataset http://odds.cs.stonybrook.edu/thyroid-disease-dataset/
+
+def clean_step(path_to_dataset: str, export_path: str, backup: bool = False) -> Tuple[Any, Any, defaultdict]:
     # Keep a trace of the cleaning step
     stats = defaultdict()
     stats["Dropped Columns"] = []
@@ -23,7 +26,7 @@ def clean_step(path_to_dataset: str, export_path: str, backup: bool = False) -> 
 
     # 1- Load file
     if not path_to_dataset.endswith(".mat"):
-        raise Exception("process_arrhythmia can only process .mat files")
+        raise Exception(f"{__file__} can only process .mat files")
     mat = loadmat(path_to_dataset)
     X = mat['X']  # variable in mat file
     y = mat['y'].reshape(-1)
@@ -76,8 +79,9 @@ def clean_step(path_to_dataset: str, export_path: str, backup: bool = False) -> 
     return df, y, stats
 
 
-def normalize_step(df: pd.DataFrame, y: np.array, base_path: str, backup:bool = False):
+def normalize_step(df: pd.DataFrame, y: np.ndarray, base_path: str, backup: bool = False):
     print(f'Processing {len(df.columns)} features')
+
     # Split numerical and non-numerical columns
     num_cols = df.select_dtypes(exclude=["object", "category"]).columns.tolist()
     cat_cols = df.select_dtypes(include=["category", "object"]).columns.tolist()
@@ -96,23 +100,23 @@ def normalize_step(df: pd.DataFrame, y: np.array, base_path: str, backup:bool = 
         axis=1
     )
     if backup:
-        normalized_fname = f'{base_path}/{utils.folder_struct["normalize_step"]}/arrhythmia_normalized.csv'
+        normalized_fname = f'{base_path}/{utils.folder_struct["normalize_step"]}/ann_thyroid.csv'
         df.to_csv(
             normalized_fname,
             sep=',', encoding='utf-8', index=False
         )
         print(f'Saved {normalized_fname}')
-    compressed_fname = f'{base_path}/{utils.folder_struct["minify_step"]}/arrhythmia_normalized.npz'
-    np.savez(compressed_fname, arrhythmia=X.astype(np.float64))
+    compressed_fname = f'{base_path}/{utils.folder_struct["minify_step"]}/ann_thyroid.npz'
+    np.savez(compressed_fname, thyroid=X.astype(np.float64))
     print(f'Saved {compressed_fname}')
 
 
 if __name__ == '__main__':
-    # Assumes `path` points to the .mat file downloaded from http://odds.cs.stonybrook.edu/arrhythmia-dataset/ 
+    # Assumes `path` points to the ann-*.data
     path, export_path, backup = utils.parse_args()
     # 0 - Prepare folder structure
     utils.prepare(export_path)
-    path_to_clean = f"{export_path}/{utils.folder_struct['clean_step']}/arrhythmia_clean.csv"
+    path_to_clean = f"{export_path}/{utils.folder_struct['clean_step']}/ann_thyroid.csv"
     if os.path.isfile(path_to_clean):
         print("Clean file exists. Skipping cleaning step.")
         df = pd.read_csv(path_to_clean)
@@ -120,7 +124,7 @@ if __name__ == '__main__':
         # 1 - Clean the data (remove invalid rows and columns)
         df, y, clean_stats = clean_step(path, export_path, backup)
         # Save info about cleaning step
-        utils.save_stats(export_path + '/usb_ids_info.csv', clean_stats)
+        utils.save_stats(export_path + '/ann_thyroid_info.csv', clean_stats)
 
     # 2 - Normalize numerical values and treat categorical values
     normalize_step(df, y, export_path)

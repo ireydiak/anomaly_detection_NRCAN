@@ -8,7 +8,7 @@ from datamanager.DataManager import DataManager
 from sklearn import metrics
 import torch.nn as nn
 
-from src.utils.metrics import score_recall_precision, score_recall_precision_w_thresold
+from utils.metrics import score_recall_precision, score_recall_precision_w_thresold
 
 
 class DAGMMTrainTestManager:
