@@ -7,6 +7,7 @@ PhD Project
 Authors:
     - D'Jeff Kanda
     - Jean-Charles Verdier
+    - Maxime Alvarez
 """
 
 import argparse
@@ -33,12 +34,12 @@ from viz.viz import plot_3D_latent, plot_energy_percentile
 from datetime import datetime as dt
 from sklearn import metrics
 from sklearn.svm import OneClassSVM
-from sklearn.neighbors import LocalOutlierFactor
+
 import torch
 import os
 
 vizualizable_models = ["AE", "DAGMM", "SOM-DAGMM"]
-SKLEAN_MODEL = ['OC-SVM', 'RECFOREST', 'LOF']
+SKLEAN_MODEL = ['OC-SVM']
 
 
 def argument_parser():
@@ -258,12 +259,11 @@ if __name__ == "__main__":
         X_test, y_test = get_X_from_loader(dm.get_test_set())
         print(f'Starting training: {args.model}')
 
-        if args.model == 'RECFOREST':
-            model = RecForest()
-        elif args.model == 'OC-SVM':
+        if args.model == 'OC-SVM':
             model = OneClassSVM(kernel='linear', shrinking=False, verbose=True)
-        elif args.model == 'LOF':
-            model = LocalOutlierFactor(novelty=True)
+        else:
+            print(f"'{args.model}' is not a supported sklearn model.")
+            exit(1)
 
         all_results = defaultdict(list)
         for r in range(n_runs):
