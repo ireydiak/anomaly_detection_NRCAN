@@ -268,7 +268,6 @@ if __name__ == "__main__":
         all_results = defaultdict(list)
         for r in range(n_runs):
             print(f"Run number {r}/{n_runs}")
-            model = RecForest()
             model.fit(X_train)
             print('Finished learning process')
 
