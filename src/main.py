@@ -87,6 +87,10 @@ def argument_parser():
 
     parser.add_argument('--n-som', help='number of SOM component', type=int, default=1)
 
+    # =======================OC-SVM==========================
+    parser.add_argument('--nu', type=float, default=0.5, help="The 'margin' for the SVM. Specifies the"
+                                                                "anomaly ratio in training data.")
+
     # =======================DUAD=========================
     parser.add_argument('--r', type=int, default=10, help='Number of epoch required to re-evaluate the selection')
     parser.add_argument('--p_s', type=float, default=35, help='Variance threshold of initial selection')
@@ -260,7 +264,8 @@ if __name__ == "__main__":
         print(f'Starting training: {args.model}')
 
         if args.model == 'OC-SVM':
-            model = OneClassSVM(kernel='linear', shrinking=False, verbose=True)
+            print(f"Using nu = {args.nu}.")
+            model = OneClassSVM(kernel='rbf', shrinking=False, verbose=True, nu=args.nu)
         else:
             print(f"'{args.model}' is not a supported sklearn model.")
             exit(1)
@@ -271,8 +276,10 @@ if __name__ == "__main__":
             model.fit(X_train)
             print('Finished learning process')
 
-            anomaly_score_test = model.predict(X_test)
-            anomaly_score_train = model.predict(X_train)
+            # OC-SVM predicts -1 for outliers (and 1 for inliers), however we want outliers to be 1.
+            # So we negate the predictions.
+            anomaly_score_test = -model.predict(X_test)
+            anomaly_score_train = -model.predict(X_train)
 
             anomaly_score = np.concatenate([anomaly_score_train, anomaly_score_test])
 
