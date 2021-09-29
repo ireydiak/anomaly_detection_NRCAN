@@ -10,6 +10,8 @@ from typing import Callable
 
 from sklearn import metrics
 
+from utils import score_recall_precision
+
 
 class SOMDAGMMTrainer:
 
@@ -37,6 +39,7 @@ class SOMDAGMMTrainer:
         self.model.train_som(X)
 
     def train(self, n_epochs: int):
+        print(f'Training with {self.__class__.__name__}')
         mean_loss = np.inf
         train_ldr = self.dm.get_train_set()
 
@@ -181,5 +184,8 @@ class SOMDAGMMTrainer:
 
             # switch back to train mode
             self.model.train()
+
+            # dump different metrics
+            score_recall_precision(combined_energy, test_energy, test_labels)
 
             return res, test_z, test_labels, combined_energy

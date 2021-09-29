@@ -17,13 +17,14 @@ class AbstractDataset(Dataset):
         if pct < 1.0:
             # Keeps `pct` percent of the original data while preserving
             # the normal/anomaly ratio
-            anomaly_idx = np.where(X[:, -1] == ANOMALY_LABEL)
-            normal_idx = np.where(X[:, -1] == NORMAL_LABEL)
+            anomaly_idx = np.where(X[:, -1] == ANOMALY_LABEL)[0]
+            normal_idx = np.where(X[:, -1] == NORMAL_LABEL)[0]
             np.random.shuffle(anomaly_idx)
             np.random.shuffle(normal_idx)
+
             X = np.concatenate(
-                X[anomaly_idx[:int(len(anomaly_idx) * pct), ]],
-                X[normal_idx[:int(len(normal_idx) * pct), ]]
+                (X[anomaly_idx[:int(len(anomaly_idx) * pct)]],
+                X[normal_idx[:int(len(normal_idx) * pct)]])
             )
             self.X = X[:, :-1]
             self.y = X[:, -1]
@@ -76,6 +77,45 @@ class AbstractDataset(Dataset):
         )
 
         print(f'Size of data with label ={label} :', 100 * len(label_data_index) / self.N)
+
+        test_set = Subset(self, remaining_index)
+
+        return train_set, test_set
+
+    def one_class_split_train_test_inject(self, test_perc=.2, label=0, inject_perc=0.0, seed=None):
+        """
+        This function splits the dataset into training and test datasets. The training set contains only normal data
+        with a percentage of @inject_perc anomalous data.
+
+        return: training set and test set
+        """
+        if seed:
+            torch.manual_seed(seed)
+
+        # Randomly sample normal data with the corresponding proportion
+        all_indices = torch.ones(self.N)
+        label_data_index = self.get_data_index_by_label(label=label)
+        num_test_sample = int(len(label_data_index) * test_perc)
+        shuffled_idx = torch.randperm(len(label_data_index)).long()
+        label_selected_indices = label_data_index[shuffled_idx[num_test_sample:]]
+
+        # Randomly sample anomalous data  with the corresponding proportion
+        label_inv_data_index = self.get_data_index_by_label(label=1 - label)
+        num_data_to_inject = int(len(label_data_index) * (1 - test_perc) * inject_perc / (1 - inject_perc))
+
+        assert num_data_to_inject < len(label_inv_data_index)
+
+        shuffled_idx = torch.randperm(len(label_inv_data_index)).long()
+        label_inv_selected_indices = label_inv_data_index[shuffled_idx[:num_data_to_inject]]
+
+        # Merge sampled data as training set
+        train_indices = np.concatenate([label_selected_indices, label_inv_selected_indices])
+        train_set = Subset(self, train_indices)
+
+        # Consider the remaining data as the test set
+        all_indices[train_indices] = 0
+        remaining_index = all_indices.nonzero().squeeze()
+        print(f'Size of data with label ={label} :', len(label_data_index) / self.N)
 
         test_set = Subset(self, remaining_index)
 

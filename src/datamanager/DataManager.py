@@ -1,6 +1,20 @@
+from copy import deepcopy
+
 import torch
 import numpy as np
 from torch.utils.data import Dataset, DataLoader, SubsetRandomSampler, Sampler, Subset
+
+
+class MySubset(Subset):
+    r"""
+    Subset of a dataset at specified indices.
+    Args:
+        dataset (Dataset): The whole Dataset
+        indices (sequence): Indices in the whole set selected for subset
+    """
+
+    def __getitem__(self, idx):
+        return self.dataset[self.indices[idx]] + (idx,)
 
 
 class DataManager:
@@ -38,17 +52,50 @@ class DataManager:
         self.seed = seed
 
         # torch.manual_seed(seed)
-        # n = len(train_dataset)
-        # num_sample = int(n * initial_train_dataset_ratio)
-        # shuffled_idx = torch.randperm(n).long()
+        n = len(train_dataset)
+        shuffled_idx = torch.randperm(n).long()
+
+        # Create a mask to track selection process
+        self.train_selection_mask = torch.ones_like(shuffled_idx)
+
+        self.current_train_set = MySubset(train_dataset, self.train_selection_mask.nonzero().squeeze())
 
         # Create the loaders
         train_sampler, val_sampler = self.train_validation_split(
             len(self.train_set), self.validation, self.seed
         )
-        self.train_loader = DataLoader(self.train_set, self.batch_size, sampler=train_sampler, **self.kwargs)
+
+        self.init_train_loader = DataLoader(self.current_train_set, self.batch_size, sampler=train_sampler,
+                                            **self.kwargs)
+        self.train_loader = DataLoader(self.current_train_set, self.batch_size, sampler=train_sampler, **self.kwargs)
         self.validation_loader = DataLoader(self.train_set, self.batch_size, sampler=val_sampler, **self.kwargs)
         self.test_loader = DataLoader(test_dataset, batch_size, shuffle=True, **kwargs)
+
+    def get_current_training_set(self):
+        return self.current_train_set
+
+    def get_init_train_loader(self):
+        return self.init_train_loader
+
+    def get_selected_indices(self):
+        return self.train_selection_mask.nonzero().squeeze()
+
+    def update_train_set(self, selected_indices):
+        """
+        This function update the training set with the new filter
+        :param selected_indices: indices of new data to select
+        :return:
+        train_loader and validation_loader
+        """
+        self.train_selection_mask[:] = 0
+        self.train_selection_mask[selected_indices] = 1
+        lbl_sample_idx = self.train_selection_mask.nonzero().squeeze()
+        self.current_train_set = MySubset(self.train_set, lbl_sample_idx)
+        train_sampler, val_sampler = self.train_validation_split(len(self.current_train_set), self.validation,
+                                                                 self.seed)
+        self.train_loader = DataLoader(self.current_train_set, self.batch_size, sampler=train_sampler, **self.kwargs)
+        self.validation_loader = DataLoader(self.current_train_set, self.batch_size, sampler=val_sampler, **self.kwargs)
+        return self.train_loader, self.validation_loader
 
     @staticmethod
     def train_validation_split(num_samples, validation_ratio, seed=0):
