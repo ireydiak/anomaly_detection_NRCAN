@@ -82,8 +82,8 @@ COLS = [
 def clean_step(path_to_files: str, export_path: str, backup: bool = False) -> Tuple[pd.DataFrame, dict]:
     # Keep a trace of the cleaning step
     stats = defaultdict()
-    stats["Dropped Columns"] = stats["Dropped Negative Columns"] = stats["Dropped NaN Columns"] = []
-    stats["Negative Rows"] = stats["NaN/INF Rows"] = 0
+    stats["Dropped Columns"], stats["Dropped Negative Columns"], stats["Dropped NaN Columns"] = [], [], []
+    stats["Negative Rows"], stats["NaN/INF Rows"] = 0, 0
     # 1- Merge all files
     print([path_to_files + '/' + f for f in os.listdir(path_to_files)])
     dfs = [pd.read_csv(path_to_files + '/' + f, compression='gzip') for f in os.listdir(path_to_files)]
