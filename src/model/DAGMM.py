@@ -5,15 +5,18 @@ import numpy as np
 from model import AutoEncoder as AE
 from model import GMM
 
+from .BaseModel import BaseModel
 
-class DAGMM(nn.Module):
+
+class DAGMM(BaseModel):
     """
     This class proposes an unofficial implementation of the DAGMM architecture proposed in
     https://sites.cs.ucsb.edu/~bzong/doc/iclr18-dagmm.pdf.
     Simply put, it's an end-to-end trained auto-encoder network complemented by a distinct gaussian mixture network.
     """
 
-    def __init__(self, input_size, ae_layers=None, gmm_layers=None, lambda_1=0.1, lambda_2=0.005, device='cpu'):
+    def __init__(self, input_size, ae_layers=None, gmm_layers=None, lambda_1=0.1, lambda_2=0.005, device='cpu',
+                 reg_covar=1e-12):
         """
         DAGMM constructor
 
@@ -35,7 +38,7 @@ class DAGMM(nn.Module):
         else:
             enc_layers = ae_layers[0]
             dec_layers = ae_layers[1]
-        
+
         gmm_layers = gmm_layers or [(3, 10, nn.Tanh()), (None, None, nn.Dropout(0.5)), (10, 4, nn.Softmax(dim=-1))]
 
         self.ae = AE(enc_layers, dec_layers)
@@ -50,6 +53,7 @@ class DAGMM(nn.Module):
         self.lambda_1 = lambda_1
         self.lambda_2 = lambda_2
         self.device = device
+        self.reg_covar = reg_covar
 
     def forward(self, x: torch.Tensor):
         """
@@ -109,23 +113,6 @@ class DAGMM(nn.Module):
 
         return gamma_hat
 
-    def weighted_log_sum_exp(self, x, weights, dim):
-        """
-        Inspired by https://discuss.pytorch.org/t/moving-to-numerically-stable-log-sum-exp-leads-to-extremely-large-loss-values/61938
-
-        Parameters
-        ----------
-        x
-        weights
-        dim
-
-        Returns
-        -------
-
-        """
-        m, idx = torch.max(x, dim=dim, keepdim=True)
-        return m.squeeze(dim) + torch.log(torch.sum(torch.exp(x - m) * (weights.unsqueeze(2)), dim=dim))
-
     def relative_euclidean_dist(self, x, x_prime):
         return (x - x_prime).norm(2, dim=1) / x.norm(2, dim=1)
 
@@ -160,53 +147,39 @@ class DAGMM(nn.Module):
         gamma_sum = torch.sum(gamma, dim=0)
         phi = gamma_sum / N
 
+        # phi = torch.mean(gamma, dim=0)
+
         # K x D
         # :math: `\mu = (I * gamma_sum)^{-1} * (\gamma^T * z)`
         mu = torch.sum(gamma.unsqueeze(-1) * z.unsqueeze(1), dim=0) / gamma_sum.unsqueeze(-1)
         # mu = torch.linalg.inv(torch.diag(gamma_sum)) @ (gamma.T @ z)
-
-        # Covariance (K x D x D)
-        covs = []
-        for i in range(0, K):
-            xm = z - mu[i]
-            cov = 1 / gamma_sum[i] * ((gamma[:, i].unsqueeze(-1) * xm).T @ xm)
-            cov += 1e-12
-            covs.append(cov)
 
         mu_z = z.unsqueeze(1) - mu.unsqueeze(0)
         cov_mat = mu_z.unsqueeze(-1) @ mu_z.unsqueeze(-2)
         cov_mat = gamma.unsqueeze(-1).unsqueeze(-1) * cov_mat
         cov_mat = torch.sum(cov_mat, dim=0) / gamma_sum.unsqueeze(-1).unsqueeze(-1)
 
+        # ==============
+        K, N, D = gamma.shape[1], z.shape[0], z.shape[1]
+        # (K,)
+        gamma_sum = torch.sum(gamma, dim=0)
+        # prob de x_i pour chaque cluster k
+        phi_ = gamma_sum / N
+
+        # K x D
+        # :math: `\mu = (I * gamma_sum)^{-1} * (\gamma^T * z)`
+        mu_ = torch.sum(gamma.unsqueeze(-1) * z.unsqueeze(1), dim=0) / gamma_sum.unsqueeze(-1)
+        # Covariance (K x D x D)
+
         self.phi = phi.data
         self.mu = mu.data
         self.cov_mat = cov_mat
-        self.covs = covs
+        # self.covs = covs
         # self.cov_mat = covs
 
         return phi, mu, cov_mat
 
-    def mv_normal_cholesky(self, z: torch.Tensor, mu: torch.Tensor, Sigma: torch.Tensor):
-        N, D = z.shape[0], z.shape[1]
-        L = torch.linalg.cholesky(Sigma)
-        scale = torch.prod(torch.diag(torch.linalg.cholesky(2 * np.pi * Sigma)))
-        L_inv_zmu = torch.linalg.inv(L) @ (z - mu).reshape(N, D, 1)
-        exp_term = L_inv_zmu.reshape(N, 1, D) @ L_inv_zmu
-        return (1.0 / scale) * torch.exp(-0.5 * exp_term)
-
-    def weighted_log_sum_exp(self, x: torch.Tensor, weights: torch.Tensor):
-        a = torch.max(x)
-        return a + torch.log(torch.sum(torch.exp(x - a) * weights))
-
-    def estimate_sample_energy_js(self, z, phi, mu):
-        energies = []
-        for k, sigma_k in enumerate(self.covs):
-            probs = self.mv_normal_cholesky(z, mu[k], sigma_k).reshape(1024, )
-            energies.append(-self.weighted_log_sum_exp(torch.log(probs), phi[k]))
-        return torch.sum(torch.Tensor(energies))
-
     def estimate_sample_energy(self, z, phi=None, mu=None, cov_mat=None, average_energy=True, device='cpu'):
-
         if phi is None:
             phi = self.phi
         if mu is None:
@@ -218,13 +191,14 @@ class DAGMM(nn.Module):
 
         # Avoid non-invertible covariance matrix by adding small values (eps)
         d = z.shape[1]
-        eps = 1e-12
+        eps = self.reg_covar
         cov_mat = cov_mat + (torch.eye(d)).to(device) * eps
         # N x K x D
         mu_z = z.unsqueeze(1) - mu.unsqueeze(0)
 
         # scaler
-        inv_cov_mat = torch.linalg.inv(cov_mat)
+        inv_cov_mat = torch.cholesky_inverse(torch.cholesky(cov_mat))
+        # inv_cov_mat = torch.linalg.inv(cov_mat)
         det_cov_mat = torch.linalg.cholesky(2 * np.pi * cov_mat)
         det_cov_mat = torch.diagonal(det_cov_mat, dim1=1, dim2=2)
         det_cov_mat = torch.prod(det_cov_mat, dim=1)
@@ -253,60 +227,6 @@ class DAGMM(nn.Module):
         pen_cov_mat = (1 / cov_diag).sum()
 
         return energy_result, pen_cov_mat
-
-    def estimate_sample_energy_backup(self, z, phi=None, mu=None, cov_mat=None, average_it=True, device='cpu'):
-
-        if phi is None:
-            phi = self.phi
-        if mu is None:
-            mu = self.mu
-        if cov_mat is None:
-            cov_mat = self.cov_mat
-
-        # jc_res = self.estimate_sample_energy_js(z, phi, mu)
-
-        # Avoid non-invertible covariance matrix by adding small values (eps)
-        d = z.shape[1]
-        eps = 1e-12
-        cov_mat = cov_mat + (torch.eye(d)).to(device) * eps
-        # N x K x D
-        mu_z = z.unsqueeze(1) - mu.unsqueeze(0)
-
-        # scaler
-        inv_cov_mat = torch.linalg.inv(cov_mat)
-        L = torch.linalg.cholesky(2 * np.pi * cov_mat)
-        L_diag = torch.diagonal(L, dim1=1, dim2=2)
-        # K
-        det_cov_mat = torch.prod(L_diag, dim=1)
-
-        # (NxKx1xD @ KxDxD) @ NxKxDx1 = NxKx1x1
-        exp_term = (mu_z.unsqueeze(-2) @ inv_cov_mat) @ mu_z.unsqueeze(-1)
-        # NxK
-        exp_term = - 0.5 * exp_term.squeeze()
-
-        # Applying log-sum-exp stability trick
-        # https://www.xarg.org/2016/06/the-log-sum-exp-trick-in-machine-learning/
-        # max_val = torch.max(exp_term.clamp(min=0), dim=1, keepdim=True)[0]
-        max_val = torch.max(exp_term)
-        # NxK
-        exp_result = torch.exp(exp_term - max_val)
-
-        # (1xK .* NxK) ./ det_cov_mat
-        log_term = (phi * exp_result) / det_cov_mat
-        # Kx1
-        log_term = log_term.sum(axis=1)
-
-        # element-wise log
-        energy_result = - max_val - torch.log(log_term + eps)
-
-        # if average_it:
-        #     energy_result = energy_result.mean()
-
-        # penalty term
-        cov_diag = torch.diagonal(cov_mat, dim1=1, dim2=2)
-        pen_cov_mat = (1 / cov_diag).sum()
-
-        return energy_result.sum(), pen_cov_mat
 
     def compute_loss(self, x, x_prime, energy, pen_cov_mat):
         """

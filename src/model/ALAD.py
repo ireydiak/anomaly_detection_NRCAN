@@ -3,14 +3,17 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.nn.modules.activation import LeakyReLU
 from torch.autograd import Variable
+
+from .BaseModel import BaseModel
 from .utils import weights_init_xavier
+
 
 # learning_rate = 1e-5
 # batch_size = 50
 # latent_dim = 32
 # init_kernel = tf.contrib.layers.xavier_initializer()
 
-class ALAD(nn.Module):
+class ALAD(BaseModel):
     def __init__(self, D: int, L: int, device):
         super(ALAD, self).__init__()
         self.device = device
@@ -41,17 +44,23 @@ class ALAD(nn.Module):
         # DiscriminatorXZ
         out_truexz, _ = self.D_xz(X, z_gen)
         out_fakexz, _ = self.D_xz(x_gen, z_real)
-        
+
         # DiscriminatorZZ
         out_truezz, _ = self.D_zz(z_real, z_real)
         out_fakezz, _ = self.D_zz(z_real, self.E(self.G(z_real)))
-        
+
         # DiscriminatorXX
         out_truexx, _ = self.D_xx(X, X)
         out_fakexx, _ = self.D_xx(X, self.G(self.E(X)))
 
         return out_truexz, out_fakexz, out_truezz, out_fakezz, out_truexx, out_fakexx
-        
+
+    def get_params(self):
+        return {
+            'L': self.L,
+            'D': self.D
+        }
+
 
 class Encoder(nn.Module):
     def __init__(self, in_features, latent_dim, negative_slope=0.2):
@@ -62,7 +71,7 @@ class Encoder(nn.Module):
             nn.LeakyReLU(negative_slope),
             nn.Linear(latent_dim * 2, latent_dim)
         )
-    
+
     def forward(self, X):
         return self.fc_1(X)
 
@@ -91,7 +100,7 @@ class DiscriminatorZZ(nn.Module):
         self.p = p
         self.n_classes = n_classes
         self._build_network()
-    
+
     def _build_network(self):
         self.fc_1 = nn.Sequential(
             nn.Linear(2 * self.in_features, self.out_features),
@@ -106,16 +115,17 @@ class DiscriminatorZZ(nn.Module):
         logits = self.fc_2(mid_layer)
         return logits, mid_layer
 
+
 class DiscriminatorXX(nn.Module):
     def __init__(self, in_features, out_features, negative_slope=0.2, p=0.5, n_classes=1):
         super(DiscriminatorXX, self).__init__()
         self.in_features = in_features
         self.out_features = out_features
         self.n_classes = n_classes
-        self.negative_slope =negative_slope
+        self.negative_slope = negative_slope
         self.p = p
         self._build_network()
-    
+
     def _build_network(self):
         self.fc_1 = nn.Sequential(
             nn.Linear(self.in_features * 2, self.out_features),
@@ -123,7 +133,7 @@ class DiscriminatorXX(nn.Module):
             nn.Dropout(self.p)
         )
         self.fc_2 = nn.Linear(
-            self.out_features, self.n_classes 
+            self.out_features, self.n_classes
         )
 
     def forward(self, X, rec_X):
@@ -131,6 +141,7 @@ class DiscriminatorXX(nn.Module):
         mid_layer = self.fc_1(XX)
         logits = self.fc_2(mid_layer)
         return logits, mid_layer
+
 
 class DiscriminatorXZ(nn.Module):
     def __init__(self, in_features, out_features, latent_dim, negative_slope=0.2, p=0.5, n_classes=1):
@@ -142,7 +153,7 @@ class DiscriminatorXZ(nn.Module):
         self.latent_dim = latent_dim
         self.n_classes = n_classes
         self._build_network()
-    
+
     def _build_network(self):
         # Inference over x
         self.fc_1x = nn.Sequential(
@@ -163,7 +174,7 @@ class DiscriminatorXZ(nn.Module):
             nn.Dropout(self.p)
         )
         self.fc_2xz = nn.Linear(self.out_features, self.n_classes)
-    
+
     def forward_xz(self, xz):
         mid_layer = self.fc_1xz(xz)
         logits = self.fc_2xz(mid_layer)
