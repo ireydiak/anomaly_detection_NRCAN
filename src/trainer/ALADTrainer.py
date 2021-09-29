@@ -80,7 +80,6 @@ class ALADTrainer:
             y_pred_l2 = (scores_l2 >= per_l2)
 
             combined_scores_l1 = np.concatenate([scores_l1_train, scores_l1], axis=0) #scores_l1 #
-            # combined_scores_l2 = np.concatenate([scores_l2_train, scores_l2], axis=0)
 
             print(precision_recall_fscore_support(labels.astype(int), y_pred_l1.astype(int),
                                                   average='binary'))
@@ -94,41 +93,6 @@ class ALADTrainer:
                                                     threshold=energy_threshold)
 
             score_recall_precision(combined_scores_l1, scores_l1, labels)
-            # score_recall_precision(combined_scores_l2, scores_l2, labels)
-
-
-        # with torch.no_grad():
-        #     for X_i, label in test_ldr:
-        #         X = X_i.float().to(self.device)
-        #         _, feature_real = self.model.D_xx(X, X)
-        #         _, feature_gen = self.model.D_xx(X, self.model.G(self.model.E(X)))
-        #         score_l1 = torch.sum(torch.abs(feature_real - feature_gen), dim=1)
-        #         score_l2 = torch.linalg.norm(feature_real - feature_gen, 2, keepdim=False, dim=1)
-        #
-        #         scores_l1.append(score_l1.cpu().numpy())
-        #         scores_l2.append(score_l2.cpu().numpy())
-        #         labels.append(label.numpy())
-        # scores_l1 = np.concatenate(scores_l1, axis=0)
-        # scores_l2 = np.concatenate(scores_l2, axis=0)
-        # labels = np.concatenate(labels, axis=0)
-        #
-        # per_l1 = np.percentile(scores_l1, 80)
-        # y_pred_l1 = (scores_l1 >= per_l1)
-        # per_l2 = np.percentile(scores_l2, 80)
-        # y_pred_l2 = (scores_l2 >= per_l2)
-        #
-        # print(precision_recall_fscore_support(labels.astype(int), y_pred_l1.astype(int),
-        #                                       average='binary'))
-        # print(precision_recall_fscore_support(labels.astype(int), y_pred_l2.astype(int),
-        #                                       average='binary'))
-        #
-        # print('ROC AUC score l1: {:.2f}'.format(roc_auc_score(labels, scores_l1) * 100))
-        # print('ROC AUC score l2: {:.2f}'.format(roc_auc_score(labels, scores_l2) * 100))
-        #
-        # res = score_recall_precision_w_thresold(scores_l1, scores_l1, labels, pos_label=pos_label,
-        #                                         threshold=energy_threshold)
-        #
-        # score_recall_precision(scores_l1, scores_l1, labels)
 
         # switch back to train mode
         self.model.train()
