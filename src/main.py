@@ -17,6 +17,8 @@ from recforest import RecForest
 from torch import nn
 
 from model.DUAD import DUAD
+from src.model.DSEBM import DSEBM
+from src.trainer.DSEBMTrainer import DSEBMTrainer
 from trainer.AETrainer import AETrainer
 from trainer.DUADTrainer import DUADTrainer
 from utils.metrics import score_recall_precision, score_recall_precision_w_thresold
@@ -47,7 +49,8 @@ def argument_parser():
         usage='\n python3 main.py -m [model] -d [dataset-path] --dataset [dataset] [hyper_parameters]'
     )
     parser.add_argument('-m', '--model', type=str, default="DAGMM",
-                        choices=["AE", "ALAD", "DAGMM", "SOM-DAGMM", "MLAD", "MemAE", "DUAD", 'OC-SVM', 'RECFOREST'])
+                        choices=["AE", "ALAD", "DAGMM", "SOM-DAGMM", "MLAD", "MemAE", "DUAD", 'OC-SVM', 'RECFOREST',
+                                 'DSEBM'])
 
     parser.add_argument('-rt', '--run-type', type=str, default="train",
                         choices=["train", "test"])
@@ -231,6 +234,18 @@ def resolve_trainer(trainer_str: str, optimizer_factory, **kwargs):
             L=L
         )
 
+    elif trainer_str == 'DSEBM':
+        # bsize = kwargs.get('batch_size', None)
+        lr = kwargs.get('learning_rate', None),
+        assert batch_size and lr
+        model = DSEBM(D).to(device)
+        trainer = DSEBMTrainer(
+            model=model,
+            dm=dm,
+            device=device,
+            batch=batch_size, dim=D, learning_rate=lr[0],
+        )
+
     return model, trainer
 
 
@@ -320,7 +335,6 @@ if __name__ == "__main__":
         num_cluster=num_cluster,
         reg_covar=args.reg_covar,
         learning_rate=args.lr
-
     )
 
 
