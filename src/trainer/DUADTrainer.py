@@ -151,7 +151,7 @@ class DUADTrainer:
                         Z = torch.cat(Z, axis=0)
                         y = torch.cat(y, axis=0).cpu().numpy()
 
-                        plot_2D_latent(Z.cpu(), y)
+                        # plot_2D_latent(Z.cpu(), y)
 
                         selection_mask = self.re_evaluation(Z.cpu(), self.p, self.num_cluster)
                         selected_indices = indices[selection_mask]

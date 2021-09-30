@@ -82,7 +82,7 @@ class AbstractDataset(Dataset):
 
         return train_set, test_set
 
-    def one_class_split_train_test_inject(self, test_perc=.2, label=0, inject_perc=0.0, seed=None):
+    def one_class_split_train_test_inject(self, test_perc=.2, label=0, inject_perc=0.0, seed=42):
         """
         This function splits the dataset into training and test datasets. The training set contains only normal data
         with a percentage of @inject_perc anomalous data.
