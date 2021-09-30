@@ -78,7 +78,7 @@ def preprocess(df: pd.DataFrame):
 
 
 if __name__ == '__main__':
-    _, output_dir = utils.parse_args()
+    _, output_dir, _ = utils.parse_args()
     df_0 = import_data()
     stats_0 = df_stats(df_0)
 
@@ -89,10 +89,13 @@ if __name__ == '__main__':
     stats_1['N Dropped Columns'] = len(cols_dropped)
     stats_1['Dropped Columns'] = [' '.join(cols_dropped)]
 
+    # prepare the output directory
+    utils.prepare(output_dir)
+
     export_stats(output_dir, dict(**stats_0, **stats_1))
 
     path = '{}/{}/{}.csv'.format(output_dir, folder_struct["normalize_step"], "KDD10percent_normalized")
-    df_1.to_csv(path, sep=',', encoding='utf-8', index=False)
 
+    df_1.to_csv(path, sep=',', encoding='utf-8', index=False)
     path = '{}/{}/{}.npz'.format(output_dir, folder_struct["minify_step"], "KDD10percent_minified")
     np.savez(path, kdd=X.astype(np.float64))

@@ -13,7 +13,7 @@ def parse_args() -> Tuple[str, str]:
     parser = argparse.ArgumentParser()
     parser.add_argument(
         '-d', '--path', type=str,
-        default=None,
+        default='',
         help='Path to original CSV file or path to root directory containing CSV files'
     )
     parser.add_argument(
@@ -37,7 +37,7 @@ def prepare(base_path: str):
         if os.path.exists(f):
             print(f'Directory {f} already exists. Skipping')
         else:
-            os.mkdir(f)
+            os.makedirs(f)
 
 
 def save_stats(path: str, *stats: dict):
