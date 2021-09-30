@@ -39,7 +39,7 @@ import torch
 import os
 
 vizualizable_models = ["AE", "DAGMM", "SOM-DAGMM"]
-SKLEAN_MODEL = ['OC-SVM']
+SKLEARN_MODEL = ['RECFOREST', 'OC-SVM']
 
 
 def argument_parser():
@@ -258,46 +258,70 @@ if __name__ == "__main__":
     check_dir(args.save_path)
 
     # For models based on sklearn like APIs
-    if args.model in SKLEAN_MODEL:
+    if args.model in SKLEARN_MODEL:
         X_train, _ = get_X_from_loader(dm.get_train_set())
         X_test, y_test = get_X_from_loader(dm.get_test_set())
         print(f'Starting training: {args.model}')
 
-        if args.model == 'OC-SVM':
-            print(f"Using nu = {args.nu}.")
-            model = OneClassSVM(kernel='rbf', shrinking=False, verbose=True, nu=args.nu)
-        else:
-            print(f"'{args.model}' is not a supported sklearn model.")
-            exit(1)
-
         all_results = defaultdict(list)
+        
         for r in range(n_runs):
             print(f"Run number {r}/{n_runs}")
+            
+            # Create the model with the appropriate parameters.
+            if args.model == 'RECFOREST':
+                model = RecForest(n_jobs=-1, random_state=42)
+            elif args.model == 'OC-SVM':
+                print(f"Using nu = {args.nu}.")
+                model = OneClassSVM(kernel='rbf', shrinking=False, verbose=True, nu=args.nu)
+            else:
+                print(f"'{args.model}' is not a supported sklearn model.")
+                exit(1)
+            
             model.fit(X_train)
             print('Finished learning process')
 
-            # OC-SVM predicts -1 for outliers (and 1 for inliers), however we want outliers to be 1.
-            # So we negate the predictions.
-            anomaly_score_test = -model.predict(X_test)
-            anomaly_score_train = -model.predict(X_train)
+            anomaly_score_train = []
+            anomaly_score_test = []
+            
+            # prediction for the training set
+            for i, X_i in enumerate(dm.get_train_set(), 0):
+                # OC-SVM predicts -1 for outliers (and 1 for inliers), however we want outliers to be 1.
+                # So we negate the predictions.
+                if args.model == 'OC-SVM':
+                    anomaly_score_train.append(-model.predict(X_i[0].numpy()))
+                else:
+                    anomaly_score_train.append(model.predict(X_i[0].numpy()))
+
+            anomaly_score_train = np.concatenate(anomaly_score_train)
+            
+            # prediction for the test set
+            for i, X_i in enumerate(dm.get_test_set(), 0):
+                # OC-SVM predicts -1 for outliers (and 1 for inliers), however we want outliers to be 1.
+                # So we negate the predictions.
+                if args.model == 'OC-SVM':
+                    anomaly_score_test.append(-model.predict(X_i[0].numpy()))
+                else:
+                    anomaly_score_test.append(model.predict(X_i[0].numpy()))
+            anomaly_score_test = np.concatenate(anomaly_score_test)
 
             anomaly_score = np.concatenate([anomaly_score_train, anomaly_score_test])
-
+            
             # dump metrics with different thresholds
             score_recall_precision(anomaly_score, anomaly_score_test, y_test)
             results = score_recall_precision_w_thresold(anomaly_score, anomaly_score_test, y_test, pos_label=1,
                                                         threshold=args.p_threshold)
-
             for k, v in results.items():
                 all_results[k].append(v)
 
         params = dict({"BatchSize": batch_size, "Epochs": args.num_epochs, "rho": args.rho,
                        'threshold': args.p_threshold})
+        
         print('Averaging results')
         final_results = average_results(all_results)
         store_results(final_results, params, args.model, args.dataset, args.dataset_path)
         exit(0)
-
+            
     optimizer = resolve_optimizer(args.optimizer)
 
     model, model_trainer = resolve_trainer(

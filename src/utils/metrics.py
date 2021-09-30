@@ -26,7 +26,7 @@ def score_recall_precision(combined_score, test_score, test_labels, pos_label=1)
         print(f"Threshold :{thresh:.3f}--> {qi:.3f}")
 
         # Prediction using the threshold value
-        y_pred = (test_score > thresh).astype(int)
+        y_pred = (test_score >= thresh).astype(int)
         y_true = test_labels.astype(int)
 
         accuracy = accuracy_score(y_true, y_pred)
@@ -49,7 +49,7 @@ def score_recall_precision_w_thresold(combined_score, test_score, test_labels, p
     print("Threshold :", thresh)
 
     # Prediction using the threshold value
-    y_pred = (test_score > thresh).astype(int)
+    y_pred = (test_score >= thresh).astype(int)
     y_true = test_labels.astype(int)
 
     accuracy = accuracy_score(y_true, y_pred)

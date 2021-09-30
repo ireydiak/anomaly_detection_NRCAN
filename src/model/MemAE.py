@@ -1,10 +1,10 @@
 import torch.nn as nn
 
-from .AbstractModel import AbstractModel
+from .BaseModel import BaseModel
 from .memory_module import MemoryUnit
 
 
-class MemAutoEncoder(AbstractModel):
+class MemAutoEncoder(BaseModel):
 
     def __init__(self, mem_dim: int, enc_layers: list, dec_layers: list, shrink_thres=0.0025, device='cpu'):
         """

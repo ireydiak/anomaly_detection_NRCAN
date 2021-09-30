@@ -128,5 +128,4 @@ class AETrainer:
             # switch back to train mode
             self.model.train()
 
-            # res = {}
             return res, test_z, test_labels, combined_score

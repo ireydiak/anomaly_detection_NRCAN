@@ -5,10 +5,10 @@ from minisom import MiniSom
 
 
 from .AutoEncoder import AutoEncoder as AE
-from .AbstractModel import AbstractModel
+from .BaseModel import BaseModel
 
 
-class DUAD(AbstractModel):
+class DUAD(BaseModel):
     def __init__(self, input_size, r, p0=.35, p=.30, ae_layers=None, **kwargs):
         super(DUAD, self).__init__()
 
