@@ -4,7 +4,6 @@ import numpy as np
 
 from tqdm import trange
 from loss import EntropyLoss
-from sklearn import metrics
 
 from utils import score_recall_precision_w_thresold, score_recall_precision
 
@@ -62,7 +61,7 @@ class MemAETrainer:
         active learning process
         """
         test_loader = self.dm.get_test_set()
-        energy_threshold = kwargs.get('energy_threshold', 80)
+        energy_threshold = kwargs.get('threshold', 80)
 
         # Change the model to evaluation mode
         self.model.eval()

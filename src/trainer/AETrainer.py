@@ -82,7 +82,7 @@ class AETrainer:
         """
 
         test_loader = self.dm.get_test_set()
-        energy_threshold = kwargs.get('energy_threshold', 80)
+        energy_threshold = kwargs.get('threshold', 80)
         # Change the model to evaluation mode
         self.model.eval()
         train_score = []

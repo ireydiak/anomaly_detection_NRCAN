@@ -305,7 +305,7 @@ class DUADTrainer:
         function that evaluate the model on the test set
         """
 
-        energy_threshold = kwargs.get('energy_threshold', 80)
+        energy_threshold = kwargs.get('threshold', 80)
         test_loader = self.dm.get_test_set()
         # Change the model to evaluation mode
         self.model.eval()

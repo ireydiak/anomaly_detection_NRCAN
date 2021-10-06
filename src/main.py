@@ -25,10 +25,10 @@ import torch.optim as optim
 from utils.utils import check_dir, optimizer_setup, get_X_from_loader, average_results
 from model import DAGMM, MemAutoEncoder as MemAE, SOMDAGMM, AutoEncoder as AE
 from datamanager import ArrhythmiaDataset, DataManager, KDD10Dataset, NSLKDDDataset, IDS2018Dataset
-from model import ALAD, DAGMM, MemAutoEncoder as MemAE, SOMDAGMM
+from model import ALAD, DAGMM, MemAutoEncoder as MemAE, SOMDAGMM, DeepSVDD
 from datamanager import ArrhythmiaDataset, DataManager, KDD10Dataset, NSLKDDDataset, IDS2018Dataset, USBIDSDataset, \
     ThyroidDataset
-from trainer import ALADTrainer, DAGMMTrainTestManager, MemAETrainer
+from trainer import ALADTrainer, DAGMMTrainTestManager, MemAETrainer, DeepSVDDTrainer
 from viz.viz import plot_3D_latent, plot_energy_percentile
 from datetime import datetime as dt
 import torch
@@ -230,6 +230,16 @@ def resolve_trainer(trainer_str: str, optimizer_factory, **kwargs):
             learning_rate=lr[0],
             L=L
         )
+    elif trainer_str == 'DeepSVDD':
+        model = DeepSVDD(D)
+        trainer = DeepSVDDTrainer(
+            model,
+            optimizer_factory=optimizer_factory,
+            dm=dm,
+            R=kwargs.get('R'),
+            c=kwargs.get('c'),
+            device=device
+        )
 
     return model, trainer
 
@@ -252,7 +262,6 @@ if __name__ == "__main__":
     # Dynamically load the Dataset instance
     clsname = globals()[f'{args.dataset}Dataset']
     dataset = clsname(args.dataset_path, args.pct)
-
     batch_size = len(dataset) if args.batch_size < 0 else args.batch_size
 
     # split data in train and test sets
@@ -323,7 +332,6 @@ if __name__ == "__main__":
 
     )
 
-
     if model and model_trainer:
         # Training and evaluation on different runs
         all_results = defaultdict(list)
@@ -333,8 +341,9 @@ if __name__ == "__main__":
             print('Finished learning process')
             print('Evaluating model on test set')
 
+            threshold = args.p_threshold or int(np.ceil((1 - dataset.anomaly_ratio) * 100))
             # We test with the minority samples as the positive class
-            results, test_z, test_label, energy = model_trainer.evaluate_on_test_set(energy_threshold=args.p_threshold)
+            results, test_z, test_label, energy = model_trainer.evaluate_on_test_set(threshold=threshold)
             for k, v in results.items():
                 all_results[k].append(v)
             model.reset()

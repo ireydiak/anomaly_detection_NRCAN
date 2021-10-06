@@ -34,7 +34,7 @@ class ALADTrainer:
     def evaluate_on_test_set(self, pos_label=1, **kwargs):
         labels, scores_l1, scores_l2 = [], [], []
         test_ldr = self.dm.get_test_set()
-        energy_threshold = kwargs.get('energy_threshold', 80)
+        energy_threshold = kwargs.get('threshold', 80)
 
         self.model.eval()
 
