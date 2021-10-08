@@ -17,17 +17,18 @@ from recforest import RecForest
 from torch import nn
 
 from model.DUAD import DUAD
-from src.model.DSEBM import DSEBM
-from src.trainer.DSEBMTrainer import DSEBMTrainer
+from model.DSEBM import DSEBM
+from model.ALAD import ALAD
+from trainer.DSEBMTrainer import DSEBMTrainer
 from trainer.AETrainer import AETrainer
 from trainer.DUADTrainer import DUADTrainer
 from utils.metrics import score_recall_precision, score_recall_precision_w_thresold
 from trainer import SOMDAGMMTrainer
 import torch.optim as optim
 from utils.utils import check_dir, optimizer_setup, get_X_from_loader, average_results
-from model import DAGMM, MemAutoEncoder as MemAE, SOMDAGMM, AutoEncoder as AE
+from model import AutoEncoder as AE
 from datamanager import ArrhythmiaDataset, DataManager, KDD10Dataset, NSLKDDDataset, IDS2018Dataset
-from model import ALAD, DAGMM, MemAutoEncoder as MemAE, SOMDAGMM
+from model import DAGMM, MemAutoEncoder as MemAE, SOMDAGMM
 from datamanager import ArrhythmiaDataset, DataManager, KDD10Dataset, NSLKDDDataset, IDS2018Dataset, USBIDSDataset, \
     ThyroidDataset
 from trainer import ALADTrainer, DAGMMTrainTestManager, MemAETrainer
@@ -35,7 +36,6 @@ from viz.viz import plot_3D_latent, plot_energy_percentile
 from datetime import datetime as dt
 import torch
 import os
-
 
 vizualizable_models = ["AE", "DAGMM", "SOM-DAGMM"]
 SKLEAN_MODEL = ['OC-SVM', 'RECFOREST']
@@ -126,7 +126,7 @@ def resolve_trainer(trainer_str: str, optimizer_factory, **kwargs):
     model, trainer = None, None
     device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
     D = dataset.get_shape()[1]
-    L = kwargs.get("latent_dim", D//2)
+    L = kwargs.get("latent_dim", D // 2)
     reg_covar = kwargs.get("reg_covar", 1e-12)
     if trainer_str == 'DAGMM' or trainer_str == 'SOM-DAGMM' or trainer_str == 'AE':
         if dataset.name == 'Arrhythmia' or (dataset.name == 'Thyroid' and trainer_str != 'DAGMM'):
@@ -223,27 +223,28 @@ def resolve_trainer(trainer_str: str, optimizer_factory, **kwargs):
                               num_cluster=kwargs.get('num_cluster'))
     elif trainer_str == 'ALAD':
         # bsize = kwargs.get('batch_size', None)
-        lr = kwargs.get('learning_rate', None),
+        lr = kwargs.get('learning_rate', None)
         assert batch_size and lr
         model = ALAD(D, L, device=device).to(device)
         trainer = ALADTrainer(
             model=model,
             dm=dm,
             device=device,
-            learning_rate=lr[0],
+            learning_rate=lr,
             L=L
         )
 
     elif trainer_str == 'DSEBM':
         # bsize = kwargs.get('batch_size', None)
-        lr = kwargs.get('learning_rate', None),
+        lr = kwargs.get('learning_rate', None)
+
         assert batch_size and lr
-        model = DSEBM(D).to(device)
+        model = DSEBM(D, dataset=dataset.name).to(device)
         trainer = DSEBMTrainer(
             model=model,
             dm=dm,
             device=device,
-            batch=batch_size, dim=D, learning_rate=lr[0],
+            batch=batch_size, dim=D, learning_rate=lr,
         )
 
     return model, trainer
@@ -334,9 +335,8 @@ if __name__ == "__main__":
         p_0=p_0,
         num_cluster=num_cluster,
         reg_covar=args.reg_covar,
-        learning_rate=args.lr
+        learning_rate=args.lr,
     )
-
 
     if model and model_trainer:
         # Training and evaluation on different runs
