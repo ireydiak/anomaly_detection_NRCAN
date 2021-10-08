@@ -110,7 +110,55 @@ class DSEBMTrainer:
         scores_e_train = np.concatenate(scores_e_train, axis=0)
         scores_r_train = np.concatenate(scores_r_train, axis=0)
 
+        # Calculate score using estimated parameters on test set
+        for X_i, label in test_ldr:
+            # transfer tensors to selected device
+            X = X_i.float().to(self.device)
+            if len(X) < self.batch:
+                break
 
+            # Evaluation of the score based on the energy
+            with torch.no_grad():
+                flat = X - self.b_prime
+                out = self.model(X)
+                energies = 0.5 * torch.sum(torch.square(flat), dim=1) - torch.sum(out, dim=1)
+            scores_e.append(energies.cpu().numpy())
+
+            # Evaluation of the score based on the reconstruction error
+            X.requires_grad_()
+            out = self.model(X)
+            energy = self.energy(X, out)
+            dEn_dX = torch.autograd.grad(energy, X)[0]
+            # fx = X - dEn_dX
+
+            rec_errs = torch.linalg.norm(dEn_dX, 2, keepdim=False, dim=1)
+            scores_r.append(rec_errs.cpu().numpy())
+            labels.append(label.numpy())
+
+        scores_r = np.concatenate(scores_r, axis=0)
+        scores_e = np.concatenate(scores_e, axis=0)
+        labels = np.concatenate(labels, axis=0)
+
+        combined_scores_e = np.concatenate([scores_e_train, scores_e], axis=0)
+        combined_scores_r = np.concatenate([scores_r_train, scores_r], axis=0)
+
+        # Result based on energy
+        res1 = score_recall_precision_w_thresold(combined_scores_e, scores_e, labels, pos_label=pos_label,
+                                                 threshold=energy_threshold)
+        res1 = self.ren_dict_keys(res1, 'en')
+        print('Evaluation with energy\n')
+        score_recall_precision(combined_scores_e, scores_e, labels)
+
+        # Result based on reconstruction
+        res2 = score_recall_precision_w_thresold(combined_scores_r, scores_r, labels, pos_label=pos_label,
+                                                 threshold=energy_threshold)
+        res2 = self.ren_dict_keys(res2, 'rec')
+        print('\n\nEvaluation with reconstruction')
+        score_recall_precision(combined_scores_r, scores_r, labels)
+
+        res = dict(res1, **res2)
+        # switch back to train mode
+        self.model.train()
 
         return res, _, _, _
 
