@@ -262,7 +262,6 @@ if __name__ == "__main__":
                 model = RecForest(n_jobs=-1)
                 model.fit(X_train)
                 print('Finished learning process')
-
                 anomaly_score_train = []
                 anomaly_score_test = []
                 # prediction for the training set
