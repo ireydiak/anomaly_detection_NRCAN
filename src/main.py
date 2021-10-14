@@ -291,10 +291,9 @@ if __name__ == "__main__":
             all_results = defaultdict(list)
             for r in range(n_runs):
                 print(f"Run number {r}/{n_runs}")
-                model = RecForest(n_jobs=-1, random_state=42)
+                model = RecForest(n_jobs=-1)
                 model.fit(X_train)
                 print('Finished learning process')
-
                 anomaly_score_train = []
                 anomaly_score_test = []
                 # prediction for the training set
@@ -303,12 +302,13 @@ if __name__ == "__main__":
                 anomaly_score_train = np.concatenate(anomaly_score_train)
                 #
                 # prediction for the test set
+                y_test = []
                 for i, X_i in enumerate(dm.get_test_set(), 0):
                     anomaly_score_test.append(model.predict(X_i[0].numpy()))
-                anomaly_score_test = np.concatenate(anomaly_score_test)
+                    y_test.append(X_i[1].numpy())
 
-                # anomaly_score_test = model.predict(X_test)
-                # anomaly_score_train = model.predict(X_train)
+                anomaly_score_test = np.concatenate(anomaly_score_test)
+                y_test = np.concatenate(y_test)
 
                 anomaly_score = np.concatenate([anomaly_score_train, anomaly_score_test])
                 # dump metrics with different thresholds
