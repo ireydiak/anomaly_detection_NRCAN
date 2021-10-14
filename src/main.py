@@ -259,7 +259,7 @@ if __name__ == "__main__":
             all_results = defaultdict(list)
             for r in range(n_runs):
                 print(f"Run number {r}/{n_runs}")
-                model = RecForest(n_jobs=-1, random_state=42)
+                model = RecForest(n_jobs=-1)
                 model.fit(X_train)
                 print('Finished learning process')
 
