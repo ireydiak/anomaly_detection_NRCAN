@@ -1,4 +1,3 @@
-from .ALAD import ALAD
 from .AutoEncoder import AutoEncoder
 from .DAGMM import DAGMM
 from .GMM import GMM
