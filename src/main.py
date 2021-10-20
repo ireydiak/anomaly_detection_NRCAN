@@ -100,6 +100,9 @@ def argument_parser():
                                                                       "diagonal of covariance. Allows to assure that "
                                                                       "the covariance matrices are all positive.")
 
+    parser.add_argument('--test_mode', type=bool, default=False)
+    parser.add_argument('--model_path', type=str, default="./", help='The path where output models are stored')
+
     return parser.parse_args()
 
 
@@ -356,18 +359,24 @@ if __name__ == "__main__":
         # Training and evaluation on different runs
         all_results = defaultdict(list)
         all_models = []
-        for r in range(n_runs):
-            print(f"Run number {r}/{n_runs}")
-            metrics = model_trainer.train(args.num_epochs)
-            print('Finished learning process')
-            print('Evaluating model on test set')
 
-            # We test with the minority samples as the positive class
-            results, test_z, test_label, energy = model_trainer.evaluate_on_test_set(energy_threshold=args.p_threshold)
-            for k, v in results.items():
-                all_results[k].append(v)
-            all_models.append(deepcopy(model))
-            model.reset()
+        if args.test_mode:
+            for model_file_name in os.listdir(args.model_path):
+                model = BaseModel.load(model_file_name)
+        else:
+            for r in range(n_runs):
+                print(f"Run number {r}/{n_runs}")
+                metrics = model_trainer.train(args.num_epochs)
+                print('Finished learning process')
+                print('Evaluating model on test set')
+
+                # We test with the minority samples as the positive class
+                results, test_z, test_label, energy = model_trainer.evaluate_on_test_set(
+                    energy_threshold=args.p_threshold)
+                for k, v in results.items():
+                    all_results[k].append(v)
+                all_models.append(deepcopy(model))
+                model.reset()
 
         # Calculate Means and Stds of metrics
         print('Averaging results')
@@ -379,8 +388,8 @@ if __name__ == "__main__":
         store_results(final_results, params, args.model, args.dataset, args.dataset_path)
 
         # Persist models
-        store_models(all_models, args.model, args.dataset, args.dataset_path)
-
+        if not args.test_mode:
+            store_models(all_models, args.model, args.dataset, args.dataset_path)
 
         if args.vizualization and args.model in vizualizable_models:
             plot_3D_latent(test_z, test_label)
@@ -388,5 +397,3 @@ if __name__ == "__main__":
     else:
         print(f'Error: Could not train {args.dataset} on model {args.model}')
 
-    # TODO
-    # Run a saved model for test purpose
