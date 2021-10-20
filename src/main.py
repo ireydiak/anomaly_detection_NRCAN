@@ -123,7 +123,7 @@ def store_results(results: dict, params: dict, model_name: str, dataset: str, pa
 def store_models(models: List[BaseModel], model_name: str, dataset: str, path: str):
     output_dir = f'../models/{dataset}/{model_name}/{dt.now().strftime("%d_%m_%Y_%H_%M_%S")}'
     if not os.path.exists(output_dir):
-        os.mkdir(output_dir)
+        os.makedirs(output_dir)
 
     print('Saving models')
     for i, model in enumerate(models):
@@ -363,7 +363,7 @@ if __name__ == "__main__":
         if args.test_mode:
             device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
             for model_file_name in os.listdir(args.model_path):
-                model = BaseModel.load(model_file_name)
+                model = BaseModel.load(f"{args.model_path}/{model_file_name}")
                 model = model.to(device)
                 model_trainer.model = model
                 print('Evaluating the model on test set')
