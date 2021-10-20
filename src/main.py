@@ -361,15 +361,23 @@ if __name__ == "__main__":
         all_models = []
 
         if args.test_mode:
+            device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
             for model_file_name in os.listdir(args.model_path):
                 model = BaseModel.load(model_file_name)
+                model = model.to(device)
+                model_trainer.model = model
+                print('Evaluating the model on test set')
+                # We test with the minority samples as the positive class
+                results, test_z, test_label, energy = model_trainer.evaluate_on_test_set(
+                    energy_threshold=args.p_threshold)
+                for k, v in results.items():
+                    all_results[k].append(v)
         else:
             for r in range(n_runs):
                 print(f"Run number {r}/{n_runs}")
                 metrics = model_trainer.train(args.num_epochs)
                 print('Finished learning process')
                 print('Evaluating model on test set')
-
                 # We test with the minority samples as the positive class
                 results, test_z, test_label, energy = model_trainer.evaluate_on_test_set(
                     energy_threshold=args.p_threshold)
