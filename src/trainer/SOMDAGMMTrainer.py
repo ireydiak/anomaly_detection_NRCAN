@@ -12,6 +12,8 @@ from sklearn import metrics
 
 from utils import score_recall_precision
 
+from src.utils import score_recall_precision_w_thresold
+
 
 class SOMDAGMMTrainer:
 
@@ -165,22 +167,8 @@ class SOMDAGMMTrainer:
             y_pred = (test_energy > thresh).astype(int)
             y_true = test_labels.astype(int)
 
-            accuracy = metrics.accuracy_score(y_true, y_pred)
-            precision, recall, f_score, _ = metrics.precision_recall_fscore_support(y_true, y_pred, average='binary',
-                                                                                    pos_label=pos_label)
-            cm = confusion_matrix(y_true, y_pred)
-            res = {"Accuracy": accuracy,
-                   "Precision": precision,
-                   "Recall": recall,
-                   "F1-Score": f_score,
-                   'Confusion': cm
-                   }
-
-            print(f"Accuracy:{accuracy}, "
-                  f"Precision:{precision}, "
-                  f"Recall:{recall}, "
-                  f"F-score:{f_score}, "
-                  f"\nconfusion-matrix: {cm}")
+            res = score_recall_precision_w_thresold(combined_energy, test_energy, test_labels, pos_label=pos_label,
+                                                    threshold=energy_threshold)
 
             # switch back to train mode
             self.model.train()

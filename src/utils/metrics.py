@@ -1,5 +1,6 @@
 import numpy as np
-from sklearn.metrics import confusion_matrix, precision_recall_fscore_support, accuracy_score
+from sklearn.metrics import confusion_matrix, precision_recall_fscore_support, accuracy_score, roc_auc_score, \
+    average_precision_score
 
 
 def accuracy(outputs, labels):
@@ -54,7 +55,10 @@ def score_recall_precision_w_thresold(combined_score, test_score, test_labels, p
 
     accuracy = accuracy_score(y_true, y_pred)
     precision, recall, f_score, _ = precision_recall_fscore_support(y_true, y_pred, average='binary',
-                                                                            pos_label=pos_label)
-    res = {"Accuracy": accuracy, "Precision": precision, "Recall": recall, "F1-Score": f_score}
+                                                                    pos_label=pos_label)
+
+    res = {"Accuracy": accuracy, "Precision": precision, "Recall": recall, "F1-Score": f_score,
+           "AUROC": roc_auc_score(y_true, test_score),
+           "AUPR": average_precision_score(y_true, test_score)}
 
     return res
