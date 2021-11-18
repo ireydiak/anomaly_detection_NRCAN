@@ -17,13 +17,16 @@ from recforest import RecForest
 from torch import nn
 
 from model.DUAD import DUAD
+from model.DSEBM import DSEBM
+from model.ALAD import ALAD
+from trainer.DSEBMTrainer import DSEBMTrainer
 from trainer.AETrainer import AETrainer
 from trainer.DUADTrainer import DUADTrainer
 from utils.metrics import score_recall_precision, score_recall_precision_w_thresold
 from trainer import SOMDAGMMTrainer
 import torch.optim as optim
 from utils.utils import check_dir, optimizer_setup, get_X_from_loader, average_results
-from model import DAGMM, MemAutoEncoder as MemAE, SOMDAGMM, AutoEncoder as AE
+from model import AutoEncoder as AE
 from datamanager import ArrhythmiaDataset, DataManager, KDD10Dataset, NSLKDDDataset, IDS2018Dataset
 from model import ALAD, DAGMM, MemAutoEncoder as MemAE, SOMDAGMM, DeepSVDD
 from datamanager import ArrhythmiaDataset, DataManager, KDD10Dataset, NSLKDDDataset, IDS2018Dataset, USBIDSDataset, \
@@ -33,7 +36,6 @@ from viz.viz import plot_3D_latent, plot_energy_percentile
 from datetime import datetime as dt
 import torch
 import os
-
 
 vizualizable_models = ["AE", "DAGMM", "SOM-DAGMM"]
 SKLEAN_MODEL = ['OC-SVM', 'RECFOREST']
@@ -47,7 +49,8 @@ def argument_parser():
         usage='\n python3 main.py -m [model] -d [dataset-path] --dataset [dataset] [hyper_parameters]'
     )
     parser.add_argument('-m', '--model', type=str, default="DAGMM",
-                        choices=["AE", "ALAD", "DAGMM", "SOM-DAGMM", "MLAD", "MemAE", "DUAD", 'OC-SVM', 'RECFOREST'])
+                        choices=["AE", "ALAD", "DAGMM", "SOM-DAGMM", "MLAD", "MemAE", "DUAD", 'OC-SVM', 'RECFOREST',
+                                 'DSEBM'])
 
     parser.add_argument('-rt', '--run-type', type=str, default="train",
                         choices=["train", "test"])
@@ -123,7 +126,7 @@ def resolve_trainer(trainer_str: str, optimizer_factory, **kwargs):
     model, trainer = None, None
     device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
     D = dataset.get_shape()[1]
-    L = kwargs.get("latent_dim", D//2)
+    L = kwargs.get("latent_dim", D // 2)
     reg_covar = kwargs.get("reg_covar", 1e-12)
     if trainer_str == 'DAGMM' or trainer_str == 'SOM-DAGMM' or trainer_str == 'AE':
         if dataset.name == 'Arrhythmia' or (dataset.name == 'Thyroid' and trainer_str != 'DAGMM'):
@@ -220,14 +223,14 @@ def resolve_trainer(trainer_str: str, optimizer_factory, **kwargs):
                               num_cluster=kwargs.get('num_cluster'))
     elif trainer_str == 'ALAD':
         # bsize = kwargs.get('batch_size', None)
-        lr = kwargs.get('learning_rate', None),
+        lr = kwargs.get('learning_rate', None)
         assert batch_size and lr
         model = ALAD(D, L, device=device).to(device)
         trainer = ALADTrainer(
             model=model,
             dm=dm,
             device=device,
-            learning_rate=lr[0],
+            learning_rate=lr,
             L=L
         )
     elif trainer_str == 'DeepSVDD':
@@ -239,6 +242,19 @@ def resolve_trainer(trainer_str: str, optimizer_factory, **kwargs):
             R=kwargs.get('R'),
             c=kwargs.get('c'),
             device=device
+        )
+
+    elif trainer_str == 'DSEBM':
+        # bsize = kwargs.get('batch_size', None)
+        lr = kwargs.get('learning_rate', None)
+
+        assert batch_size and lr
+        model = DSEBM(D, dataset=dataset.name).to(device)
+        trainer = DSEBMTrainer(
+            model=model,
+            dm=dm,
+            device=device,
+            batch=batch_size, dim=D, learning_rate=lr,
         )
 
     return model, trainer
@@ -284,10 +300,9 @@ if __name__ == "__main__":
             all_results = defaultdict(list)
             for r in range(n_runs):
                 print(f"Run number {r}/{n_runs}")
-                model = RecForest(n_jobs=-1, random_state=42)
+                model = RecForest(n_jobs=-1)
                 model.fit(X_train)
                 print('Finished learning process')
-
                 anomaly_score_train = []
                 anomaly_score_test = []
                 # prediction for the training set
@@ -296,12 +311,13 @@ if __name__ == "__main__":
                 anomaly_score_train = np.concatenate(anomaly_score_train)
                 #
                 # prediction for the test set
+                y_test = []
                 for i, X_i in enumerate(dm.get_test_set(), 0):
                     anomaly_score_test.append(model.predict(X_i[0].numpy()))
-                anomaly_score_test = np.concatenate(anomaly_score_test)
+                    y_test.append(X_i[1].numpy())
 
-                # anomaly_score_test = model.predict(X_test)
-                # anomaly_score_train = model.predict(X_train)
+                anomaly_score_test = np.concatenate(anomaly_score_test)
+                y_test = np.concatenate(y_test)
 
                 anomaly_score = np.concatenate([anomaly_score_train, anomaly_score_test])
                 # dump metrics with different thresholds
@@ -328,8 +344,7 @@ if __name__ == "__main__":
         p_0=p_0,
         num_cluster=num_cluster,
         reg_covar=args.reg_covar,
-        learning_rate=args.lr
-
+        learning_rate=args.lr,
     )
 
     if model and model_trainer:
