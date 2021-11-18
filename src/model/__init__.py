@@ -3,3 +3,4 @@ from .DAGMM import DAGMM
 from .GMM import GMM
 from .MemAE import MemAutoEncoder
 from .SOMDAGMM import SOMDAGMM
+from .TwoLayerMLP import TwoLayerMLP
