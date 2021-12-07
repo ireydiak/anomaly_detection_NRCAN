@@ -22,6 +22,8 @@ from model.DUAD import DUAD
 from model.DSEBM import DSEBM
 from model.ALAD import ALAD
 from model.BaseModel import BaseModel
+from model.NeuTraAD import NeuTraAD
+from trainer.NeuTraADTrainer import NeuTraADTrainer
 from trainer.DSEBMTrainer import DSEBMTrainer
 from trainer.AETrainer import AETrainer
 from trainer.DUADTrainer import DUADTrainer
@@ -53,7 +55,7 @@ def argument_parser():
     )
     parser.add_argument('-m', '--model', type=str, default="DAGMM",
                         choices=["AE", "ALAD", "DAGMM", "SOM-DAGMM", "MLAD", "MemAE", "DUAD", 'OC-SVM', 'RECFOREST',
-                                 'DSEBM'])
+                                 'DSEBM', 'NeurTraAD'])
 
     parser.add_argument('-rt', '--run-type', type=str, default="train",
                         choices=["train", "test"])
@@ -262,6 +264,22 @@ def resolve_trainer(trainer_str: str, optimizer_factory, **kwargs):
             dm=dm,
             device=device,
             batch=batch_size, dim=D, learning_rate=lr,
+        )
+    elif trainer_str == 'NeurTraAD':
+        # bsize = kwargs.get('batch_size', None)
+        lr = kwargs.get('learning_rate', None)
+
+        assert batch_size and lr
+
+        # Load a pretrained model in case it should be used
+
+        model = NeuTraAD(D, device=device, temperature=0.07, dataset=dataset.name).to(device)
+        trainer = NeuTraADTrainer(
+            model=model,
+            dm=dm,
+            device=device,
+            optimizer_factory=optimizer_factory,
+            L=L, learning_rate=lr,
         )
 
     return model, trainer
