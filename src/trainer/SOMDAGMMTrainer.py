@@ -12,7 +12,7 @@ from sklearn import metrics
 
 from utils import score_recall_precision
 
-from src.utils import score_recall_precision_w_thresold
+from utils import score_recall_precision_w_thresold
 
 
 class SOMDAGMMTrainer:
