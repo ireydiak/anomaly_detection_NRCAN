@@ -33,10 +33,10 @@ import torch.optim as optim
 from utils.utils import check_dir, optimizer_setup, get_X_from_loader, average_results
 from model import AutoEncoder as AE
 from datamanager import ArrhythmiaDataset, DataManager, KDD10Dataset, NSLKDDDataset, IDS2018Dataset
-from model import DAGMM, MemAutoEncoder as MemAE, SOMDAGMM
+from model import ALAD, DAGMM, MemAutoEncoder as MemAE, SOMDAGMM, DeepSVDD
 from datamanager import ArrhythmiaDataset, DataManager, KDD10Dataset, NSLKDDDataset, IDS2018Dataset, USBIDSDataset, \
     ThyroidDataset
-from trainer import ALADTrainer, DAGMMTrainTestManager, MemAETrainer
+from trainer import ALADTrainer, DAGMMTrainTestManager, MemAETrainer, DeepSVDDTrainer
 from viz.viz import plot_3D_latent, plot_energy_percentile
 from datetime import datetime as dt
 import torch
@@ -252,6 +252,16 @@ def resolve_trainer(trainer_str: str, optimizer_factory, **kwargs):
             learning_rate=lr,
             L=L
         )
+    elif trainer_str == 'DeepSVDD':
+        model = DeepSVDD(D)
+        trainer = DeepSVDDTrainer(
+            model,
+            optimizer_factory=optimizer_factory,
+            dm=dm,
+            R=kwargs.get('R'),
+            c=kwargs.get('c'),
+            device=device
+        )
 
     elif trainer_str == 'DSEBM':
         # bsize = kwargs.get('batch_size', None)
@@ -303,7 +313,6 @@ if __name__ == "__main__":
     # Dynamically load the Dataset instance
     clsname = globals()[f'{args.dataset}Dataset']
     dataset = clsname(args.dataset_path, args.pct)
-
     batch_size = len(dataset) if args.batch_size < 0 else args.batch_size
 
     # split data in train and test sets

@@ -5,20 +5,19 @@ from torch.utils.data import Dataset, Subset
 from torch.utils.data.dataset import T_co
 from typing import Tuple
 
-ANOMALY_LABEL = 1
-NORMAL_LABEL = 0
-
 
 class AbstractDataset(Dataset):
 
-    def __init__(self, path: str, pct: float = 1.0):
+    def __init__(self, path: str, pct: float = 1.0, **kwargs):
         X = self._load_data(path)
+        anomaly_label = kwargs.get('anomaly_label', 1)
+        normal_label = kwargs.get('normal_label', 0)
 
         if pct < 1.0:
             # Keeps `pct` percent of the original data while preserving
             # the normal/anomaly ratio
-            anomaly_idx = np.where(X[:, -1] == ANOMALY_LABEL)[0]
-            normal_idx = np.where(X[:, -1] == NORMAL_LABEL)[0]
+            anomaly_idx = np.where(X[:, -1] == anomaly_label)[0]
+            normal_idx = np.where(X[:, -1] == normal_label)[0]
             np.random.shuffle(anomaly_idx)
             np.random.shuffle(normal_idx)
 
@@ -32,6 +31,7 @@ class AbstractDataset(Dataset):
             self.X = X[:, :-1]
             self.y = X[:, -1]
 
+        self.anomaly_ratio = (X[:, -1] == anomaly_label).sum() / len(X)
         self.N = len(self.X)
 
     def __len__(self):
@@ -44,7 +44,7 @@ class AbstractDataset(Dataset):
         if path.endswith(".npz"):
             return np.load(path)[self.npz_key()]
         else:
-            raise RuntimeError(f"Could not open {path}. IDS20189Dataset can only read .npz files.")
+            raise RuntimeError(f"Could not open {path}. Dataset can only read .npz files.")
 
     def get_shape(self):
         return self.X.shape
