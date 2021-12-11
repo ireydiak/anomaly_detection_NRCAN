@@ -11,6 +11,8 @@ Authors:
 
 import argparse
 from collections import defaultdict
+from copy import deepcopy
+from typing import List
 
 import numpy as np
 from recforest import RecForest
@@ -19,6 +21,9 @@ from torch import nn
 from model.DUAD import DUAD
 from model.DSEBM import DSEBM
 from model.ALAD import ALAD
+from model.BaseModel import BaseModel
+from model.NeuTraAD import NeuTraAD
+from trainer.NeuTraADTrainer import NeuTraADTrainer
 from trainer.DSEBMTrainer import DSEBMTrainer
 from trainer.AETrainer import AETrainer
 from trainer.DUADTrainer import DUADTrainer
@@ -50,7 +55,7 @@ def argument_parser():
     )
     parser.add_argument('-m', '--model', type=str, default="DAGMM",
                         choices=["AE", "ALAD", "DAGMM", "SOM-DAGMM", "MLAD", "MemAE", "DUAD", 'OC-SVM', 'RECFOREST',
-                                 'DSEBM'])
+                                 'DSEBM', 'NeurTraAD'])
 
     parser.add_argument('-rt', '--run-type', type=str, default="train",
                         choices=["train", "test"])
@@ -97,6 +102,9 @@ def argument_parser():
                                                                       "diagonal of covariance. Allows to assure that "
                                                                       "the covariance matrices are all positive.")
 
+    parser.add_argument('--test_mode', type=bool, default=False)
+    parser.add_argument('--model_path', type=str, default="./", help='The path where output models are stored')
+
     return parser.parse_args()
 
 
@@ -112,6 +120,17 @@ def store_results(results: dict, params: dict, model_name: str, dataset: str, pa
         f.write(", ".join([f"{param_name}={param_val}" for param_name, param_val in params.items()]) + "\n")
         f.write("\n".join([f"{met_name}: {res}" for met_name, res in results.items()]) + "\n")
         f.write("-".join("" for _ in range(len(hdr))) + "\n")
+
+
+def store_models(models: List[BaseModel], model_name: str, dataset: str, path: str):
+    output_dir = f'../models/{dataset}/{model_name}/{dt.now().strftime("%d_%m_%Y_%H_%M_%S")}'
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
+
+    print('Saving models')
+    for i, model in enumerate(models):
+        model.save(f"{output_dir}/model_{i}")
+    print('Models saved')
 
 
 def resolve_optimizer(optimizer_str: str):
@@ -256,6 +275,22 @@ def resolve_trainer(trainer_str: str, optimizer_factory, **kwargs):
             device=device,
             batch=batch_size, dim=D, learning_rate=lr,
         )
+    elif trainer_str == 'NeurTraAD':
+        # bsize = kwargs.get('batch_size', None)
+        lr = kwargs.get('learning_rate', None)
+
+        assert batch_size and lr
+
+        # Load a pretrained model in case it should be used
+
+        model = NeuTraAD(D, device=device, temperature=0.07, dataset=dataset.name).to(device)
+        trainer = NeuTraADTrainer(
+            model=model,
+            dm=dm,
+            device=device,
+            optimizer_factory=optimizer_factory,
+            L=L, learning_rate=lr,
+        )
 
     return model, trainer
 
@@ -350,18 +385,33 @@ if __name__ == "__main__":
     if model and model_trainer:
         # Training and evaluation on different runs
         all_results = defaultdict(list)
-        for r in range(n_runs):
-            print(f"Run number {r}/{n_runs}")
-            metrics = model_trainer.train(args.num_epochs)
-            print('Finished learning process')
-            print('Evaluating model on test set')
+        all_models = []
 
-            threshold = args.p_threshold or int(np.ceil((1 - dataset.anomaly_ratio) * 100))
-            # We test with the minority samples as the positive class
-            results, test_z, test_label, energy = model_trainer.evaluate_on_test_set(threshold=threshold)
-            for k, v in results.items():
-                all_results[k].append(v)
-            model.reset()
+        if args.test_mode:
+            device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
+            for model_file_name in os.listdir(args.model_path):
+                model = BaseModel.load(f"{args.model_path}/{model_file_name}")
+                model = model.to(device)
+                model_trainer.model = model
+                print('Evaluating the model on test set')
+                # We test with the minority samples as the positive class
+                results, test_z, test_label, energy = model_trainer.evaluate_on_test_set(
+                    energy_threshold=args.p_threshold)
+                for k, v in results.items():
+                    all_results[k].append(v)
+        else:
+            for r in range(n_runs):
+                print(f"Run number {r}/{n_runs}")
+                metrics = model_trainer.train(args.num_epochs)
+                print('Finished learning process')
+                print('Evaluating model on test set')
+                # We test with the minority samples as the positive class
+                results, test_z, test_label, energy = model_trainer.evaluate_on_test_set(
+                    energy_threshold=args.p_threshold)
+                for k, v in results.items():
+                    all_results[k].append(v)
+                all_models.append(deepcopy(model))
+                model.reset()
 
         # Calculate Means and Stds of metrics
         print('Averaging results')
@@ -369,7 +419,12 @@ if __name__ == "__main__":
 
         params = dict({"BatchSize": batch_size, "Epochs": args.num_epochs, "rho": args.rho,
                        'threshold': args.p_threshold}, **model.get_params())
+        # Store the average of results
         store_results(final_results, params, args.model, args.dataset, args.dataset_path)
+
+        # Persist models
+        if not args.test_mode:
+            store_models(all_models, args.model, args.dataset, args.dataset_path)
 
         if args.vizualization and args.model in vizualizable_models:
             plot_3D_latent(test_z, test_label)
@@ -377,5 +432,3 @@ if __name__ == "__main__":
     else:
         print(f'Error: Could not train {args.dataset} on model {args.model}')
 
-    # TODO
-    # Run a saved model for test purpose

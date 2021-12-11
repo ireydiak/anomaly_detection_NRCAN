@@ -26,5 +26,6 @@ class BaseModel(nn.Module):
     def save(self, filename):
         # Save model to file (.pklz)
         model = copy.deepcopy(self)
+        model.to('cpu')
         with gzip.open(filename, 'wb') as f:
             pickle.dump(model, f, protocol=pickle.HIGHEST_PROTOCOL)

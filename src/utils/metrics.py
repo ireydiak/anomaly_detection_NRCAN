@@ -52,10 +52,17 @@ def score_recall_precision_w_thresold(combined_score, test_score, test_labels, p
     y_pred = (test_score >= thresh).astype(int)
     y_true = test_labels.astype(int)
 
-    accuracy = sk_metrics.accuracy_score(y_true, y_pred)
-    precision, recall, f_score, _ = sk_metrics.precision_recall_fscore_support(y_true, y_pred, average='binary',
-                                                                            pos_label=pos_label)
-    res = {"Accuracy": accuracy, "Precision": precision, "Recall": recall, "F1-Score": f_score}
+    accuracy = accuracy_score(y_true, y_pred)
+    precision, recall, f_score, _ = sk_metrics.precision_recall_fscore_support(
+      y_true, y_pred, average='binary', pos_label=pos_label
+    )
+
+    res = {"Accuracy": accuracy,
+           "Precision": precision,
+           "Recall": recall,
+           "F1-Score": f_score,
+           "AUROC": sk_metrics.roc_auc_score(y_true, test_score),
+           "AUPR": sk_metrics.average_precision_score(y_true, test_score)}
 
     return res
 
