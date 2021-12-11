@@ -34,7 +34,7 @@ class ALADTrainer:
     def evaluate_on_test_set(self, pos_label=1, **kwargs):
         labels, scores_l1, scores_l2 = [], [], []
         test_ldr = self.dm.get_test_set()
-        energy_threshold = kwargs.get('energy_threshold', 80)
+        energy_threshold = kwargs.get('threshold', 80)
 
         self.model.eval()
 
@@ -79,18 +79,22 @@ class ALADTrainer:
             per_l2 = np.percentile(scores_l2, 80)
             y_pred_l2 = (scores_l2 >= per_l2)
 
-            combined_scores_l1 = np.concatenate([scores_l1_train, scores_l1], axis=0) #scores_l1 #
+            combined_scores_l1 = np.concatenate([scores_l1_train, scores_l1], axis=0)  # scores_l1 #
 
             print(precision_recall_fscore_support(labels.astype(int), y_pred_l1.astype(int),
                                                   average='binary'))
             print(precision_recall_fscore_support(labels.astype(int), y_pred_l2.astype(int),
                                                   average='binary'))
 
-            print('ROC AUC score l1: {:.2f}'.format(roc_auc_score(labels, scores_l1) * 100))
-            print('ROC AUC score l2: {:.2f}'.format(roc_auc_score(labels, scores_l2) * 100))
-
             res = score_recall_precision_w_thresold(combined_scores_l1, scores_l1, labels, pos_label=pos_label,
                                                     threshold=energy_threshold)
+
+            roc_auc = roc_auc_score(labels, scores_l1)
+
+            res['roc_auc'] = roc_auc
+
+            print('ROC AUC score l1: {:.2f}'.format(roc_auc_score(labels, scores_l1) * 100))
+            print('ROC AUC score l2: {:.2f}'.format(roc_auc_score(labels, scores_l2) * 100))
 
             score_recall_precision(combined_scores_l1, scores_l1, labels)
 
@@ -153,9 +157,9 @@ class ALADTrainer:
                     loss_d = self.train_iter_dis(train_inputs_dis)
                     loss_ge = self.train_iter_gen(train_inputs_gen)
                     d_losses += loss_d
-                    d_losses /= (i+1)
+                    d_losses /= (i + 1)
                     ge_losses += loss_ge
-                    ge_losses /= (i+1)
+                    ge_losses /= (i + 1)
                     t.set_postfix(
                         loss_d='{:05.4f}'.format(loss_d),
                         loss_ge='{:05.4f}'.format(loss_ge),
@@ -163,5 +167,5 @@ class ALADTrainer:
                     t.update()
 
             print(dict(loss_d='{:05.4f}'.format(ge_losses),
-                       loss_ge='{:05.4f}'.format(d_losses),))
+                       loss_ge='{:05.4f}'.format(d_losses), ))
         return 0
