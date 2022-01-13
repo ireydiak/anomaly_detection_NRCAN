@@ -78,4 +78,18 @@ def precision_recall_f1_roc_pr(y_true: np.array, scores: np.array, pos_label: in
     res["AUROC"] = sk_metrics.roc_auc_score(y_true, scores)
     res["AUPR"] = sk_metrics.average_precision_score(y_true, scores)
 
+    res = precision_recall_f1_roc_pr(y_true, y_pred, pos_label, threshold)
+    return res
+
+def precision_recall_f1_roc_pr(y_true: np.array, scores: np.array, pos_label: int = 1, threshold: int = 80) -> dict:
+    res = {"Precision": -1, "Recall": -1, "F1-Score": -1, "AUROC": -1, "AUPR": -1}
+
+    thresh = np.percentile(scores, threshold)
+    y_pred = (scores >= thresh).astype(int)
+    res["Precision"], res["Recall"], res["F1-Score"], _ = precision_recall_fscore_support(
+        y_true, y_pred, average='binary', pos_label=pos_label
+    )
+    res["AUROC"] = roc_auc_score(y_true, scores)
+    res["AUPR"] = average_precision_score(y_true, scores)
+
     return res

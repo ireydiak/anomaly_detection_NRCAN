@@ -62,7 +62,7 @@ def average_results(results: dict):
 
     final_results = defaultdict()
     for k, v in results.items():
-        final_results[f'{k}'] = f"{np.mean(v):.3f}({np.std(v):.3f})"
+        final_results[f'{k}'] = f"{np.mean(v):.4f}({np.std(v):.4f})"
         # final_results[f'{k}_std'] = np.std(v)
     return final_results
 
