@@ -397,68 +397,67 @@ if __name__ == "__main__":
         print('Averaging results')
         final_results = average_results(all_results)
         store_results(final_results, params, args.model, args.dataset, args.dataset_path)
-        exit(0)
-            
-    optimizer = resolve_optimizer(args.optimizer)
-
-    model, model_trainer = resolve_trainer(
-        args.model, optimizer, latent_dim=L, mem_dim=args.mem_dim, shrink_thres=args.shrink_thres,
-        n_som=n_som,
-        r=r,
-        p_s=p_s,
-        p_0=p_0,
-        num_cluster=num_cluster,
-        reg_covar=args.reg_covar,
-        learning_rate=args.lr,
-    )
-
-    if model and model_trainer:
-        # Training and evaluation on different runs
-        all_results = defaultdict(list)
-        all_models = []
-
-        if args.test_mode:
-            device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
-            for model_file_name in os.listdir(args.model_path):
-                model = BaseModel.load(f"{args.model_path}/{model_file_name}")
-                model = model.to(device)
-                model_trainer.model = model
-                print('Evaluating the model on test set')
-                # We test with the minority samples as the positive class
-                results, test_z, test_label, energy = model_trainer.evaluate_on_test_set(
-                    energy_threshold=args.p_threshold)
-                for k, v in results.items():
-                    all_results[k].append(v)
-        else:
-            for r in range(n_runs):
-                print(f"Run number {r}/{n_runs}")
-                metrics = model_trainer.train(args.num_epochs)
-                print('Finished learning process')
-                print('Evaluating model on test set')
-                # We test with the minority samples as the positive class
-                results, test_z, test_label, energy = model_trainer.evaluate_on_test_set(
-                    energy_threshold=args.p_threshold)
-                for k, v in results.items():
-                    all_results[k].append(v)
-                all_models.append(deepcopy(model))
-                model.reset()
-
-        # Calculate Means and Stds of metrics
-        print('Averaging results')
-        final_results = average_results(all_results)
-
-        params = dict({"BatchSize": batch_size, "Epochs": args.num_epochs, "rho": args.rho,
-                       'threshold': args.p_threshold}, **model.get_params())
-        # Store the average of results
-        store_results(final_results, params, args.model, args.dataset, args.dataset_path)
-
-        # Persist models
-        if not args.test_mode:
-            store_models(all_models, args.model, args.dataset, args.dataset_path)
-
-        if args.vizualization and args.model in vizualizable_models:
-            plot_3D_latent(test_z, test_label)
-            plot_energy_percentile(energy)
     else:
-        print(f'Error: Could not train {args.dataset} on model {args.model}')
+
+        optimizer = resolve_optimizer(args.optimizer)
+
+        model, model_trainer = resolve_trainer(
+            args.model, optimizer, latent_dim=L, mem_dim=args.mem_dim, shrink_thres=args.shrink_thres,
+            n_som=n_som,
+            r=r,
+            p_s=p_s,
+            p_0=p_0,
+            num_cluster=num_cluster,
+            reg_covar=args.reg_covar,
+            learning_rate=args.lr,
+        )
+
+        if model and model_trainer:
+            # Training and evaluation on different runs
+            all_results = defaultdict(list)
+            all_models = []
+            thresh = 1. - dm.anomaly_ratio
+
+            if args.test_mode:
+                device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
+                for model_file_name in os.listdir(args.model_path):
+                    model = BaseModel.load(f"{args.model_path}/{model_file_name}")
+                    model = model.to(device)
+                    model_trainer.model = model
+                    print('Evaluating the model on test set')
+                    # We test with the minority samples as the positive class
+                    results, test_z, test_label, energy = model_trainer.evaluate_on_test_set(energy_threshold=thresh)
+                    for k, v in results.items():
+                        all_results[k].append(v)
+            else:
+                for r in range(n_runs):
+                    print(f"Run number {r}/{n_runs}")
+                    metrics = model_trainer.train(args.num_epochs)
+                    print('Finished learning process')
+                    print('Evaluating model on test set')
+                    # We test with the minority samples as the positive class
+                    results, test_z, test_label, energy = model_trainer.evaluate_on_test_set(energy_threshold=thresh)
+                    for k, v in results.items():
+                        all_results[k].append(v)
+                    all_models.append(deepcopy(model))
+                    model.reset()
+
+            # Calculate Means and Stds of metrics
+            print('Averaging results')
+            final_results = average_results(all_results)
+
+            params = dict({"BatchSize": batch_size, "Epochs": args.num_epochs, "rho": args.rho,
+                           'threshold': args.p_threshold}, **model.get_params())
+            # Store the average of results
+            store_results(final_results, params, args.model, args.dataset, args.dataset_path)
+
+            # Persist models
+            if not args.test_mode:
+                store_models(all_models, args.model, args.dataset, args.dataset_path)
+
+            if args.vizualization and args.model in vizualizable_models:
+                plot_3D_latent(test_z, test_label)
+                plot_energy_percentile(energy)
+        else:
+            print(f'Error: Could not train {args.dataset} on model {args.model}')
 

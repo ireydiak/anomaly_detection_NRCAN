@@ -1,6 +1,6 @@
 import torch.nn as nn
 from torch import Tensor
-from . import BaseModel
+from .BaseModel import BaseModel
 
 
 class DeepSVDD(BaseModel):

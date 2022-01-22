@@ -54,7 +54,6 @@ class NeuTraADTrainer:
         losses = []
         val_losses = []
 
-
         for epoch in range(n_epochs):
             print(f"\nEpoch: {epoch + 1} of {n_epochs}")
             loss = 0
@@ -80,6 +79,7 @@ class NeuTraADTrainer:
         # plt.show()
 
         return mean_loss
+
     def evaluate_on_validation_set(self):
         self.model.eval()
         validation_ldr = self.dm.get_validation_set()

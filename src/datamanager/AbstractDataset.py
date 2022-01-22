@@ -1,5 +1,7 @@
 import numpy as np
 from abc import ABC, abstractmethod
+
+import scipy.io
 import torch
 from torch.utils.data import Dataset, Subset
 from torch.utils.data.dataset import T_co
@@ -43,8 +45,12 @@ class AbstractDataset(Dataset):
     def _load_data(self, path: str):
         if path.endswith(".npz"):
             return np.load(path)[self.npz_key()]
+        elif path.endswith(".mat"):
+            data = scipy.io.loadmat(path)
+            X = np.concatenate((data['X'], data['y']), axis=1)
+            return X
         else:
-            raise RuntimeError(f"Could not open {path}. Dataset can only read .npz files.")
+            raise RuntimeError(f"Could not open {path}. Dataset can only read .npz and .mat files.")
 
     def get_shape(self):
         return self.X.shape

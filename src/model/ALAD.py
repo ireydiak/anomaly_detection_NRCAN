@@ -81,9 +81,9 @@ class Generator(nn.Module):
         super(Generator, self).__init__()
         self.fc_1 = nn.Sequential(
             nn.Linear(latent_dim, 2 * latent_dim),
-            nn.ReLU(negative_slope),
+            nn.ReLU(inplace=True),
             nn.Linear(2 * latent_dim, 128),
-            nn.ReLU(negative_slope),
+            nn.ReLU(inplace=True),
             nn.Linear(128, feature_dim)
         )
 
