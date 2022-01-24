@@ -24,7 +24,8 @@ def create_network(D: int, out_dims: np.array, bias=True) -> list:
 
 
 class NeuTraAD(BaseModel):
-    def __init__(self, D: int, device, temperature: float, dataset: str, n_layers=3
+    def __init__(self, D: int, device, temperature: float, dataset: str, n_layers=3,
+                 trans_type='res'
                  ):
         super(NeuTraAD, self).__init__()
         self.device = device
@@ -33,6 +34,7 @@ class NeuTraAD(BaseModel):
         self.dataset = dataset
         self.K, self.Z, self.emb_out_dims, self.trans_layers = self._resolve_params(dataset)
         self.temperature = temperature
+        self.trans_type = trans_type
         self.cosim = nn.CosineSimilarity()
         self._build_network()
 
@@ -75,6 +77,9 @@ class NeuTraAD(BaseModel):
             out_dims = [64] * 4 + [Z]
             trans_layers = [200, self.D]
             # out_dims[:-1] *= 2
+        else:
+            self.trans_type = 'mul'
+
         return K, Z, out_dims, trans_layers
 
     def get_params(self) -> dict:
@@ -150,7 +155,7 @@ class NeuTraAD(BaseModel):
         )
         return exp_hij
 
-    def _computeX_k(self, X, type='res'):
+    def _computeX_k(self, X):
         X_t_s = []
 
         def transform(type):
@@ -159,7 +164,7 @@ class NeuTraAD(BaseModel):
             else:
                 return lambda mask, X: mask(X) * X
 
-        t_function = transform(type)
+        t_function = transform(self.trans_type)
         for k in range(self.K):
             X_t_k = t_function(self.masks[k], X)
             X_t_s.append(X_t_k)

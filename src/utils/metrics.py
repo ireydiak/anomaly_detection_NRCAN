@@ -17,13 +17,15 @@ def accuracy(outputs, labels):
 
 
 def score_recall_precision(combined_score, test_score, test_labels, pos_label=1):
-    nq = 70000
+    nq = 5000
     q = np.linspace(0, 99, nq)
-    thresholds = np.percentile(combined_score, q)
+    thresholds = np.percentile(test_score, q)
 
     result_search = []
     confusion_matrices = []
     f1 = np.zeros(shape=nq)
+    r = np.zeros(shape=nq)
+    p = np.zeros(shape=nq)
 
     for i, (thresh, qi) in enumerate(zip(thresholds, q)):
         # print(f"Threshold :{thresh:.3f}--> {qi:.3f}")
@@ -40,17 +42,23 @@ def score_recall_precision(combined_score, test_score, test_labels, pos_label=1)
         confusion_matrices.append(cm)
         result_search.append([accuracy, precision, recall, f_score])
         f1[i] = f_score
+        r[i] = recall
+        p[i] = precision
 
         # print(f"\nAccuracy:{accuracy:.3f}, "
         #       f"Precision:{precision:.3f}, "
         #       f"Recall:{recall:.3f}, "
         #       f"F-score:{f_score:.3f}, "
         #       f"\nconfusion-matrix: {cm}\n\n")
-    print(f"\nf1 max:{np.max(f1):.3f}\n\n")
+    arm = np.argmax(f1)
+    print(f"\np max:{p[arm]:.3f}, r max:{r[arm]:.3f}, f1 max:{f1[arm]:.3f}\n\n")
+
+    return dict(p_fmax=p[arm], r_fmax=r[arm], f_max=f1[arm])
+
 
 
 def score_recall_precision_w_thresold(combined_score, test_score, test_labels, pos_label=1, threshold=80.0):
-    thresh = np.percentile(combined_score, threshold)
+    thresh = np.percentile(test_score, threshold)
     print("Threshold :", thresh)
 
     # Prediction using the threshold value

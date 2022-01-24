@@ -110,6 +110,7 @@ class NeuTraADTrainer:
 
         return loss.item()
 
+
     def evaluate_on_test_set(self, pos_label=1, **kwargs):
         """
         function that evaluate the model on the test set
@@ -119,20 +120,10 @@ class NeuTraADTrainer:
         energy_threshold = kwargs.get('energy_threshold', 80)
         # Change the model to evaluation mode
         self.model.eval()
-        train_score = []
+        # train_score = []
 
         with torch.no_grad():
             # Create pytorch's train data_loader
-            train_loader = self.dm.get_init_train_loader()
-            for i, data in enumerate(train_loader, 0):
-                # transfer tensors to selected device
-                train_inputs = data[0].float().to(self.device)
-
-                # forward pass
-                scores = self.model(train_inputs)
-
-                train_score.append(scores.cpu().numpy())
-            train_score = np.concatenate(train_score, axis=0)
 
             # Calculate score using estimated parameters
             test_score = []
@@ -154,13 +145,19 @@ class NeuTraADTrainer:
             # test_z = np.concatenate(test_z, axis=0)
             test_labels = np.concatenate(test_labels, axis=0)
 
-            combined_score = np.concatenate([train_score, test_score], axis=0)
+            combined_score = test_score # np.concatenate([train_score, test_score], axis=0)
 
-            score_recall_precision(combined_score, test_score, test_labels)
+            comp_threshold = 100 * sum(test_labels == 0)/len(test_labels)
+
+            res_max = score_recall_precision(combined_score, test_score, test_labels)
             res = score_recall_precision_w_thresold(combined_score, test_score, test_labels, pos_label=pos_label,
-                                                    threshold=energy_threshold)
+                                                    threshold=comp_threshold)
 
             # switch back to train mode
             self.model.train()
+
+            res = dict(res, **res_max)
+
+            print(res)
 
             return res, test_z, test_labels, combined_score

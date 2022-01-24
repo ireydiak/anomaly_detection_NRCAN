@@ -112,6 +112,10 @@ def argument_parser():
     parser.add_argument('--test_mode', type=bool, default=False)
     parser.add_argument('--model_path', type=str, default="./", help='The path where output models are stored')
 
+    # =======================NeuTr==========================
+    parser.add_argument('--trans-type', type=str, default="res",
+                        choices=["res", "mul"])
+
     return parser.parse_args()
 
 
@@ -286,12 +290,13 @@ def resolve_trainer(trainer_str: str, optimizer_factory, **kwargs):
         # bsize = kwargs.get('batch_size', None)
         lr = kwargs.get('learning_rate', None)
         weight_decay = kwargs.get('weight_decay', None)
+        trans_type = kwargs.get('trans_type', 'res')
 
         assert batch_size and lr
 
         # Load a pretrained model in case it should be used
 
-        model = NeuTraAD(D, device=device, temperature=0.1, dataset=dataset.name).to(device)
+        model = NeuTraAD(D, device=device, temperature=0.1, dataset=dataset.name, trans_type=trans_type).to(device)
         trainer = NeuTraADTrainer(
             model=model,
             dm=dm,
@@ -392,7 +397,8 @@ if __name__ == "__main__":
         num_cluster=num_cluster,
         reg_covar=args.reg_covar,
         learning_rate=args.lr,
-        weight_decay=args.weight_decay
+        weight_decay=args.weight_decay,
+        trans_type=args.trans_type
     )
 
     if model and model_trainer:
