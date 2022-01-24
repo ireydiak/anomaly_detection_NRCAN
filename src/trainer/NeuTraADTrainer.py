@@ -4,7 +4,7 @@ from copy import deepcopy
 from matplotlib import pyplot as plt
 from sklearn.metrics import confusion_matrix, average_precision_score, precision_recall_curve, \
     plot_precision_recall_curve
-from torch import nn
+from torch import nn, optim
 from torch.optim.lr_scheduler import ExponentialLR, StepLR
 from tqdm import trange
 
@@ -14,8 +14,6 @@ import numpy as np
 from typing import Callable
 
 from datamanager import DataManager
-
-
 
 from utils.metrics import score_recall_precision, score_recall_precision_w_thresold
 
@@ -40,7 +38,12 @@ class NeuTraADTrainer:
 
         self.device = torch.device(device_name)
         self.model = model.to(self.device)
-        self.optim = optimizer_factory(self.model)
+        mask_params = list()
+        for mask in self.model.masks:
+            mask_params += list(mask.parameters())
+        self.optim =optim.Adam(list(self.model.enc.parameters()) + mask_params, lr=kwargs.get('learning_rate'),
+                               weight_decay=kwargs.get('weight_decay'))
+        # self.optim = optimizer_factory()
         self.scheduler = StepLR(self.optim, step_size=20, gamma=0.9)
 
         self.criterion = nn.MSELoss()
@@ -53,7 +56,6 @@ class NeuTraADTrainer:
         lrs = []
         losses = []
         val_losses = []
-
 
         for epoch in range(n_epochs):
             print(f"\nEpoch: {epoch + 1} of {n_epochs}")
@@ -80,6 +82,7 @@ class NeuTraADTrainer:
         # plt.show()
 
         return mean_loss
+
     def evaluate_on_validation_set(self):
         self.model.eval()
         validation_ldr = self.dm.get_validation_set()
@@ -90,8 +93,6 @@ class NeuTraADTrainer:
                 scores = self.model(val_inputs)
                 loss = scores.mean().item()
                 val_loss.append(loss)
-
-
 
                 # switch back to train mode
         self.model.train()
@@ -106,7 +107,6 @@ class NeuTraADTrainer:
         loss.backward()
         # updates the weights using gradient descent
         self.optim.step()
-
 
         return loss.item()
 

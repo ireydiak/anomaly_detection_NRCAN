@@ -7,6 +7,7 @@ from .BaseModel import BaseModel
 from .utils import weights_init_xavier
 
 
+
 # learning_rate = 1e-5
 # batch_size = 50
 # latent_dim = 32
@@ -30,17 +31,19 @@ class NeuTraAD(BaseModel):
         self.D = D
         self.n_layers = n_layers
         self.dataset = dataset
-        self.K, self.Z, self.emb_out_dims = self._resolve_params(dataset)
+        self.K, self.Z, self.emb_out_dims, self.trans_layers = self._resolve_params(dataset)
         self.temperature = temperature
         self.cosim = nn.CosineSimilarity()
         self._build_network()
 
-        self.enc.apply(weights_init_xavier)
+        # self.enc.apply(weights_init_xavier)
+        # for mask in self.masks:
+        #     mask.apply(weights_init_xavier)
         # self.masks.apply(weights_init_xavier)
 
     def _create_masks(self) -> list:
         masks = [None] * self.K
-        out_dims = np.array([self.D] * self.n_layers)
+        out_dims = self.trans_layers or np.array([self.D] * self.n_layers)
         # out_dims[:-1] *= 3
         for K_i in range(self.K):
             net_layers = create_network(self.D, out_dims, bias=False)
@@ -61,15 +64,18 @@ class NeuTraAD(BaseModel):
         K, Z = 7, 32
         # out_dims = np.linspace(self.D, Z, self.n_layers, dtype=np.int32)
         out_dims = [90, 70, 50] + [Z]
+        trans_layers = [24, 6]
         if dataset == 'Thyroid':
-            Z = 12
-            K = 4
-            out_dims = [60, 40] + [Z]
+            Z = 24
+            K = 11
+            out_dims = [24] * 4 + [Z]
+            trans_layers = [24, 6]
         elif dataset == 'Arrhythmia':
             K = 11
-            out_dims = [60, 40] + [Z]
+            out_dims = [64] * 4 + [Z]
+            trans_layers = [200, self.D]
             # out_dims[:-1] *= 2
-        return K, Z, out_dims
+        return K, Z, out_dims, trans_layers
 
     def get_params(self) -> dict:
         return {
@@ -82,9 +88,9 @@ class NeuTraAD(BaseModel):
         Xk = self._computeX_k(X)
         Xk = Xk.permute((1, 0, 2))
         Zk = self.enc(Xk)
-        # Zk = F.normalize(Zk, dim=-1)
+        Zk = F.normalize(Zk, dim=-1)
         Z = self.enc(X)
-        # Z = F.normalize(Z, dim=-1)
+        Z = F.normalize(Z, dim=-1)
         Hij = self._computeBatchH_ij(Zk)
         Hx_xk = self._computeBatchH_x_xk(Z, Zk)
 
@@ -95,6 +101,24 @@ class NeuTraAD(BaseModel):
         score_V = (-torch.log(scores_V)).sum(dim=1)
 
         return score_V
+
+    def score_naive(self, X: torch.Tensor):
+        # TODO: Bottleneck, replace with matrix operations
+        total_sum = []
+        for x in X:
+            x = x.unsqueeze(0)
+            sum_x = []
+            for k in range(self.K):
+                mask = self.masks[k]
+                x_k = mask(x) + x
+                numerator = (h_func(self.enc(x_k).squeeze(1), self.enc(x).squeeze(1)))
+                denominator = [h_func(self.enc(x_k), self.enc(self.masks[j](x) + x)) for j in range(self.K) if j != k]
+                denominator = torch.Tensor(denominator).to(self.device)
+                sum_x.append(
+                    torch.log(numerator / (numerator + denominator.sum()))
+                )
+            total_sum.append(torch.stack(sum_x).sum())
+        return -torch.stack(total_sum)
 
     def _computeH_ij(self, Z):
         hij = F.cosine_similarity(Z.unsqueeze(1), Z.unsqueeze(0), dim=2)
@@ -126,10 +150,18 @@ class NeuTraAD(BaseModel):
         )
         return exp_hij
 
-    def _computeX_k(self, X):
+    def _computeX_k(self, X, type='res'):
         X_t_s = []
+
+        def transform(type):
+            if type == 'res':
+                return lambda mask, X: mask(X) + X
+            else:
+                return lambda mask, X: mask(X) * X
+
+        t_function = transform(type)
         for k in range(self.K):
-            X_t_k = self.masks[k](X) * X
+            X_t_k = t_function(self.masks[k], X)
             X_t_s.append(X_t_k)
         X_t_s = torch.stack(X_t_s, dim=0)
 
@@ -137,3 +169,12 @@ class NeuTraAD(BaseModel):
 
     def forward(self, X: torch.Tensor):
         return self.score(X)
+
+
+def h_func(x_k, x_l, temp=0.1):
+
+    mat = F.cosine_similarity(x_k, x_l)
+
+    return torch.exp(
+        mat/0.1
+    )

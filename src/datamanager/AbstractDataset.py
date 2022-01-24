@@ -89,8 +89,8 @@ class AbstractDataset(Dataset):
 
         return: training set and test set
         """
-        if seed:
-            torch.manual_seed(seed)
+        # if seed:
+        #     torch.manual_seed(seed)
 
         # Randomly sample normal data with the corresponding proportion
         all_indices = torch.ones(self.N)

@@ -33,7 +33,7 @@ import torch.optim as optim
 from utils.utils import check_dir, optimizer_setup, get_X_from_loader, average_results
 from model import AutoEncoder as AE
 from datamanager import ArrhythmiaDataset, DataManager, KDD10Dataset, NSLKDDDataset, IDS2018Dataset
-from model import ALAD, DAGMM, MemAutoEncoder as MemAE, SOMDAGMM, DeepSVDD
+from model import ALAD, DAGMM, MemAutoEncoder as MemAE, SOMDAGMM  # ,  DeepSVDD
 from datamanager import ArrhythmiaDataset, DataManager, KDD10Dataset, NSLKDDDataset, IDS2018Dataset, USBIDSDataset, \
     ThyroidDataset
 from trainer import ALADTrainer, DAGMMTrainTestManager, MemAETrainer, DeepSVDDTrainer
@@ -74,6 +74,13 @@ def argument_parser():
                         help='Percentage of training data to use for validation')
     parser.add_argument('--lr', type=float, default=0.0001,
                         help='Learning rate')
+
+    parser.add_argument('--weight_decay', type=float, default=0,
+                        help='Learning rate')
+
+    parser.add_argument('--seed', type=float, default=42,
+                        help='Learning rate')
+
     parser.add_argument('--p-threshold', type=float, default=80,
                         help='percentile threshold for the energy ')
     parser.add_argument('--lambda-energy', type=float, default=0.1,
@@ -135,7 +142,7 @@ def store_models(models: List[BaseModel], model_name: str, dataset: str, path: s
 
 def resolve_optimizer(optimizer_str: str):
     # Defaults to 'Adam'
-    optimizer_factory = optimizer_setup(optim.Adam, lr=args.lr)
+    optimizer_factory = optimizer_setup(optim.Adam, lr=args.lr, weight_decay=args.weight_decay)
     if optimizer_str == 'SGD':
         optimizer_factory = optimizer_setup(optim.SGD, lr=args.lr, momentum=0.9)
     return optimizer_factory
@@ -252,16 +259,16 @@ def resolve_trainer(trainer_str: str, optimizer_factory, **kwargs):
             learning_rate=lr,
             L=L
         )
-    elif trainer_str == 'DeepSVDD':
-        model = DeepSVDD(D)
-        trainer = DeepSVDDTrainer(
-            model,
-            optimizer_factory=optimizer_factory,
-            dm=dm,
-            R=kwargs.get('R'),
-            c=kwargs.get('c'),
-            device=device
-        )
+    # elif trainer_str == 'DeepSVDD':
+    #     model = DeepSVDD(D)
+    #     trainer = DeepSVDDTrainer(
+    #         model,
+    #         optimizer_factory=optimizer_factory,
+    #         dm=dm,
+    #         R=kwargs.get('R'),
+    #         c=kwargs.get('c'),
+    #         device=device
+    #     )
 
     elif trainer_str == 'DSEBM':
         # bsize = kwargs.get('batch_size', None)
@@ -278,18 +285,20 @@ def resolve_trainer(trainer_str: str, optimizer_factory, **kwargs):
     elif trainer_str == 'NeurTraAD':
         # bsize = kwargs.get('batch_size', None)
         lr = kwargs.get('learning_rate', None)
+        weight_decay = kwargs.get('weight_decay', None)
 
         assert batch_size and lr
 
         # Load a pretrained model in case it should be used
 
-        model = NeuTraAD(D, device=device, temperature=0.07, dataset=dataset.name).to(device)
+        model = NeuTraAD(D, device=device, temperature=0.1, dataset=dataset.name).to(device)
         trainer = NeuTraADTrainer(
             model=model,
             dm=dm,
             device=device,
             optimizer_factory=optimizer_factory,
             L=L, learning_rate=lr,
+            weight_decay=weight_decay
         )
 
     return model, trainer
@@ -310,6 +319,9 @@ if __name__ == "__main__":
     r = args.r
     num_cluster = args.num_cluster
 
+    # set seed
+    torch.manual_seed(args.seed)
+
     # Dynamically load the Dataset instance
     clsname = globals()[f'{args.dataset}Dataset']
     dataset = clsname(args.dataset_path, args.pct)
@@ -319,7 +331,7 @@ if __name__ == "__main__":
     # we train only on the majority class
 
     train_set, test_set = dataset.one_class_split_train_test_inject(test_perc=0.50, inject_perc=args.rho)
-    dm = DataManager(train_set, test_set, batch_size=batch_size, validation=1e-3)
+    dm = DataManager(train_set, test_set, batch_size=batch_size, validation=0)
 
     # safely create save path
     check_dir(args.save_path)
@@ -380,6 +392,7 @@ if __name__ == "__main__":
         num_cluster=num_cluster,
         reg_covar=args.reg_covar,
         learning_rate=args.lr,
+        weight_decay=args.weight_decay
     )
 
     if model and model_trainer:
@@ -431,4 +444,3 @@ if __name__ == "__main__":
             plot_energy_percentile(energy)
     else:
         print(f'Error: Could not train {args.dataset} on model {args.model}')
-

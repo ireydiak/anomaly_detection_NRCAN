@@ -2,7 +2,7 @@ from torch.utils.data.dataloader import DataLoader
 import torch
 import numpy as np
 from tqdm import trange
-from ..utils import precision_recall_f1_roc_pr
+from utils import precision_recall_f1_roc_pr
 
 
 class DeepSVDDTrainer:
