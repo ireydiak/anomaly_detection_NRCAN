@@ -1,3 +1,16 @@
+## TODO
+- Combine all `DataManager` classes in a single file.
+- Make the `Trainer` classes extend the `BaseTrainer` class.
+- Combine the models into fewer files (e.g. reconstruction-based models could be stored in `reconstruction.py`). 
+Repeat the same process for `Trainer` classes.
+- Simplify the main function. Each model should implement a `resolve` method thats take a dataset name as input. It
+sets the network structure and different parameters based on the given dataset. See `model.NeuTraAD._resolve_params`
+for reference. The command line arguments would reflect these changes (meaning we should have less arguments).
+- Replace the `process_*` files within `data_process` by jupyter notebooks. The goal is to "see" every step
+of the preprocessing pipeline (the file `process_ids2018.py` is a good starting point).
+- Ideally, all experiments should have a jupyter notebook (found under `notebooks/experiments`)
+
+
 # Anomaly Detection in Network Traffic
 This repo collects different unsupervised machine learning methods to detect anomalies.
 We are interested mostly in anomalies within Power Grid networks but the implemented methods can also be applied in different areas such as healthcare.  
@@ -56,3 +69,4 @@ To train a DAGMM on the KDD 10 percent dataset with the default parameters descr
 $ python main.py -m DAGMM -d [/path/to/dataset.npz] --dataset kdd
 ```
 Replace `[/path/to/dataset.npz]` with the path to the dataset in a numpy-friendly format.
+

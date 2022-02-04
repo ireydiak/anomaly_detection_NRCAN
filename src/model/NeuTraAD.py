@@ -23,8 +23,7 @@ def create_network(D: int, out_dims: np.array, bias=True) -> list:
 
 
 class NeuTraAD(BaseModel):
-    def __init__(self, D: int, device, temperature: float, dataset: str, n_layers=3
-                 ):
+    def __init__(self, D: int, device, temperature: float, dataset: str, n_layers=3):
         super(NeuTraAD, self).__init__()
         self.device = device
         self.D = D

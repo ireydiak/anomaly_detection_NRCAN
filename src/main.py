@@ -24,6 +24,7 @@ from model.DSEBM import DSEBM
 from model.ALAD import ALAD
 from model.BaseModel import BaseModel
 from model.NeuTraAD import NeuTraAD
+from model.DeepSVDD import DeepSVDD
 from trainer.NeuTraADTrainer import NeuTraADTrainer
 from trainer.DSEBMTrainer import DSEBMTrainer
 from trainer.AETrainer import AETrainer
@@ -37,7 +38,7 @@ from datamanager import ArrhythmiaDataset, DataManager, KDD10Dataset, NSLKDDData
 from model import ALAD, DAGMM, MemAutoEncoder as MemAE, SOMDAGMM, DeepSVDD
 from datamanager import ArrhythmiaDataset, DataManager, KDD10Dataset, NSLKDDDataset, IDS2018Dataset, USBIDSDataset, \
     ThyroidDataset
-from trainer import ALADTrainer, DAGMMTrainTestManager, MemAETrainer, DeepSVDDTrainer
+from trainer import ALADTrainer, DAGMMTrainer, MemAETrainer, DeepSVDDTrainer
 from viz.viz import plot_3D_latent, plot_energy_percentile
 from datetime import datetime as dt
 from sklearn import metrics
@@ -59,7 +60,7 @@ def argument_parser():
     )
     parser.add_argument('-m', '--model', type=str, default="DAGMM",
                         choices=["AE", "ALAD", "DAGMM", "SOM-DAGMM", "MLAD", "MemAE", "DUAD", 'OC-SVM', 'RECFOREST',
-                                 'DSEBM', 'NeurTraAD'])
+                                 "DSEBM", "DeepSVDD", "NeurTraAD"])
 
     parser.add_argument('-rt', '--run-type', type=str, default="train",
                         choices=["train", "test"])
@@ -156,6 +157,8 @@ def resolve_trainer(trainer_str: str, optimizer_factory, **kwargs):
     D = dataset.get_shape()[1]
     L = kwargs.get("latent_dim", D // 2)
     reg_covar = kwargs.get("reg_covar", 1e-12)
+    model, trainer
+    model.resolve_params()
     if trainer_str == 'DAGMM' or trainer_str == 'SOM-DAGMM' or trainer_str == 'AE':
         if dataset.name == 'Arrhythmia' or (dataset.name == 'Thyroid' and trainer_str != 'DAGMM'):
             enc_layers = [(D, 10, nn.Tanh()), (10, L, None)]
