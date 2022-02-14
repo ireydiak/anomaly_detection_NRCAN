@@ -81,25 +81,32 @@ class ALADTrainer:
 
             combined_scores_l1 = np.concatenate([scores_l1_train, scores_l1], axis=0)  # scores_l1 #
 
-            print(precision_recall_fscore_support(labels.astype(int), y_pred_l1.astype(int),
-                                                  average='binary'))
-            print(precision_recall_fscore_support(labels.astype(int), y_pred_l2.astype(int),
-                                                  average='binary'))
+            comp_threshold = 100 * sum(labels == 0) / len(labels)
 
+            res_max = score_recall_precision(combined_scores_l1, scores_l1, labels)
             res = score_recall_precision_w_thresold(combined_scores_l1, scores_l1, labels, pos_label=pos_label,
-                                                    threshold=energy_threshold)
+                                                    threshold=comp_threshold)
+            res = dict(res, **res_max)
 
-            roc_auc = roc_auc_score(labels, scores_l1)
 
-            res['roc_auc'] = roc_auc
-
-            print('ROC AUC score l1: {:.2f}'.format(roc_auc_score(labels, scores_l1) * 100))
-            print('ROC AUC score l2: {:.2f}'.format(roc_auc_score(labels, scores_l2) * 100))
-
-            score_recall_precision(combined_scores_l1, scores_l1, labels)
+            # print(precision_recall_fscore_support(labels.astype(int), y_pred_l1.astype(int),
+            #                                       average='binary'))
+            # print(precision_recall_fscore_support(labels.astype(int), y_pred_l2.astype(int),
+            #                                       average='binary'))
+            #
+            # res = score_recall_precision_w_thresold(combined_scores_l1, scores_l1, labels, pos_label=pos_label,
+            #                                         threshold=energy_threshold)
+            #
+            # roc_auc = roc_auc_score(labels, scores_l1)
+            #
+            # res['roc_auc'] = roc_auc
+            #
+            # print('ROC AUC score l1: {:.2f}'.format(roc_auc_score(labels, scores_l1) * 100))
+            # print('ROC AUC score l2: {:.2f}'.format(roc_auc_score(labels, scores_l2) * 100))
 
         # switch back to train mode
         self.model.train()
+
 
         return res, _, _, _
 

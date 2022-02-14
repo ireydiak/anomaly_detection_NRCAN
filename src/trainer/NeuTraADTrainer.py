@@ -70,7 +70,8 @@ class NeuTraADTrainer:
             losses.append(loss / len(train_ldr))
             lrs.append(self.optim.param_groups[0]["lr"])
             # val_losses.append(self.evaluate_on_validation_set())
-            # if epoch % 20 == 0:
+            # if epoch % 10 == 0:
+            #     self.evaluate_on_test_set()
 
             # self.scheduler.step()
 
@@ -115,7 +116,6 @@ class NeuTraADTrainer:
         """
         function that evaluate the model on the test set
         """
-
         test_loader = self.dm.get_test_set()
         energy_threshold = kwargs.get('energy_threshold', 80)
         # Change the model to evaluation mode
@@ -157,7 +157,5 @@ class NeuTraADTrainer:
             self.model.train()
 
             res = dict(res, **res_max)
-
-            print(res)
-
+            # print(res)
             return res, test_z, test_labels, combined_score

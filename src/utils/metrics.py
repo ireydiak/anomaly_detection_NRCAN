@@ -17,8 +17,9 @@ def accuracy(outputs, labels):
 
 
 def score_recall_precision(combined_score, test_score, test_labels, pos_label=1):
-    nq = 5000
-    q = np.linspace(0, 99, nq)
+    ratio = 100 * sum(test_labels == 0)/len(test_labels)
+    nq = 100
+    q = np.linspace(ratio - 5, min(ratio + 5, 100), nq)
     thresholds = np.percentile(test_score, q)
 
     result_search = []

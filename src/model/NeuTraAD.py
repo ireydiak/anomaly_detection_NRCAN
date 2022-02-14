@@ -79,6 +79,9 @@ class NeuTraAD(BaseModel):
             # out_dims[:-1] *= 2
         else:
             self.trans_type = 'mul'
+            K = 11
+            out_dims = [64] * 4 + [Z]
+            trans_layers = [200, self.D]
 
         return K, Z, out_dims, trans_layers
 

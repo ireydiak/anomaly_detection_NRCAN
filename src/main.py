@@ -33,7 +33,7 @@ import torch.optim as optim
 from utils.utils import check_dir, optimizer_setup, get_X_from_loader, average_results
 from model import AutoEncoder as AE
 from datamanager import ArrhythmiaDataset, DataManager, KDD10Dataset, NSLKDDDataset, IDS2018Dataset
-from model import ALAD, DAGMM, MemAutoEncoder as MemAE, SOMDAGMM  # ,  DeepSVDD
+from model import DAGMM, MemAutoEncoder as MemAE, SOMDAGMM  # ,  DeepSVDD
 from datamanager import ArrhythmiaDataset, DataManager, KDD10Dataset, NSLKDDDataset, IDS2018Dataset, USBIDSDataset, \
     ThyroidDataset
 from trainer import ALADTrainer, DAGMMTrainTestManager, MemAETrainer, DeepSVDDTrainer
@@ -419,7 +419,36 @@ if __name__ == "__main__":
                 for k, v in results.items():
                     all_results[k].append(v)
         else:
+            # for r in range(n_runs):
+            #
+            #     print(f"Run number {r}/{n_runs}")
+            #     metrics = model_trainer.train(args.num_epochs)
+            #     print('Finished learning process')
+            #     print('Evaluating model on test set')
+            #     # We test with the minority samples as the positive class
+            #     results, test_z, test_label, energy = model_trainer.evaluate_on_test_set(
+            #         energy_threshold=args.p_threshold)
+            #     for k, v in results.items():
+            #         all_results[k].append(v)
+            #     all_models.append(deepcopy(model))
+            #     model.reset()
+            torch.manual_seed(args.seed)
             for r in range(n_runs):
+                # seed = np.random.randint(40, 60)
+                # torch.manual_seed(args.seed)
+                model, model_trainer = resolve_trainer(
+                    args.model, optimizer, latent_dim=L, mem_dim=args.mem_dim, shrink_thres=args.shrink_thres,
+                    n_som=n_som,
+                    r=r,
+                    p_s=p_s,
+                    p_0=p_0,
+                    num_cluster=num_cluster,
+                    reg_covar=args.reg_covar,
+                    learning_rate=args.lr,
+                    weight_decay=args.weight_decay,
+                    trans_type=args.trans_type
+                )
+
                 print(f"Run number {r}/{n_runs}")
                 metrics = model_trainer.train(args.num_epochs)
                 print('Finished learning process')
