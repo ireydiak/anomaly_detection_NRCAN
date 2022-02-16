@@ -20,11 +20,11 @@ from recforest import RecForest
 from torch import nn
 
 from model.DUAD import DUAD
-from model.DSEBM import DSEBM
-from model.ALAD import ALAD
+from model.density import DSEBM
+from model.adversarial import ALAD
 from model.BaseModel import BaseModel
-from model.NeuTraAD import NeuTraAD
-from model.DeepSVDD import DeepSVDD
+from model.transformers import NeuTraAD
+from model.one_class import DeepSVDD
 from trainer.NeuTraADTrainer import NeuTraADTrainer
 from trainer.DSEBMTrainer import DSEBMTrainer
 from trainer.AETrainer import AETrainer
@@ -35,7 +35,8 @@ import torch.optim as optim
 from utils.utils import check_dir, optimizer_setup, get_X_from_loader, average_results
 from model import AutoEncoder as AE
 from datamanager import ArrhythmiaDataset, DataManager, KDD10Dataset, NSLKDDDataset, IDS2018Dataset
-from model import ALAD, DAGMM, MemAutoEncoder as MemAE, SOMDAGMM, DeepSVDD
+from model import DAGMM, MemAutoEncoder as SOMDAGMM, DeepSVDD #TODO what about the original DeepSVDD?
+from model.adversarial import ALAD as MemAE
 from datamanager import ArrhythmiaDataset, DataManager, KDD10Dataset, NSLKDDDataset, IDS2018Dataset, USBIDSDataset, \
     ThyroidDataset
 from trainer import ALADTrainer, DAGMMTrainer, MemAETrainer, DeepSVDDTrainer
