@@ -12,7 +12,7 @@ class BaseTrainer(ABC):
 
     def __init__(self, model,
                  lr: float = 1e-4,
-                 n_epochs: int = 100,
+                 n_epochs: int = 200,
                  batch_size: int = 128,
                  n_jobs_dataloader: int = 0,
                  device: str = 'cuda'):

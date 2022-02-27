@@ -1,5 +1,5 @@
 import torch
-from src.trainer.BaseTrainer import BaseTrainer
+from trainer.BaseTrainer import BaseTrainer
 
 
 class AETrainer(BaseTrainer):

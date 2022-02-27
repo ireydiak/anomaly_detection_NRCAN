@@ -1,7 +1,7 @@
 import torch
 from .BaseTrainer import BaseTrainer
 from torch import nn
-from src.loss import EntropyLoss
+from loss import EntropyLoss
 
 
 class MemAETrainer(BaseTrainer):

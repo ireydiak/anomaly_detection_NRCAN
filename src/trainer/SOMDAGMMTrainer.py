@@ -3,7 +3,7 @@ import torch
 import numpy as np
 
 
-from src.trainer.BaseTrainer import BaseTrainer
+from trainer.BaseTrainer import BaseTrainer
 
 
 class SOMDAGMMTrainer(BaseTrainer):

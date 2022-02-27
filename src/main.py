@@ -35,8 +35,8 @@ import torch.optim as optim
 from utils.utils import check_dir, optimizer_setup, get_X_from_loader, average_results
 from model import AutoEncoder as AE
 from datamanager import ArrhythmiaDataset, DataManager, KDD10Dataset, NSLKDDDataset, IDS2018Dataset
-from model import DAGMM, MemAutoEncoder as SOMDAGMM, DeepSVDD #TODO what about the original DeepSVDD?
-from model.adversarial import ALAD as MemAE
+from model import DAGMM, MemAutoEncoder as MemAE, DeepSVDD #TODO what about the original DeepSVDD?
+from model.adversarial import ALAD
 from datamanager import ArrhythmiaDataset, DataManager, KDD10Dataset, NSLKDDDataset, IDS2018Dataset, USBIDSDataset, \
     ThyroidDataset
 from trainer import ALADTrainer, DAGMMTrainer, MemAETrainer, DeepSVDDTrainer
@@ -158,8 +158,6 @@ def resolve_trainer(trainer_str: str, optimizer_factory, **kwargs):
     D = dataset.get_shape()[1]
     L = kwargs.get("latent_dim", D // 2)
     reg_covar = kwargs.get("reg_covar", 1e-12)
-    model, trainer
-    model.resolve_params()
     if trainer_str == 'DAGMM' or trainer_str == 'SOM-DAGMM' or trainer_str == 'AE':
         if dataset.name == 'Arrhythmia' or (dataset.name == 'Thyroid' and trainer_str != 'DAGMM'):
             enc_layers = [(D, 10, nn.Tanh()), (10, L, None)]
@@ -216,7 +214,7 @@ def resolve_trainer(trainer_str: str, optimizer_factory, **kwargs):
             data = [som_train_data[i][0] for i in range(len(som_train_data))]
             trainer.train_som(data)
     elif trainer_str == 'MemAE':
-        print(f'training on {device}')
+        print(f"training on {device}")
         if dataset.name == 'Arrhythmia':
             enc_layers = [
                 nn.Linear(D, 10), nn.Tanh(),
@@ -227,8 +225,20 @@ def resolve_trainer(trainer_str: str, optimizer_factory, **kwargs):
                 nn.Linear(10, D)
             ]
         elif dataset.name == 'Thyroid':
-            enc_layers = [(D, 12, nn.Tanh()), (12, 4, nn.Tanh()), (4, L, None)]
-            dec_layers = [(L, 4, nn.Tanh()), (4, 12, nn.Tanh()), (12, D, None)]
+            enc_layers = [
+                nn.Linear(D, 12),
+                nn.Tanh(),
+                nn.Linear(12, 4),
+                nn.Tanh(),
+                nn.Linear(4, L)
+            ]
+            dec_layers = [
+                nn.Linear(L, 4),
+                nn.Tanh(),
+                nn.Linear(4, 12),
+                nn.Tanh(),
+                nn.Linear(12, D)
+            ]
         else:
             enc_layers = [
                 nn.Linear(D, 60), nn.Tanh(),
@@ -245,8 +255,9 @@ def resolve_trainer(trainer_str: str, optimizer_factory, **kwargs):
         model = MemAE(
             kwargs.get('mem_dim'), enc_layers, dec_layers, kwargs.get('shrink_thres'), device
         ).to(device)
+        alpha = kwargs.get("alpha", 2e-4)
         trainer = MemAETrainer(
-            model=model, dm=dm, optimizer_factory=optimizer_factory, device=device
+            alpha=alpha, model=model, device=device, lr=kwargs.get("learning_rate"), batch_size=batch_size
         )
     elif trainer_str == "DUAD":
         model = DUAD(D, 10)
@@ -332,7 +343,7 @@ if __name__ == "__main__":
     # we train only on the majority class
 
     train_set, test_set = dataset.one_class_split_train_test_inject(test_perc=0.50, inject_perc=args.rho)
-    dm = DataManager(train_set, test_set, batch_size=batch_size, validation=1e-3)
+    #dm = DataManager(train_set, test_set, batch_size=batch_size, validation=1e-3)
 
     # safely create save path
     check_dir(args.save_path)
@@ -420,7 +431,7 @@ if __name__ == "__main__":
             # Training and evaluation on different runs
             all_results = defaultdict(list)
             all_models = []
-            thresh = 1. - dm.anomaly_ratio
+            thresh = 1. - dataset.anomaly_ratio
 
             if args.test_mode:
                 device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
@@ -436,11 +447,11 @@ if __name__ == "__main__":
             else:
                 for r in range(n_runs):
                     print(f"Run number {r}/{n_runs}")
-                    metrics = model_trainer.train(args.num_epochs)
+                    metrics = model_trainer.train(train_set)
                     print('Finished learning process')
                     print('Evaluating model on test set')
                     # We test with the minority samples as the positive class
-                    results, test_z, test_label, energy = model_trainer.evaluate_on_test_set(energy_threshold=thresh)
+                    results, test_z, test_label, energy = model_trainer.test(test_set)
                     for k, v in results.items():
                         all_results[k].append(v)
                     all_models.append(deepcopy(model))
