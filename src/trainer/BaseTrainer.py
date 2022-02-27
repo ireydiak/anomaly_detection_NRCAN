@@ -58,7 +58,7 @@ class BaseTrainer(ABC):
             epoch_loss = 0.0
             with trange(len(dataset)) as t:
                 for sample in dataset:
-                    X, _ = sample
+                    X, _, _ = sample
                     X = X.to(self.device).float()
 
                     if len(X) < self.batch_size:
@@ -89,9 +89,7 @@ class BaseTrainer(ABC):
             for row in dataset:
                 X, y = row
                 X = X.to(self.device).float()
-
                 score = self.score(X)
-
                 y_true.extend(y.cpu().tolist())
                 scores.extend(score.cpu().tolist())
 

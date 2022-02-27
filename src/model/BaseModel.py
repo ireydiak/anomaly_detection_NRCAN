@@ -1,11 +1,16 @@
 import copy
 import gzip
 import pickle
+import torch
 
 from torch import nn
 
-
 class BaseModel(nn.Module):
+
+    def __init__(self, in_features: int, device: str):
+        super().__init__()
+        self.device = device
+        self.D = in_features
 
     def reset(self):
         self.apply(self.weight_reset)
@@ -25,7 +30,9 @@ class BaseModel(nn.Module):
 
     def save(self, filename):
         # Save model to file (.pklz)
-        model = copy.deepcopy(self)
-        model.to('cpu')
-        with gzip.open(filename, 'wb') as f:
-            pickle.dump(model, f, protocol=pickle.HIGHEST_PROTOCOL)
+        # model = copy.deepcopy(self.detach())
+        # model.to('cpu')
+        # with gzip.open(filename, 'wb') as f:
+        #     pickle.dump(model, f, protocol=pickle.HIGHEST_PROTOCOL)
+        torch.save(self.state_dict(), filename + "pt")
+        #return torch.load(weights_path)

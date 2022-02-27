@@ -24,10 +24,10 @@ class DataManager:
 
     def __init__(self, train_dataset: torch.utils.data.Dataset,
                  test_dataset: torch.utils.data.Dataset,
-                 batch_size: int = 1,
+                 batch_size: int,
                  num_classes: int = None,
                  input_shape: tuple = None,
-                 validation: float = 0.1,
+                 validation: float = 0.,
                  seed: int = 0,
                  **kwargs):
         """

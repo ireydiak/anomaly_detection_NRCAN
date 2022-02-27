@@ -88,10 +88,10 @@ class AbstractDataset(Dataset):
 
         return train_set, test_set
 
-    def one_class_split_train_test_inject(self, test_perc=.2, label=0, inject_perc=0.0, seed=42):
+    def train_test_split(self, test_ratio=.3, label=0, corruption_ratio=0.0, seed=42):
         """
         This function splits the dataset into training and test datasets. The training set contains only normal data
-        with a percentage of @inject_perc anomalous data.
+        with a ratio of :corruption_ratio anomalous data.
 
         return: training set and test set
         """
@@ -101,13 +101,13 @@ class AbstractDataset(Dataset):
         # Randomly sample normal data with the corresponding proportion
         all_indices = torch.ones(self.N)
         label_data_index = self.get_data_index_by_label(label=label)
-        num_test_sample = int(len(label_data_index) * test_perc)
+        num_test_sample = int(len(label_data_index) * test_ratio)
         shuffled_idx = torch.randperm(len(label_data_index)).long()
         label_selected_indices = label_data_index[shuffled_idx[num_test_sample:]]
 
         # Randomly sample anomalous data  with the corresponding proportion
         label_inv_data_index = self.get_data_index_by_label(label=1 - label)
-        num_data_to_inject = int(len(label_data_index) * (1 - test_perc) * inject_perc / (1 - inject_perc))
+        num_data_to_inject = int(len(label_data_index) * (1 - test_ratio) * corruption_ratio / (1 - corruption_ratio))
 
         assert num_data_to_inject < len(label_inv_data_index)
 
@@ -121,7 +121,7 @@ class AbstractDataset(Dataset):
         # Consider the remaining data as the test set
         all_indices[train_indices] = 0
         remaining_index = all_indices.nonzero().squeeze()
-        print(f'Size of data with label ={label} :', len(label_data_index) / self.N)
+        print(f"Size of data with label ={label} :", len(label_data_index) / self.N)
 
         test_set = Subset(self, remaining_index)
 

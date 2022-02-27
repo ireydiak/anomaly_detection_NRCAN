@@ -123,7 +123,8 @@ def store_results(results: dict, params: dict, model_name: str, dataset: str, pa
     output_dir = f'../results/{dataset}'
     if not os.path.exists(output_dir):
         os.mkdir(output_dir)
-    with open(output_dir + '/' + f'{model_name}_results.txt', 'a') as f:
+    fname = output_dir + '/' + f'{model_name}_results.txt'
+    with open(fname, 'a') as f:
         hdr = "Experiments on {}\n".format(dt.now().strftime("%d/%m/%Y %H:%M:%S"))
         f.write(hdr)
         f.write("-".join("" for _ in range(len(hdr))) + "\n")
@@ -131,17 +132,14 @@ def store_results(results: dict, params: dict, model_name: str, dataset: str, pa
         f.write(", ".join([f"{param_name}={param_val}" for param_name, param_val in params.items()]) + "\n")
         f.write("\n".join([f"{met_name}: {res}" for met_name, res in results.items()]) + "\n")
         f.write("-".join("" for _ in range(len(hdr))) + "\n")
+    return fname
 
 
-def store_models(models: List[BaseModel], model_name: str, dataset: str, path: str):
+def store_model(model, model_name: str, dataset: str):
     output_dir = f'../models/{dataset}/{model_name}/{dt.now().strftime("%d_%m_%Y_%H_%M_%S")}'
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
-
-    print('Saving models')
-    for i, model in enumerate(models):
-        model.save(f"{output_dir}/model_{i}")
-    print('Models saved')
+    model.save(f"{output_dir}/model")
 
 
 def resolve_optimizer(optimizer_str: str):
@@ -215,49 +213,15 @@ def resolve_trainer(trainer_str: str, optimizer_factory, **kwargs):
             trainer.train_som(data)
     elif trainer_str == 'MemAE':
         print(f"training on {device}")
-        if dataset.name == 'Arrhythmia':
-            enc_layers = [
-                nn.Linear(D, 10), nn.Tanh(),
-                nn.Linear(10, L)
-            ]
-            dec_layers = [
-                nn.Linear(L, 10), nn.Tanh(),
-                nn.Linear(10, D)
-            ]
-        elif dataset.name == 'Thyroid':
-            enc_layers = [
-                nn.Linear(D, 12),
-                nn.Tanh(),
-                nn.Linear(12, 4),
-                nn.Tanh(),
-                nn.Linear(4, L)
-            ]
-            dec_layers = [
-                nn.Linear(L, 4),
-                nn.Tanh(),
-                nn.Linear(4, 12),
-                nn.Tanh(),
-                nn.Linear(12, D)
-            ]
-        else:
-            enc_layers = [
-                nn.Linear(D, 60), nn.Tanh(),
-                nn.Linear(60, 30), nn.Tanh(),
-                nn.Linear(30, 10), nn.Tanh(),
-                nn.Linear(10, L)
-            ]
-            dec_layers = [
-                nn.Linear(L, 10), nn.Tanh(),
-                nn.Linear(10, 30), nn.Tanh(),
-                nn.Linear(30, 60), nn.Tanh(),
-                nn.Linear(60, D)
-            ]
-        model = MemAE(
-            kwargs.get('mem_dim'), enc_layers, dec_layers, kwargs.get('shrink_thres'), device
-        ).to(device)
+        model = MemAE(dataset.name, D, device).to(device)
         alpha = kwargs.get("alpha", 2e-4)
         trainer = MemAETrainer(
-            alpha=alpha, model=model, device=device, lr=kwargs.get("learning_rate"), batch_size=batch_size
+            alpha=alpha,
+            model=model,
+            device=device,
+            lr=kwargs.get("learning_rate"),
+            batch_size=batch_size,
+            n_epochs=kwargs.get("num_epochs", 200)
         )
     elif trainer_str == "DUAD":
         model = DUAD(D, 10)
@@ -342,8 +306,8 @@ if __name__ == "__main__":
     # split data in train and test sets
     # we train only on the majority class
 
-    train_set, test_set = dataset.one_class_split_train_test_inject(test_perc=0.50, inject_perc=args.rho)
-    #dm = DataManager(train_set, test_set, batch_size=batch_size, validation=1e-3)
+    train_set, test_set = dataset.train_test_split(test_ratio=0.50, corruption_ratio=args.rho)
+    dm = DataManager(train_set, test_set, batch_size=batch_size)
 
     # safely create save path
     check_dir(args.save_path)
@@ -413,9 +377,7 @@ if __name__ == "__main__":
         final_results = average_results(all_results)
         store_results(final_results, params, args.model, args.dataset, args.dataset_path)
     else:
-
         optimizer = resolve_optimizer(args.optimizer)
-
         model, model_trainer = resolve_trainer(
             args.model, optimizer, latent_dim=L, mem_dim=args.mem_dim, shrink_thres=args.shrink_thres,
             n_som=n_som,
@@ -425,13 +387,14 @@ if __name__ == "__main__":
             num_cluster=num_cluster,
             reg_covar=args.reg_covar,
             learning_rate=args.lr,
+            num_epochs=args.num_epochs
         )
 
         if model and model_trainer:
             # Training and evaluation on different runs
             all_results = defaultdict(list)
             all_models = []
-            thresh = 1. - dataset.anomaly_ratio
+            anomaly_thresh = 1 - dataset.anomaly_ratio
 
             if args.test_mode:
                 device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
@@ -439,40 +402,41 @@ if __name__ == "__main__":
                     model = BaseModel.load(f"{args.model_path}/{model_file_name}")
                     model = model.to(device)
                     model_trainer.model = model
-                    print('Evaluating the model on test set')
+                    print("Evaluating the model on test set")
                     # We test with the minority samples as the positive class
-                    results, test_z, test_label, energy = model_trainer.evaluate_on_test_set(energy_threshold=thresh)
+                    results, test_z, test_label, energy = model_trainer.evaluate_on_test_set(energy_threshold=anomaly_thresh)
                     for k, v in results.items():
                         all_results[k].append(v)
             else:
+                best_f1 = 0.
                 for r in range(n_runs):
-                    print(f"Run number {r}/{n_runs}")
-                    metrics = model_trainer.train(train_set)
-                    print('Finished learning process')
-                    print('Evaluating model on test set')
+                    print(f"Run {r+1} of {n_runs}")
+                    metrics = model_trainer.train(dm.get_train_set())
+                    print("Finished learning process")
+                    print("Evaluating model on test set")
                     # We test with the minority samples as the positive class
-                    results, test_z, test_label, energy = model_trainer.test(test_set)
+                    y_true, scores = model_trainer.test(dm.get_test_set())
+                    results = model_trainer.evaluate(y_true, scores, anomaly_thresh)
+                    print(results)
                     for k, v in results.items():
                         all_results[k].append(v)
-                    all_models.append(deepcopy(model))
+                    # Persist the best model
+                    if results.get("F1-Score") > best_f1:
+                        store_model(model, args.model, args.dataset)
                     model.reset()
 
             # Calculate Means and Stds of metrics
             print('Averaging results')
             final_results = average_results(all_results)
 
-            params = dict({"BatchSize": batch_size, "Epochs": args.num_epochs, "rho": args.rho,
-                           'threshold': args.p_threshold}, **model.get_params())
+            params = dict(
+                {"BatchSize": batch_size, "Epochs": args.num_epochs, "CorruptionRatio": args.rho, "Threshold": anomaly_thresh},
+                **model.get_params()
+            )
             # Store the average of results
-            store_results(final_results, params, args.model, args.dataset, args.dataset_path)
+            fname = store_results(final_results, params, args.model, args.dataset, args.dataset_path)
+            print(f"Results stored in {fname}")
 
-            # Persist models
-            if not args.test_mode:
-                store_models(all_models, args.model, args.dataset, args.dataset_path)
-
-            if args.vizualization and args.model in vizualizable_models:
-                plot_3D_latent(test_z, test_label)
-                plot_energy_percentile(energy)
         else:
-            print(f'Error: Could not train {args.dataset} on model {args.model}')
+            print(f"Error: Could not train {args.dataset} on model {args.model}")
 

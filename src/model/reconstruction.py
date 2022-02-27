@@ -322,11 +322,11 @@ class SOMDAGMM(BaseModel):
 
 class MemAutoEncoder(BaseModel):
 
-    def __init__(self, mem_dim: int, enc_layers: list, dec_layers: list, shrink_thres=0.0025, device='cpu'):
+    def __init__(self, dataset_name: str, in_features: int, *kwargs):
         """
         Implements model Memory AutoEncoder as described in the paper
         `Memorizing Normality to Detect Anomaly: Memory-augmented Deep Autoencoder (MemAE) for Unsupervised Anomaly Detection`.
-        A few adjustments were made to train the model on matrices instead of tensors.
+        A few adjustments were made to train the model on tabular data instead of images.
         This version is not meant to be trained on image datasets.
 
         - Original github repo: https://github.com/donggong1/memae-anomaly-detection
@@ -341,23 +341,81 @@ class MemAutoEncoder(BaseModel):
 
         Parameters
         ----------
-        D: Feature space dimension
-        L: Latent space dimension
-        mem_dim: Dimension of the memory matrix
-        shrink_thres: The shrink threshold used in the memory module
-        device: The Torch-compatible device used during training
+        dataset_name: Name of the dataset (used to set the parameters)
+        in_features: Number of variables in the dataset
         """
-        super(MemAutoEncoder, self).__init__()
+        super(MemAutoEncoder, self).__init__(in_features, *kwargs)
+        self.mem_rep = None
+        self.decoder = None
+        self.encoder = None
+        self.L = None
+        self.dataset_name = dataset_name
+        self.resolve_params(dataset_name)
 
-        self.D = enc_layers[0].in_features
-        self.L = enc_layers[-1].out_features
+    def resolve_params(self, dataset_name: str):
+        mem_dim = 50
+        shrink_thres = 0.0025
+        if dataset_name == 'Arrhythmia':
+            enc_layers = [
+                nn.Linear(self.D, self.D // 2),
+                nn.Tanh(),
+                nn.Linear(self.D // 2, self.D // 4),
+                nn.Tanh(),
+                nn.Linear(self.D // 4, self.D // 6),
+                nn.Tanh(),
+                nn.Linear(self.D // 6, 10)
+            ]
+            dec_layers = [
+                nn.Linear(10, self.D // 6),
+                nn.Tanh(),
+                nn.Linear(self.D // 6, self.D // 4),
+                nn.Tanh(),
+                nn.Linear(self.D // 4, self.D // 2),
+                nn.Tanh(),
+                nn.Linear(self.D // 2, self.D),
+            ]
+        elif dataset_name == 'Thyroid':
+            enc_layers = [
+                nn.Linear(self.D, 4),
+                nn.Tanh(),
+                nn.Linear(4, 2),
+                nn.Tanh(),
+                nn.Linear(2, 1)
+            ]
+            dec_layers = [
+                nn.Linear(1, 2),
+                nn.Tanh(),
+                nn.Linear(2, 4),
+                nn.Tanh(),
+                nn.Linear(4, self.D)
+            ]
+        else:
+            enc_layers = [
+                nn.Linear(self.D, 60),
+                nn.Tanh(),
+                nn.Linear(60, 30),
+                nn.Tanh(),
+                nn.Linear(30, 10),
+                nn.Tanh(),
+                nn.Linear(10, 3)
+            ]
+            dec_layers = [
+                nn.Linear(3, 10),
+                nn.Tanh(),
+                nn.Linear(10, 30),
+                nn.Tanh(),
+                nn.Linear(30, 60),
+                nn.Tanh(),
+                nn.Linear(60, self.D)
+            ]
         self.encoder = nn.Sequential(
             *enc_layers
-        ).to(device)
-        self.mem_rep = MemoryUnit(mem_dim, self.L, shrink_thres, device=device).to(device)
+        ).to(self.device)
         self.decoder = nn.Sequential(
             *dec_layers
-        ).to(device)
+        ).to(self.device)
+        self.L = enc_layers[-1].out_features
+        self.mem_rep = MemoryUnit(mem_dim, self.L, shrink_thres, device=self.device).to(self.device)
 
     def forward(self, x):
         f_e = self.encoder(x)
@@ -367,7 +425,7 @@ class MemAutoEncoder(BaseModel):
 
     def get_params(self):
         return {
-            'L': self.L,
-            'D': self.D
+            "L": self.L,
+            "D": self.D
         }
 
