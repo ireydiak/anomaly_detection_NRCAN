@@ -84,7 +84,7 @@ class DUADTrainer:
         mean_loss = np.inf
         self.dm.update_train_set(self.dm.get_selected_indices())
         train_ldr = self.dm.get_train_set()
-        REEVAL_LIMIT = 20
+        REEVAL_LIMIT = 5
 
         # run clustering, select instances from low variance clusters
         # run clustering, select instances from low variance clusters
@@ -122,7 +122,7 @@ class DUADTrainer:
         L_old = [-1]
         # print(set(L).difference(set(L_old)))
         reev_count = 0
-        while len(set(L_old).difference(set(L))) <= 10 or reev_count > REEVAL_LIMIT:
+        while len(set(L_old).difference(set(L))) <= 10 and reev_count < REEVAL_LIMIT:
             for epoch in range(n_epochs):
                 print(f"\nEpoch: {epoch + 1} of {n_epochs}")
                 if (epoch + 1) % self.r == 0:
@@ -183,6 +183,8 @@ class DUADTrainer:
                             mean_loss = loss / (i + 1)
                             t.set_postfix(loss='{:05.3f}'.format(mean_loss))
                             t.update()
+            print(f'Reeval  count:{reev_count}\n')
+            reev_count += 1
             # self.evaluate_on_test_set()
             # break
         return mean_loss
@@ -312,21 +314,6 @@ class DUADTrainer:
         train_score = []
 
         with torch.no_grad():
-            # Create pytorch's train data_loader
-            train_loader = self.dm.get_init_train_loader()
-            for i, data in enumerate(train_loader, 0):
-                # transfer tensors to selected device
-                train_inputs = data[0].float().to(self.device)
-
-                # forward pass
-                code, X_prime, h_x = self.model(train_inputs)
-
-                # (X - X_prime)
-
-                # train_score.append(h_x.cpu().numpy())
-                train_score.append(((train_inputs - X_prime) ** 2).sum(axis=-1).squeeze().cpu().numpy())
-            train_score = np.concatenate(train_score, axis=0)
-
             # Calculate score using estimated parameters
             test_score = []
             test_labels = []
@@ -350,12 +337,15 @@ class DUADTrainer:
 
             combined_score = np.concatenate([train_score, test_score], axis=0)
 
+            # Evaluation
+            comp_threshold = 100 * sum(test_labels == 0) / len(test_labels)
+            res_max = score_recall_precision(combined_score, test_score, test_labels)
             res = score_recall_precision_w_thresold(combined_score, test_score, test_labels, pos_label=pos_label,
-                                                    threshold=energy_threshold)
-
-            score_recall_precision(combined_score, test_score, test_labels)
+                                                    threshold=comp_threshold)
 
             # switch back to train mode
             self.model.train()
+
+            res = dict(res, **res_max)
 
             return res, test_z, test_labels, combined_score

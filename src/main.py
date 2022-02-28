@@ -439,7 +439,7 @@ if __name__ == "__main__":
                 model, model_trainer = resolve_trainer(
                     args.model, optimizer, latent_dim=L, mem_dim=args.mem_dim, shrink_thres=args.shrink_thres,
                     n_som=n_som,
-                    r=r,
+                    r=args.r,
                     p_s=p_s,
                     p_0=p_0,
                     num_cluster=num_cluster,

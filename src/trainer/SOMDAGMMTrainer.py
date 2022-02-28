@@ -122,21 +122,6 @@ class SOMDAGMMTrainer:
             train_labels = []
             train_z = []
 
-            for i, data in enumerate(train_loader, 0):
-                # transfer tensors to selected device
-                train_inputs, train_inputs_labels = data[0].float().to(self.device), data[1]
-
-                # forward pass
-                code, x_prime, cosim, z, gamma = self.model(train_inputs)
-                sample_energy, pen_cov_mat = self.model.estimate_sample_energy(
-                    z, train_phi, train_mu, train_cov, average_energy=False, device=self.device
-                )
-
-                train_energy.append(sample_energy.cpu().numpy())
-                train_z.append(z.cpu().numpy())
-                train_labels.append(train_inputs_labels.numpy())
-
-            train_energy = np.concatenate(train_energy, axis=0)
 
             test_energy = []
             test_labels = []
@@ -160,20 +145,14 @@ class SOMDAGMMTrainer:
 
             combined_energy = np.concatenate([train_energy, test_energy], axis=0)
 
-            thresh = np.percentile(combined_energy, energy_threshold)
-            print("Threshold :", thresh)
-
-            # Prediction using the threshold value
-            y_pred = (test_energy > thresh).astype(int)
-            y_true = test_labels.astype(int)
-
+            comp_threshold = 100 * sum(test_labels == 0) / len(test_labels)
+            res_max = score_recall_precision(combined_energy, test_energy, test_labels)
             res = score_recall_precision_w_thresold(combined_energy, test_energy, test_labels, pos_label=pos_label,
-                                                    threshold=energy_threshold)
+                                                    threshold=comp_threshold)
+
+            res = dict(res, **res_max)
 
             # switch back to train mode
             self.model.train()
 
-            # dump different metrics
-            score_recall_precision(combined_energy, test_energy, test_labels)
-
-            return res, test_z, test_labels, combined_energy
+        return res, test_z, test_labels, combined_energy
