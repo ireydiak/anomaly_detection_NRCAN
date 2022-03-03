@@ -16,16 +16,27 @@ from .utils import weights_init_xavier
 # init_kernel = tf.contrib.layers.xavier_initializer()
 
 class ALAD(BaseModel):
-    def __init__(self, D: int, L: int, device):
-        super(ALAD, self).__init__()
-        self.device = device
-        self.L = L
-        self.D = D
-        self.D_xz = DiscriminatorXZ(D, 128, L, negative_slope=0.2, p=0.5)
-        self.D_xx = DiscriminatorXX(D, 128, negative_slope=0.2, p=0.2)
-        self.D_zz = DiscriminatorZZ(L, L, negative_slope=0.2, p=0.2)
-        self.G = Generator(L, D, negative_slope=1e-4)
-        self.E = Encoder(D, L)
+    def __init__(self, **kwargs):
+        self.G = None
+        self.E = None
+        self.D_zz = None
+        self.D_xx = None
+        self.D_xz = None
+        self.latent_dim = None
+        super(ALAD, self).__init__(**kwargs)
+
+    def resolve_params(self, dataset_name: str):
+        if dataset_name == "KDD10":
+            self.latent_dim = 1
+        elif dataset_name == "Arrhythmia":
+            self.latent_dim = 64
+        else:
+            self.latent_dim = self.in_features // 2
+        self.D_xz = DiscriminatorXZ(self.in_features, 128, self.latent_dim, negative_slope=0.2, p=0.5)
+        self.D_xx = DiscriminatorXX(self.in_features, 128, negative_slope=0.2, p=0.2)
+        self.D_zz = DiscriminatorZZ(self.latent_dim, self.latent_dim, negative_slope=0.2, p=0.2)
+        self.G = Generator(self.latent_dim, self.in_features, negative_slope=1e-4)
+        self.E = Encoder(self.in_features, self.latent_dim)
         self.D_xz.apply(weights_init_xavier)
         self.D_xx.apply(weights_init_xavier)
         self.D_zz.apply(weights_init_xavier)
@@ -59,8 +70,8 @@ class ALAD(BaseModel):
 
     def get_params(self):
         return {
-            'L': self.L,
-            'D': self.D
+            'latent_dim': self.latent_dim,
+            'in_features': self.in_features
         }
 
 

@@ -37,21 +37,6 @@ class ALADTrainer(BaseTrainer):
             lr=self.lr, betas=(0.5, 0.999)
         )
 
-    def test(self, dataset: DataLoader) -> Union[np.array, np.array]:
-        self.model.eval()
-        y_true, scores = [], []
-        with torch.no_grad():
-            for row in dataset:
-                X, y = row
-                X = X.to(self.device).float()
-
-                score = self.score(X)
-
-                y_true.extend(y.cpu().tolist())
-                scores.extend(score.cpu().tolist())
-
-        return np.array(y_true), np.array(scores)
-
     def train_iter_dis(self, X):
         # Labels
         y_true = Variable(torch.zeros(X.size(0), 1)).to(self.device)

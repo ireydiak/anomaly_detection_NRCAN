@@ -1,16 +1,22 @@
 import copy
 import gzip
 import pickle
+from abc import abstractmethod
+
 import torch
 
 from torch import nn
 
+
 class BaseModel(nn.Module):
 
-    def __init__(self, in_features: int, device: str):
+    def __init__(self, dataset_name: str, in_features: int, n_instances: int, device: str):
         super().__init__()
+        self.dataset_name = dataset_name
         self.device = device
-        self.D = in_features
+        self.in_features = in_features
+        self.n_instances = n_instances
+        self.resolve_params(dataset_name)
 
     def reset(self):
         self.apply(self.weight_reset)
@@ -28,6 +34,10 @@ class BaseModel(nn.Module):
         assert isinstance(model, BaseModel)
         return model
 
+    @abstractmethod
+    def resolve_params(self, dataset_name: str):
+        pass
+
     def save(self, filename):
         # Save model to file (.pklz)
         # model = copy.deepcopy(self.detach())
@@ -35,4 +45,4 @@ class BaseModel(nn.Module):
         # with gzip.open(filename, 'wb') as f:
         #     pickle.dump(model, f, protocol=pickle.HIGHEST_PROTOCOL)
         torch.save(self.state_dict(), filename + "pt")
-        #return torch.load(weights_path)
+        # return torch.load(weights_path)

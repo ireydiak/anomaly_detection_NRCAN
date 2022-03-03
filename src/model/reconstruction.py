@@ -9,8 +9,8 @@ from minisom import MiniSom
 from .BaseModel import BaseModel
 from .memory_module import MemoryUnit
 
-from model import AutoEncoder as AE
-from model import GMM
+from . import AutoEncoder as AE
+from . import GMM
 
 
 class DAGMM(BaseModel):
@@ -20,45 +20,51 @@ class DAGMM(BaseModel):
     Simply put, it's an end-to-end trained auto-encoder network complemented by a distinct gaussian mixture network.
     """
 
-    def __init__(self, input_size, ae_layers=None, gmm_layers=None, lambda_1=0.1, lambda_2=0.005, device='cpu',
-                 reg_covar=1e-12):
-        """
-        DAGMM constructor
+    def __init__(self, lambda_1=0.005, lambda_2=0.1, reg_covar=1e-12, **kwargs):
+        self.lambda_1 = lambda_1
+        self.lambda_2 = lambda_2
+        self.reg_covar = reg_covar
+        self.cosim = nn.CosineSimilarity()
+        self.softmax = nn.Softmax(dim=-1)
+        self.phi, self.mu, self.cov_mat = None, None, None
+        self.K = 4
+        self.latent_dim = 1
+        self.ae, self.gmm = None, None
+        super(DAGMM, self).__init__(**kwargs)
 
-        Parameters
-        ----------
-        input_size: Number of lines
-        ae_layers: Layers for the Auto Encoder network
-        gmm_layers: Layers for the GMM network
-        lambda_1: Parameter lambda_1 for the objective function
-        lambda_2: Parameter lambda_2 for the objective function
-        """
-        super(DAGMM, self).__init__()
-
+    def resolve_params(self, dataset_name: str):
         # defaults to parameters described in section 4.3 of the paper
         # https://sites.cs.ucsb.edu/~bzong/doc/iclr18-dagmm.pdf.
-        if not ae_layers:
-            enc_layers = [(input_size, 60, nn.Tanh()), (60, 30, nn.Tanh()), (30, 10, nn.Tanh()), (10, 1, None)]
-            dec_layers = [(1, 10, nn.Tanh()), (10, 30, nn.Tanh()), (30, 60, nn.Tanh()), (60, input_size, None)]
+        if dataset_name == 'Arrhythmia':
+            enc_layers = [(self.in_features, 10, nn.Tanh()), (10, self.latent_dim, None)]
+            dec_layers = [(self.latent_dim, 10, nn.Tanh()), (10, self.in_features, None)]
+            gmm_layers = [(self.latent_dim + 2, 10, nn.Tanh()), (None, None, nn.Dropout(0.5)),
+                          (10, 2, nn.Softmax(dim=-1))]
+        elif dataset_name == "Thyroid":
+            enc_layers = [(self.in_features, 12, nn.Tanh()), (12, 4, nn.Tanh()), (4, self.latent_dim, None)]
+            dec_layers = [(self.latent_dim, 4, nn.Tanh()), (4, 12, nn.Tanh()), (12, self.in_features, None)]
+            gmm_layers = [(self.latent_dim + 2, 10, nn.Tanh()), (None, None, nn.Dropout(0.5)),
+                          (10, 2, nn.Softmax(dim=-1))]
         else:
-            enc_layers = ae_layers[0]
-            dec_layers = ae_layers[1]
-
-        gmm_layers = gmm_layers or [(3, 10, nn.Tanh()), (None, None, nn.Dropout(0.5)), (10, 4, nn.Softmax(dim=-1))]
+            enc_layers = [
+                (self.in_features, 60, nn.Tanh()),
+                (60, 30, nn.Tanh()),
+                (30, 10, nn.Tanh()),
+                (10, self.latent_dim, None)
+            ]
+            dec_layers = [
+                (self.latent_dim, 10, nn.Tanh()),
+                (10, 30, nn.Tanh()),
+                (30, 60, nn.Tanh()),
+                (60, self.in_features, None)]
+            gmm_layers = [
+                (self.latent_dim + 2, 10, nn.Tanh()),
+                (None, None, nn.Dropout(0.5)),
+                (10, 4, nn.Softmax(dim=-1))
+            ]
 
         self.ae = AE(enc_layers, dec_layers)
         self.gmm = GMM.GMM(gmm_layers)
-
-        self.cosim = nn.CosineSimilarity()
-        self.softmax = nn.Softmax(dim=-1)
-        self.phi = None
-        self.mu = None
-        self.cov_mat = None
-        self.K = None
-        self.lambda_1 = lambda_1
-        self.lambda_2 = lambda_2
-        self.device = device
-        self.reg_covar = reg_covar
 
     def forward(self, x: torch.Tensor):
         """
@@ -246,7 +252,7 @@ class DAGMM(BaseModel):
         return {
             "\u03BB_1": self.lambda_1,
             "\u03BB_2": self.lambda_2,
-            "L": self.ae.L,
+            "latent_dim": self.ae.latent_dim,
             "K": self.gmm.K
         }
 
@@ -262,22 +268,36 @@ default_som_args = {
 
 
 class SOMDAGMM(BaseModel):
-    def __init__(self, input_len: int, dagmm: DAGMM, som_args: dict = None, **kwargs):
-        super(SOMDAGMM, self).__init__()
-        self.som_args = som_args or default_som_args
+    def __init__(self, n_som: int, lambda_1=0.1, lambda_2=0.005, **kwargs):
+        self.n_som = n_som
+        self.lambda_1 = lambda_1
+        self.lambda_2 = lambda_2
+        self.som_args = {}
+        self.soms = []
+        self.dagmm = None
+        super(SOMDAGMM, self).__init__(**kwargs)
+
+    def resolve_params(self, dataset_name: str):
+        # set these values according to the used dataset
         # Use 0.6 for KDD; 0.8 for IDS2018 with babel as neighborhood function as suggested in the paper.
+        grid_length = int(np.sqrt(5 * np.sqrt(self.n_instances))) // 2
+        grid_length = 32 if grid_length > 32 else grid_length
+        self.som_args = {
+            "x": grid_length,
+            "y": grid_length,
+            "lr": 0.6,
+            "neighborhood_function": "bubble",
+            'n_epoch': 8000,
+            'n_som': self.n_som
+        }
         self.soms = [MiniSom(
-            self.som_args['x'], self.som_args['y'], input_len,
+            self.som_args['x'], self.som_args['y'], self.in_features,
             neighborhood_function=self.som_args['neighborhood_function'],
             learning_rate=self.som_args['lr']
         )] * self.som_args.get("n_som", 1)
-        self.dagmm = dagmm
-        self.lamb_1 = kwargs.get('lamb_1', 0.1)
-        self.lamb_2 = kwargs.get('lamb_2', 0.005)
+        self.dagmm = DAGMM(dataset_name=dataset_name)
 
-        # pretrain som as part of the initialization process
-
-    def train_som(self, X):
+    def train_som(self, X: torch.Tensor):
         # SOM-generated low-dimensional representation
         for i in range(len(self.soms)):
             self.soms[i].train(X, self.som_args['n_epoch'])
@@ -308,8 +328,8 @@ class SOMDAGMM(BaseModel):
 
     def compute_loss(self, X, X_prime, energy, Sigma):
         rec_loss = ((X - X_prime) ** 2).mean()
-        sample_energy = self.lamb_1 * energy
-        penalty_term = self.lamb_2 * Sigma
+        sample_energy = self.lambda_1 * energy
+        penalty_term = self.lambda_2 * Sigma
 
         return rec_loss + sample_energy + penalty_term
 
@@ -322,7 +342,7 @@ class SOMDAGMM(BaseModel):
 
 class MemAutoEncoder(BaseModel):
 
-    def __init__(self, dataset_name: str, in_features: int, *kwargs):
+    def __init__(self, **kwargs):
         """
         Implements model Memory AutoEncoder as described in the paper
         `Memorizing Normality to Detect Anomaly: Memory-augmented Deep Autoencoder (MemAE) for Unsupervised Anomaly Detection`.
@@ -344,39 +364,37 @@ class MemAutoEncoder(BaseModel):
         dataset_name: Name of the dataset (used to set the parameters)
         in_features: Number of variables in the dataset
         """
-        super(MemAutoEncoder, self).__init__(in_features, *kwargs)
         self.mem_rep = None
         self.decoder = None
         self.encoder = None
-        self.L = None
-        self.dataset_name = dataset_name
-        self.resolve_params(dataset_name)
+        self.latent_dim = None
+        super(MemAutoEncoder, self).__init__(**kwargs)
 
     def resolve_params(self, dataset_name: str):
         mem_dim = 50
         shrink_thres = 0.0025
         if dataset_name == 'Arrhythmia':
             enc_layers = [
-                nn.Linear(self.D, self.D // 2),
+                nn.Linear(self.in_features, self.in_features // 2),
                 nn.Tanh(),
-                nn.Linear(self.D // 2, self.D // 4),
+                nn.Linear(self.in_features // 2, self.in_features // 4),
                 nn.Tanh(),
-                nn.Linear(self.D // 4, self.D // 6),
+                nn.Linear(self.in_features // 4, self.in_features // 6),
                 nn.Tanh(),
-                nn.Linear(self.D // 6, 10)
+                nn.Linear(self.in_features // 6, 10)
             ]
             dec_layers = [
-                nn.Linear(10, self.D // 6),
+                nn.Linear(10, self.in_features // 6),
                 nn.Tanh(),
-                nn.Linear(self.D // 6, self.D // 4),
+                nn.Linear(self.in_features // 6, self.in_features // 4),
                 nn.Tanh(),
-                nn.Linear(self.D // 4, self.D // 2),
+                nn.Linear(self.in_features // 4, self.in_features // 2),
                 nn.Tanh(),
-                nn.Linear(self.D // 2, self.D),
+                nn.Linear(self.in_features // 2, self.in_features),
             ]
         elif dataset_name == 'Thyroid':
             enc_layers = [
-                nn.Linear(self.D, 4),
+                nn.Linear(self.in_features, 4),
                 nn.Tanh(),
                 nn.Linear(4, 2),
                 nn.Tanh(),
@@ -387,11 +405,11 @@ class MemAutoEncoder(BaseModel):
                 nn.Tanh(),
                 nn.Linear(2, 4),
                 nn.Tanh(),
-                nn.Linear(4, self.D)
+                nn.Linear(4, self.in_features)
             ]
         else:
             enc_layers = [
-                nn.Linear(self.D, 60),
+                nn.Linear(self.in_features, 60),
                 nn.Tanh(),
                 nn.Linear(60, 30),
                 nn.Tanh(),
@@ -406,7 +424,7 @@ class MemAutoEncoder(BaseModel):
                 nn.Tanh(),
                 nn.Linear(30, 60),
                 nn.Tanh(),
-                nn.Linear(60, self.D)
+                nn.Linear(60, self.in_features)
             ]
         self.encoder = nn.Sequential(
             *enc_layers
@@ -414,8 +432,8 @@ class MemAutoEncoder(BaseModel):
         self.decoder = nn.Sequential(
             *dec_layers
         ).to(self.device)
-        self.L = enc_layers[-1].out_features
-        self.mem_rep = MemoryUnit(mem_dim, self.L, shrink_thres, device=self.device).to(self.device)
+        self.latent_dim = enc_layers[-1].out_features
+        self.mem_rep = MemoryUnit(mem_dim, self.latent_dim, shrink_thres, device=self.device).to(self.device)
 
     def forward(self, x):
         f_e = self.encoder(x)
@@ -425,7 +443,6 @@ class MemAutoEncoder(BaseModel):
 
     def get_params(self):
         return {
-            "L": self.L,
-            "D": self.D
+            "latent_dim": self.latent_dim,
+            "in_features": self.in_features
         }
-

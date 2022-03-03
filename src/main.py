@@ -153,8 +153,8 @@ def resolve_optimizer(optimizer_str: str):
 def resolve_trainer(trainer_str: str, optimizer_factory, **kwargs):
     model, trainer = None, None
     device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
-    D = dataset.get_shape()[1]
-    L = kwargs.get("latent_dim", D // 2)
+    in_features = dataset.get_shape()[1]
+    latent_dim = kwargs.get("latent_dim", in_features // 2)
     reg_covar = kwargs.get("reg_covar", 1e-12)
     if trainer_str == 'DAGMM' or trainer_str == 'SOM-DAGMM' or trainer_str == 'AE':
         if dataset.name == 'Arrhythmia' or (dataset.name == 'Thyroid' and trainer_str != 'DAGMM'):
@@ -192,7 +192,6 @@ def resolve_trainer(trainer_str: str, optimizer_factory, **kwargs):
                 ae_layers=(enc_layers, dec_layers),
                 gmm_layers=gmm_layers, reg_covar=reg_covar
             )
-            # TODO
             # set these values according to the used dataset
             grid_length = int(np.sqrt(5 * np.sqrt(len(dataset)))) // 2
             grid_length = 32 if grid_length > 32 else grid_length
@@ -211,6 +210,7 @@ def resolve_trainer(trainer_str: str, optimizer_factory, **kwargs):
             som_train_data = dataset.split_train_test()[0]
             data = [som_train_data[i][0] for i in range(len(som_train_data))]
             trainer.train_som(data)
+
     elif trainer_str == 'MemAE':
         print(f"training on {device}")
         model = MemAE(dataset.name, D, device).to(device)
@@ -230,8 +230,6 @@ def resolve_trainer(trainer_str: str, optimizer_factory, **kwargs):
                               num_cluster=kwargs.get('num_cluster'))
     elif trainer_str == 'ALAD':
         # bsize = kwargs.get('batch_size', None)
-        lr = kwargs.get('learning_rate', None)
-        assert batch_size and lr
         model = ALAD(D, L, device=device).to(device)
         trainer = ALADTrainer(
             model=model,
@@ -428,7 +426,7 @@ if __name__ == "__main__":
             # Calculate Means and Stds of metrics
             print('Averaging results')
             final_results = average_results(all_results)
-
+            print(final_results)
             params = dict(
                 {"BatchSize": batch_size, "Epochs": args.num_epochs, "CorruptionRatio": args.rho, "Threshold": anomaly_thresh},
                 **model.get_params()
