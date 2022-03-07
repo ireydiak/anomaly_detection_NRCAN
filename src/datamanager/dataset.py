@@ -1,7 +1,5 @@
 from . import AbstractDataset
 
-#from .AbstractDataset import AbstractDataset
-
 
 class ArrhythmiaDataset(AbstractDataset):
 
@@ -17,10 +15,6 @@ class IDS2018Dataset(AbstractDataset):
 
     def npz_key(self):
         return "ids2018"
-
-
-NPZ_FILENAME = 'kdd10_train.npz'
-BASE_PATH = '../data'
 
 
 class KDD10Dataset(AbstractDataset):

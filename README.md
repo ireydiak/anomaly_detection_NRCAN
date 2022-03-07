@@ -11,16 +11,17 @@ of the preprocessing pipeline (the file `process_ids2018.py` is a good starting 
 - Ideally, all experiments should have a jupyter notebook (found under `notebooks/experiments`)
 
 
-# Anomaly Detection in Network Traffic
-This repo collects different unsupervised machine learning methods to detect anomalies.
-We are interested mostly in anomalies within Power Grid networks but the implemented methods can also be applied in different areas such as healthcare.  
-
+# Deep unsupervised anomaly detection algorithms
+This repository collects different unsupervised machine learning algorithms to detect anomalies.
 ## Implemented models
 We have implemented the following models
-- [x] [DAGMM](https://sites.cs.ucsb.edu/~bzong/doc/iclr18-dagmm.pdf): An autoencoder trained in an end-to-end fashion with a Gaussian Mixture Model to minimize the energy of the sample space. Based on the model proposed by Zong et al.
-- [ ] MLAD: An unpublished model develop by our colleague Jianhai.
-- [x] [SOM-DAGMM](https://arxiv.org/pdf/2008.12686.pdf): Concatenates features of a DAGMM (reconstruction error and latent space of the AutoEncoder) with the features taken from a 2x2 Self-Organizing Map. Based on the model proposed by Chen et al.
-- [x] [MemAE](https://openaccess.thecvf.com/content_ICCV_2019/papers/Gong_Memorizing_Normality_to_Detect_Anomaly_Memory-Augmented_Deep_Autoencoder_for_Unsupervised_ICCV_2019_paper.pdf): A memory-augmented auto encoder
+- [x] [AutoEncoder]()
+- [x] [DAGMM](https://sites.cs.ucsb.edu/~bzong/doc/iclr18-dagmm.pdf)
+- [x] [SOM-DAGMM](https://arxiv.org/pdf/2008.12686.pdf)
+- [x] [MemAE](https://openaccess.thecvf.com/content_ICCV_2019/papers/Gong_Memorizing_Normality_to_Detect_Anomaly_Memory-Augmented_Deep_Autoencoder_for_Unsupervised_ICCV_2019_paper.pdf)
+- [x] [DUAD]()
+- [x] [NeuTraLAD]()
+- 
 
 ## Dependencies
 We recommend building an environment using [conda](https://docs.conda.io/en/latest/) as most of the dependencies come be preinstalled.

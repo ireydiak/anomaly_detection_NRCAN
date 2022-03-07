@@ -4,7 +4,7 @@ from .BaseModel import BaseModel
 
 
 class DUAD(BaseModel):
-    def __init__(self, r, p0=.35, p=.30, **kwargs):
+    def __init__(self, r=10, p0=.35, p=.30, **kwargs):
         self.cosim = nn.CosineSimilarity()
         self.p0 = p0
         self.p = p

@@ -34,7 +34,8 @@ class AbstractDataset(Dataset):
             self.y = X[:, -1]
 
         self.anomaly_ratio = (X[:, -1] == anomaly_label).sum() / len(X)
-        self.N = len(self.X)
+        self.n_instances = self.X.shape[0]
+        self.n_features = self.X.shape[1]
 
     def __len__(self):
         return len(self.X)
@@ -61,8 +62,8 @@ class AbstractDataset(Dataset):
     def split_train_test(self, test_perc=.2, seed=None) -> Tuple[Subset, Subset]:
         if seed:
             torch.manual_seed(seed)
-        num_test_sample = int(self.N * test_perc)
-        shuffled_idx = torch.randperm(self.N).long()
+        num_test_sample = int(self.n_instances * test_perc)
+        shuffled_idx = torch.randperm(self.n_instances).long()
         train_set = Subset(self, shuffled_idx[num_test_sample:])
         test_set = Subset(self, shuffled_idx[:num_test_sample])
 
@@ -82,7 +83,7 @@ class AbstractDataset(Dataset):
              self.get_data_index_by_label(label=0 if label == 1 else 1)]
         )
 
-        print(f'Size of data with label ={label} :', 100 * len(label_data_index) / self.N)
+        print(f'Size of data with label ={label} :', 100 * len(label_data_index) / self.n_instances)
 
         test_set = Subset(self, remaining_index)
 
@@ -99,7 +100,7 @@ class AbstractDataset(Dataset):
             torch.manual_seed(seed)
 
         # Randomly sample normal data with the corresponding proportion
-        all_indices = torch.ones(self.N)
+        all_indices = torch.ones(self.n_instances)
         label_data_index = self.get_data_index_by_label(label=label)
         num_test_sample = int(len(label_data_index) * test_ratio)
         shuffled_idx = torch.randperm(len(label_data_index)).long()
@@ -121,7 +122,7 @@ class AbstractDataset(Dataset):
         # Consider the remaining data as the test set
         all_indices[train_indices] = 0
         remaining_index = all_indices.nonzero().squeeze()
-        print(f"Size of data with label ={label} :", len(label_data_index) / self.N)
+        print(f"Size of data with label ={label} :", len(label_data_index) / self.n_instances)
 
         test_set = Subset(self, remaining_index)
 

@@ -1,25 +1,14 @@
 import warnings
-from copy import deepcopy
-
-from matplotlib import pyplot as plt
-from sklearn.metrics import confusion_matrix, average_precision_score, precision_recall_curve, \
-    plot_precision_recall_curve
-from torch import nn
-from tqdm import trange
-
 import torch
 import numpy as np
-
+from copy import deepcopy
+from torch import nn
+from tqdm import trange
 from typing import Callable
-
-from sklearn import metrics
-
-from datamanager.DataManager import DataManager
-from model.DUAD import DUAD
+from src.datamanager.DataManager import DataManager
+from src.model.DUAD import DUAD
 from sklearn.mixture import GaussianMixture
-
-from utils.metrics import score_recall_precision, score_recall_precision_w_thresold
-from viz.viz import plot_2D_latent, plot_energy_percentile
+from src.utils.metrics import score_recall_precision, score_recall_precision_w_thresold
 
 
 class DUADTrainer:

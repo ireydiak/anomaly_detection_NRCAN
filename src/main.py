@@ -27,6 +27,8 @@ from model.transformers import NeuTraLAD
 from model.one_class import DeepSVDD
 from model.reconstruction import AutoEncoder as AE, DAGMM, MemAutoEncoder as MemAE, SOMDAGMM
 from model.adversarial import ALAD
+from src.datamanager import AbstractDataset
+from src.trainer.BaseTrainer import BaseTrainer
 from trainer.transformers import NeuTraLADTrainer
 from trainer.density import DSEBMTrainer
 from trainer.reconstruction import AutoEncoderTrainer as AETrainer, DAGMMTrainer, MemAETrainer, SOMDAGMMTrainer
@@ -96,7 +98,7 @@ def argument_parser():
 
     # =======================OC-SVM==========================
     parser.add_argument('--nu', type=float, default=0.5, help="The 'margin' for the SVM. Specifies the"
-                                                                "anomaly ratio in training data.")
+                                                              "anomaly ratio in training data.")
 
     # =======================DUAD=========================
     parser.add_argument('--r', type=int, default=10, help='Number of epoch required to re-evaluate the selection')
@@ -138,12 +140,40 @@ def store_model(model, model_name: str, dataset: str):
     model.save(f"{output_dir}/model")
 
 
-def resolve_optimizer(optimizer_str: str):
-    # Defaults to 'Adam'
-    optimizer_factory = optimizer_setup(optim.Adam, lr=args.lr)
-    if optimizer_str == 'SGD':
-        optimizer_factory = optimizer_setup(optim.SGD, lr=args.lr, momentum=0.9)
-    return optimizer_factory
+model_trainer_map = {
+    "AutoEncoder": (AE, AETrainer),
+    "DAGMM": (DAGMM, DAGMMTrainer),
+    "MemAE": (MemAE, MemAETrainer),
+    "SOMDAGMM": (SOMDAGMM, SOMDAGMMTrainer)
+}
+
+
+def resolve_model_trainer(
+        model_name: str,
+        dataset: AbstractDataset,
+        n_epochs: int,
+        batch_size: int,
+        learning_rate: float,
+        device: str
+) -> (BaseModel, BaseTrainer):
+    model_trainer_tuple = model_trainer_map.get(model_name, None)
+    assert model_trainer_tuple, "Model %s not found" % model_name
+    model, trainer = model_trainer_tuple
+    model = model(
+        dataset_name=dataset.name,
+        in_features=dataset.in_features,
+        n_instances=dataset.n_instances,
+        device=device
+    )
+    trainer = trainer(
+        model=model,
+        lr=learning_rate,
+        n_epochs=n_epochs,
+        batch_size=batch_size,
+        device=device
+    )
+
+    return model, trainer
 
 
 def resolve_trainer(trainer_str: str, optimizer_factory, **kwargs):
@@ -277,6 +307,159 @@ def resolve_trainer(trainer_str: str, optimizer_factory, **kwargs):
     return model, trainer
 
 
+def train_sklearn_model():
+    X_train, _ = get_X_from_loader(dm.get_train_set())
+    X_test, y_test = get_X_from_loader(dm.get_test_set())
+    print(f'Starting training: {args.model}')
+
+    all_results = defaultdict(list)
+    for r in range(n_runs):
+        print(f"Run number {r}/{n_runs}")
+
+        # Create the model with the appropriate parameters.
+        if args.model == 'RECFOREST':
+            model = RecForest(n_jobs=-1, random_state=-1)
+        elif args.model == 'OC-SVM':
+            print(f"Using nu = {args.nu}.")
+            model = OneClassSVM(kernel='rbf', gamma='scale', shrinking=False, verbose=True, nu=args.nu)
+        else:
+            print(f"'{args.model}' is not a supported sklearn model.")
+            exit(1)
+
+        model.fit(X_train)
+        print('Finished learning process')
+
+        anomaly_score_train = []
+        anomaly_score_test = []
+
+        # prediction for the training set
+        for i, X_i in enumerate(dm.get_train_set(), 0):
+            # OC-SVM predicts -1 for outliers (and 1 for inliers), however we want outliers to be 1.
+            # So we negate the predictions.
+            if args.model == 'OC-SVM':
+                anomaly_score_train.append(-model.predict(X_i[0].numpy()))
+            else:
+                anomaly_score_train.append(model.predict(X_i[0].numpy()))
+        anomaly_score_train = np.concatenate(anomaly_score_train)
+
+        # prediction for the test set
+        y_test = []
+        for i, X_i in enumerate(dm.get_test_set(), 0):
+            # OC-SVM predicts -1 for outliers (and 1 for inliers), however we want outliers to be 1.
+            # So we negate the predictions.
+            if args.model == 'OC-SVM':
+                anomaly_score_test.append(-model.predict(X_i[0].numpy()))
+            else:
+                anomaly_score_test.append(model.predict(X_i[0].numpy()))
+            y_test.append(X_i[1].numpy())
+
+        anomaly_score_test = np.concatenate(anomaly_score_test)
+        y_test = np.concatenate(y_test)
+
+        anomaly_score = np.concatenate([anomaly_score_train, anomaly_score_test])
+        # dump metrics with different thresholds
+        score_recall_precision(anomaly_score, anomaly_score_test, y_test)
+        results = score_recall_precision_w_thresold(anomaly_score, anomaly_score_test, y_test, pos_label=1,
+                                                    threshold=args.p_threshold)
+        for k, v in results.items():
+            all_results[k].append(v)
+
+    params = dict({"BatchSize": batch_size, "Epochs": args.num_epochs, "rho": args.rho,
+                   'threshold': args.p_threshold})
+
+    print('Averaging results')
+    final_results = average_results(all_results)
+    store_results(final_results, params, args.model, args.dataset, args.dataset_path)
+
+
+def train_pytorch_model(model, model_trainer, datamanager, thresh, device, model_path=None):
+    # Training and evaluation on different runs
+    all_results = defaultdict(list)
+    all_models = []
+
+    if args.test_mode:
+        for model_file_name in os.listdir(model_path):
+            model = BaseModel.load(f"{model_path}/{model_file_name}")
+            model = model.to(device)
+            model_trainer.model = model
+            print("Evaluating the model on test set")
+            # We test with the minority samples as the positive class
+            results, test_z, test_label, energy = model_trainer.evaluate_on_test_set(
+                energy_threshold=thresh)
+            for k, v in results.items():
+                all_results[k].append(v)
+    else:
+        for i in range(n_runs):
+            print(f"Run {i + 1} of {n_runs}")
+            _ = model_trainer.train(dm.get_train_set())
+            print("Finished learning process")
+            print("Evaluating model on test set")
+            # We test with the minority samples as the positive class
+            y_true, scores = model_trainer.test(dm.get_test_set())
+            results = model_trainer.evaluate(y_true, scores, thresh)
+            print(results)
+            for k, v in results.items():
+                all_results[k].append(v)
+            store_model(model, args.model, args.dataset)
+            model.reset()
+
+    # Compute mean and standard deviation of the performance metrics
+    print("Averaging results ...")
+    final_results = average_results(all_results)
+    print(final_results)
+    params = dict(
+        {"BatchSize": batch_size, "Epochs": args.num_epochs, "CorruptionRatio": args.rho,
+         "Threshold": anomaly_thresh},
+        **model.get_params()
+    )
+    # Store the average of results
+    fname = store_results(final_results, params, args.model, args.dataset, args.dataset_path)
+    print(f"Results stored in {fname}")
+
+
+if __name__ == "__main__":
+    args = argument_parser()
+
+    dataset_name, n_runs, batch_size = args.dataset, args.n_run, args.batch_size
+    model_path, dataset_path, pct, rho = args.model_path, args.dataset_path, args.pct, args.rho
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+
+    # Dynamically load the Dataset instance
+    clsname = globals()[f'{dataset_name}Dataset']
+    dataset = clsname(dataset_path, pct)
+    anomaly_thresh = 1 - dataset.anomaly_ratio
+
+    # split data in train and test sets
+    # we train only on the majority class
+    train_set, test_set = dataset.train_test_split(test_ratio=0.50, corruption_ratio=rho)
+    dm = DataManager(train_set, test_set, batch_size=batch_size)
+
+    # safely create save path
+    check_dir(args.save_path)
+
+    # For models based on sklearn like APIs
+    if args.model in SKLEARN_MODEL:
+        train_sklearn_model()
+    else:
+        model, model_trainer = resolve_model_trainer(
+            model_name=args.model,
+            dataset=dataset,
+            batch_size=args.batch_size,
+            n_epochs=args.num_epochs,
+            learning_rate=args.lr,
+            device=device
+        )
+        train_pytorch_model(
+            model,
+            model_trainer,
+            dm,
+            device,
+            anomaly_thresh,
+            model_path
+        )
+
+
+
 if __name__ == "__main__":
     args = argument_parser()
 
@@ -398,13 +581,14 @@ if __name__ == "__main__":
                     model_trainer.model = model
                     print("Evaluating the model on test set")
                     # We test with the minority samples as the positive class
-                    results, test_z, test_label, energy = model_trainer.evaluate_on_test_set(energy_threshold=anomaly_thresh)
+                    results, test_z, test_label, energy = model_trainer.evaluate_on_test_set(
+                        energy_threshold=anomaly_thresh)
                     for k, v in results.items():
                         all_results[k].append(v)
             else:
                 best_f1 = 0.
                 for r in range(n_runs):
-                    print(f"Run {r+1} of {n_runs}")
+                    print(f"Run {r + 1} of {n_runs}")
                     metrics = model_trainer.train(dm.get_train_set())
                     print("Finished learning process")
                     print("Evaluating model on test set")
@@ -424,7 +608,8 @@ if __name__ == "__main__":
             final_results = average_results(all_results)
             print(final_results)
             params = dict(
-                {"BatchSize": batch_size, "Epochs": args.num_epochs, "CorruptionRatio": args.rho, "Threshold": anomaly_thresh},
+                {"BatchSize": batch_size, "Epochs": args.num_epochs, "CorruptionRatio": args.rho,
+                 "Threshold": anomaly_thresh},
                 **model.get_params()
             )
             # Store the average of results
@@ -433,4 +618,3 @@ if __name__ == "__main__":
 
         else:
             print(f"Error: Could not train {args.dataset} on model {args.model}")
-

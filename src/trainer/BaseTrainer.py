@@ -11,11 +11,11 @@ from tqdm import trange
 class BaseTrainer(ABC):
 
     def __init__(self, model,
+                 batch_size,
                  lr: float = 1e-4,
                  n_epochs: int = 200,
-                 batch_size: int = 128,
                  n_jobs_dataloader: int = 0,
-                 device: str = 'cuda'):
+                 device: str = "cuda"):
         self.device = device
         self.model = model.to(device)
         self.batch_size = batch_size

@@ -5,16 +5,16 @@ from .memory_module import MemoryUnit
 from . import GMM
 from typing import Tuple, List
 from torch import nn
-from .BaseModel import BaseModel
+from BaseModel import BaseModel
 
 
-class AutoEncoder:
+class AutoEncoder(nn.Module):
     """
     Implements a basic Deep Auto Encoder
     """
 
     def __init__(self, enc_layers, dec_layers, **kwargs):
-        super(AutoEncoder, self).__init__(**kwargs)
+        super(AutoEncoder, self).__init__()
         self.latent_dim = dec_layers[0][0]
         self.in_features = enc_layers[-1][1]
         self.encoder = self._make_linear(enc_layers)
