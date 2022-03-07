@@ -1,4 +1,5 @@
-from .ALADTrainer import ALADTrainer
-from .DeepSVDDTrainer import DeepSVDDTrainer
-from .MemAETrainer import MemAETrainer
-from .SOMDAGMMTrainer import SOMDAGMMTrainer
+from adversarial import ALADTrainer
+from density import DSEBMTrainer
+from one_class import DeepSVDDTrainer
+from reconstruction import AutoEncoderTrainer, DAGMMTrainer, MemAETrainer, SOMDAGMMTrainer
+from transformers import NeuTraLADTrainer

@@ -25,24 +25,20 @@ from model.adversarial import ALAD
 from model.BaseModel import BaseModel
 from model.transformers import NeuTraLAD
 from model.one_class import DeepSVDD
-from trainer.NeuTraADTrainer import NeuTraADTrainer
-from trainer.DSEBMTrainer import DSEBMTrainer
-from trainer.AETrainer import AETrainer
+from model.reconstruction import AutoEncoder as AE, DAGMM, MemAutoEncoder as MemAE, SOMDAGMM
+from model.adversarial import ALAD
+from trainer.transformers import NeuTraLADTrainer
+from trainer.density import DSEBMTrainer
+from trainer.reconstruction import AutoEncoderTrainer as AETrainer, DAGMMTrainer, MemAETrainer, SOMDAGMMTrainer
 from trainer.DUADTrainer import DUADTrainer
 from utils.metrics import score_recall_precision, score_recall_precision_w_thresold
-from trainer import SOMDAGMMTrainer
 import torch.optim as optim
 from utils.utils import check_dir, optimizer_setup, get_X_from_loader, average_results
-from model import AutoEncoder as AE
 from datamanager import ArrhythmiaDataset, DataManager, KDD10Dataset, NSLKDDDataset, IDS2018Dataset
-from model import DAGMM, MemAutoEncoder as MemAE, DeepSVDD #TODO what about the original DeepSVDD?
-from model.adversarial import ALAD
+
 from datamanager import ArrhythmiaDataset, DataManager, KDD10Dataset, NSLKDDDataset, IDS2018Dataset, USBIDSDataset, \
     ThyroidDataset
-from trainer import ALADTrainer, DAGMMTrainer, MemAETrainer, DeepSVDDTrainer
-from viz.viz import plot_3D_latent, plot_energy_percentile
 from datetime import datetime as dt
-from sklearn import metrics
 from sklearn.svm import OneClassSVM
 
 import torch
