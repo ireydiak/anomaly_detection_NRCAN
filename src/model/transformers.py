@@ -24,25 +24,19 @@ def create_network(D: int, out_dims: np.array, bias=True) -> list:
     return net_layers
 
 
-class NeuTraAD(BaseModel):
-    def __init__(self, D: int, device, temperature: float, dataset: str, n_layers=3):
-        super(NeuTraAD, self).__init__()
-        self.device = device
-        self.D = D
+class NeuTraLAD(BaseModel):
+    def __init__(self, temperature: float, n_layers=3, **kwargs):
+        super(NeuTraLAD, self).__init__(**kwargs)
         self.n_layers = n_layers
-        self.dataset = dataset
-        self.K, self.Z, self.emb_out_dims = self._resolve_params(dataset)
         self.temperature = temperature
         self.cosim = nn.CosineSimilarity()
         self._build_network()
-
         self.enc.apply(weights_init_xavier)
         # self.masks.apply(weights_init_xavier)
 
-    def _create_masks(self) -> list:
+    def create_masks(self) -> list:
         masks = [None] * self.K
         out_dims = np.array([self.D] * self.n_layers)
-        # out_dims[:-1] *= 3
         for K_i in range(self.K):
             net_layers = create_network(self.D, out_dims, bias=False)
             net_layers[-1] = nn.Sigmoid()
@@ -58,7 +52,7 @@ class NeuTraAD(BaseModel):
         # Masks / Transformations
         self.masks = self._create_masks()
 
-    def _resolve_params(self, dataset: str) -> (int, int):
+    def resolve_params(self, dataset: str) -> (int, int):
         K, Z = 7, 32
         # out_dims = np.linspace(self.D, Z, self.n_layers, dtype=np.int32)
         out_dims = [90, 70, 50] + [Z]
@@ -70,11 +64,13 @@ class NeuTraAD(BaseModel):
             K = 11
             out_dims = [60, 40] + [Z]
             # out_dims[:-1] *= 2
-        return K, Z, out_dims
+        self.K = K
+        self.Z = Z
+        self.emb_out_dims = out_dims
 
     def get_params(self) -> dict:
         return {
-            'D': self.D,
+            'in_features': self.D,
             'K': self.K,
             'temperature': self.temperature
         }

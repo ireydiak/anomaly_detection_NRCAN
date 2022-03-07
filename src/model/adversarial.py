@@ -1,13 +1,8 @@
-# Contains ALAD
-
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
-from torch.nn.modules.activation import LeakyReLU
 from torch.autograd import Variable
-
-from .BaseModel import BaseModel
-from .utils import weights_init_xavier
+from BaseModel import BaseModel
+from utils import weights_init_xavier
 
 
 # learning_rate = 1e-5

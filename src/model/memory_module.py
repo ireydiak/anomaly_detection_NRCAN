@@ -6,18 +6,18 @@ import math
 
 
 # relu based hard shrinkage function, only works for positive values
-def hard_shrink_relu(input, lamb=0, epsilon=1e-12) -> float:
-    return (F.relu(input - lamb) * input) / (torch.abs(input - lamb) + epsilon)
+def hard_shrink_relu(X, lamb=0, epsilon=1e-12) -> float:
+    return (F.relu(X - lamb) * input) / (torch.abs(X - lamb) + epsilon)
 
 
 class MemoryUnit(nn.Module):
-    def __init__(self, mem_dim: int, D: int, shrink_thres=0.0025, device='cpu'):
+    def __init__(self, mem_dim: int, in_features: int, shrink_thres=0.0025, device='cpu'):
         super(MemoryUnit, self).__init__()
         self.device = device
         self.mem_dim = mem_dim
-        self.D = D
+        self.in_features = in_features
         # M x C
-        self.weight = Parameter(torch.Tensor(self.mem_dim, self.D)).to(device)
+        self.weight = Parameter(torch.Tensor(self.mem_dim, self.in_features)).to(device)
         self.shrink_thres = shrink_thres
         self.bias = None
         self.reset_params()
@@ -45,6 +45,6 @@ class MemoryUnit(nn.Module):
 
     def get_params(self) -> dict:
         return {
-            'Mem Dim': self.mem_dim,
-            'D': self.D
+            'mem_dim': self.mem_dim,
+            'in_features': self.in_features
         }

@@ -23,7 +23,7 @@ from model.DUAD import DUAD
 from model.density import DSEBM
 from model.adversarial import ALAD
 from model.BaseModel import BaseModel
-from model.transformers import NeuTraAD
+from model.transformers import NeuTraLAD
 from model.one_class import DeepSVDD
 from trainer.NeuTraADTrainer import NeuTraADTrainer
 from trainer.DSEBMTrainer import DSEBMTrainer
@@ -269,7 +269,7 @@ def resolve_trainer(trainer_str: str, optimizer_factory, **kwargs):
 
         # Load a pretrained model in case it should be used
 
-        model = NeuTraAD(D, device=device, temperature=0.07, dataset=dataset.name).to(device)
+        model = NeuTraLAD(D, device=device, temperature=0.07, dataset=dataset.name).to(device)
         trainer = NeuTraADTrainer(
             model=model,
             dm=dm,
