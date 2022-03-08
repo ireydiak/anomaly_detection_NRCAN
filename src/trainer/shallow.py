@@ -7,7 +7,7 @@ from src.trainer.base import BaseShallowTrainer
 class RecForestTrainer(BaseShallowTrainer):
 
     def score(self, sample: torch.Tensor):
-        return self.model.predict(sample.numpy())
+        return self.model.clf.predict(sample.numpy())
 
     def train(self, dataset: DataLoader):
         self.model.clf.fit(dataset.dataset.dataset.X)
@@ -21,10 +21,10 @@ class RecForestTrainer(BaseShallowTrainer):
 class OCSVMTrainer(BaseShallowTrainer):
 
     def score(self, sample: torch.Tensor):
-        return -self.model.predict(sample.numpy())
+        return -self.model.clf.predict(sample.numpy())
 
     def train(self, dataset: DataLoader):
-        self.model.fit(dataset.dataset.dataset.X)
+        self.model.clf.fit(dataset.dataset.dataset.X)
 
     def get_params(self) -> dict:
         return {
@@ -38,4 +38,4 @@ class LOFTrainer(BaseShallowTrainer):
         return -self.model.clf.score_samples(sample.numpy())
 
     def train(self, dataset: DataLoader):
-        self.model.fit(dataset.dataset.dataset.X)
+        self.model.clf.fit(dataset.dataset.dataset.X)

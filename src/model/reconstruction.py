@@ -141,7 +141,7 @@ class DAGMM(BaseModel):
         self.latent_dim = latent_dim
         self.K = K
         self.ae = AutoEncoder.from_dataset(self.in_features, dataset_name)
-        self.gmm = GMM(gmm_layers, K=K)
+        self.gmm = GMM(gmm_layers)
 
     def forward(self, x: torch.Tensor):
         """
@@ -267,7 +267,7 @@ class DAGMM(BaseModel):
 
         return phi, mu, cov_mat
 
-    def estimate_sample_energy(self, z, phi=None, mu=None, cov_mat=None, average_energy=True, device='cpu'):
+    def estimate_sample_energy(self, z, phi=None, mu=None, cov_mat=None, average_energy=True):
         if phi is None:
             phi = self.phi
         if mu is None:
@@ -280,7 +280,7 @@ class DAGMM(BaseModel):
         # Avoid non-invertible covariance matrix by adding small values (eps)
         d = z.shape[1]
         eps = self.reg_covar
-        cov_mat = cov_mat + (torch.eye(d)).to(device) * eps
+        cov_mat = cov_mat + (torch.eye(d)).to(self.device) * eps
         # N x K x D
         mu_z = z.unsqueeze(1) - mu.unsqueeze(0)
 
@@ -373,22 +373,25 @@ class SOMDAGMM(BaseModel):
             neighborhood_function=self.som_args['neighborhood_function'],
             learning_rate=self.som_args['lr']
         )] * self.som_args.get('n_som', 1)
-        # if dataset_name == "Thyroid":
-        #     latent_dim = 7
-        # else:
-        #     latent_dim = 3
+        # DAGMM
         self.dagmm = DAGMM(
             dataset_name=dataset_name,
             in_features=self.in_features,
             n_instances=self.n_instances,
             device=self.device,
-            # latent_dim=latent_dim
         )
+        # Replace DAGMM's GMM network
+        gmm_input = self.n_som * 2 + self.dagmm.latent_dim + 2
+        if dataset_name == "Arrhythmia":
+            gmm_layers = [(gmm_input, 10, nn.Tanh()), (None, None, nn.Dropout(0.5)), (10, 2, nn.Softmax(dim=-1))]
+        else:
+            gmm_layers = [(gmm_input, 10, nn.Tanh()), (None, None, nn.Dropout(0.5)), (10, 4, nn.Softmax(dim=-1))]
+        self.dagmm.gmm = GMM(gmm_layers).to(self.device)
 
     def train_som(self, X: torch.Tensor):
         # SOM-generated low-dimensional representation
         for i in range(len(self.soms)):
-            self.soms[i].train(X, self.som_args['n_epoch'])
+            self.soms[i].train(X, self.som_args["n_epoch"])
 
     def forward(self, X):
         # DAGMM's latent feature, the reconstruction error and gamma
@@ -411,8 +414,8 @@ class SOMDAGMM(BaseModel):
     def compute_params(self, Z, gamma):
         return self.dagmm.compute_params(Z, gamma)
 
-    def estimate_sample_energy(self, Z, phi, mu, Sigma, average_energy=True, device='cpu'):
-        return self.dagmm.estimate_sample_energy(Z, phi, mu, Sigma, average_energy=average_energy, device=device)
+    def estimate_sample_energy(self, Z, phi, mu, Sigma, average_energy=True):
+        return self.dagmm.estimate_sample_energy(Z, phi, mu, Sigma, average_energy=average_energy)
 
     def compute_loss(self, X, X_prime, energy, Sigma):
         rec_loss = ((X - X_prime) ** 2).mean()

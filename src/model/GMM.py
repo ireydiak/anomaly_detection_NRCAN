@@ -5,10 +5,10 @@ import torch
 
 
 class GMM(nn.Module):
-    def __init__(self, layers, K: int = None):
+    def __init__(self, layers):
         super(GMM, self).__init__()
         self.net = self.create_network(layers)
-        self.K = K or layers[-1][1]
+        self.K = layers[-1][1]
 
     def create_network(self, layers: List[Tuple]):
         net_layers = []

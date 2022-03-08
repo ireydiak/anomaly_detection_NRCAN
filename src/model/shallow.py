@@ -6,9 +6,9 @@ from src.model.base import BaseShallowModel
 
 class RecForest(BaseShallowModel):
 
-    def __init__(self, n_jobs=-1, random_state=-1, **kwargs):
+    def __init__(self, n_jobs=-1, **kwargs):
         super(RecForest, self).__init__(**kwargs)
-        self.clf = PyPiRecForest(n_jobs=n_jobs, random_state=random_state)
+        self.clf = PyPiRecForest(n_jobs=n_jobs)
         self.name = "RecForest"
 
     def get_params(self) -> dict:

@@ -216,11 +216,9 @@ class SOMDAGMMTrainer(BaseTrainer):
         code, X_prime, cosim, Z, gamma = self.model(X)
 
         phi, mu, Sigma = self.model.compute_params(Z, gamma)
-        energy, penalty_term = self.model.estimate_sample_energy(Z, phi, mu, Sigma, device=self.device)
+        energy, penalty_term = self.model.estimate_sample_energy(Z, phi, mu, Sigma)
 
-        loss = self.model.compute_loss(X, X_prime, energy, penalty_term)
-
-        return loss.item()
+        return self.model.compute_loss(X, X_prime, energy, penalty_term)
 
     def test(self, dataset: DataLoader):
         """

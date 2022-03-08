@@ -6,3 +6,5 @@ src/__pycache__/
 __pycache__
 results/*
 models/*
+env
+venv

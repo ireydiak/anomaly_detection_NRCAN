@@ -5,7 +5,6 @@ from collections import defaultdict
 from datetime import datetime as dt
 
 from torch.utils.data import DataLoader
-
 from src.model.adversarial import ALAD
 from src.model.base import BaseModel
 from src.model.density import DSEBM
@@ -15,7 +14,6 @@ from src.model.transformers import NeuTraLAD
 from src.model.reconstruction import AutoEncoder as AE, DAGMM, MemAutoEncoder as MemAE, SOMDAGMM
 from src.model.shallow import RecForest, OCSVM, LOF
 from src.trainer.adversarial import ALADTrainer
-from src.trainer.base import BaseTrainer
 from src.trainer.density import DSEBMTrainer
 from src.trainer.one_class import DeepSVDDTrainer, EdgeMLDROCCTrainer
 from src.trainer.reconstruction import AutoEncoderTrainer as AETrainer, DAGMMTrainer, MemAETrainer, SOMDAGMMTrainer
@@ -54,8 +52,8 @@ available_datasets = [
 ]
 
 
-def store_results(results: dict, params: dict, model_name: str, dataset: str, path: str):
-    output_dir = f'../results/{dataset}'
+def store_results(results: dict, params: dict, model_name: str, dataset: str, dataset_path: str, results_path: str = None):
+    output_dir = results_path or f"../results/{dataset}"
     if not os.path.exists(output_dir):
         os.mkdir(output_dir)
     fname = output_dir + '/' + f'{model_name}_results.txt'
@@ -63,15 +61,15 @@ def store_results(results: dict, params: dict, model_name: str, dataset: str, pa
         hdr = "Experiments on {}\n".format(dt.now().strftime("%d/%m/%Y %H:%M:%S"))
         f.write(hdr)
         f.write("-".join("" for _ in range(len(hdr))) + "\n")
-        f.write(f'{dataset} ({path.split("/")[-1].split(".")[0]})\n')
+        f.write(f'{dataset} ({dataset_path.split("/")[-1].split(".")[0]})\n')
         f.write(", ".join([f"{param_name}={param_val}" for param_name, param_val in params.items()]) + "\n")
         f.write("\n".join([f"{met_name}: {res}" for met_name, res in results.items()]) + "\n")
         f.write("-".join("" for _ in range(len(hdr))) + "\n")
     return fname
 
 
-def store_model(model, model_name: str, dataset: str):
-    output_dir = f'../models/{dataset}/{model_name}/{dt.now().strftime("%d_%m_%Y_%H_%M_%S")}'
+def store_model(model, model_name: str, dataset: str, models_path: str = None):
+    output_dir = models_path or f'../models/{dataset}/{model_name}/{dt.now().strftime("%d_%m_%Y_%H_%M_%S")}"'
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
     model.save(f"{output_dir}/model")
@@ -197,7 +195,7 @@ def train_model(
             print(results)
             for k, v in results.items():
                 all_results[k].append(v)
-            store_model(model, model.name, dataset_name)
+            store_model(model, model.name, dataset_name, model_path)
             model.reset()
 
     # Compute mean and standard deviation of the performance metrics
@@ -271,5 +269,5 @@ def train(
         **model.get_params()
     )
     # Store the average of results
-    fname = store_results(res, params, model_name, dataset.name, dataset_path)
+    fname = store_results(res, params, model_name, dataset.name, dataset_path, results_path)
     print(f"Results stored in {fname}")

@@ -12,8 +12,10 @@ from src.trainer.base import BaseTrainer
 
 
 class DSEBMTrainer(BaseTrainer):
-    def __init__(self, **kwargs):
+    def __init__(self, score_metric="reconstruction", **kwargs):
+        assert score_metric == "reconstruction" or score_metric == "energy"
         super(DSEBMTrainer, self).__init__(**kwargs)
+        self.score_metric = score_metric
         self.criterion = nn.BCEWithLogitsLoss()
         self.b_prime = Parameter(torch.Tensor(self.batch_size, self.model.in_features).to(self.device))
         torch.nn.init.xavier_normal_(self.b_prime)
@@ -45,8 +47,6 @@ class DSEBMTrainer(BaseTrainer):
         out = self.model(sample)
         energy = self.energy(sample, out)
         dEn_dX = torch.autograd.grad(energy, sample)[0]
-        # fx = X - dEn_dX
-        # delta = X - fx
         rec_errs = torch.linalg.norm(dEn_dX, 2, keepdim=False, dim=1)
         return energies.cpu().numpy(), rec_errs.cpu().numpy()
 
@@ -54,17 +54,21 @@ class DSEBMTrainer(BaseTrainer):
         self.model.eval()
         y_true, scores = [], []
         scores_e, scores_r = [], []
-        with torch.no_grad():
-            for row in dataset:
-                X, y = row
-                X = X.to(self.device).float()
+        for row in dataset:
+            X, y = row
+            X = X.to(self.device).float()
 
-                score_e, score_r = self.score(X)
+            if len(X) < self.batch_size:
+                break
 
-                y_true.extend(y.cpu().tolist())
-                scores_e.extend(score_e)
-                scores_r.extend(score_r)
-        return np.array(y_true), np.array(score_e, score_r)
+            score_e, score_r = self.score(X)
+
+            y_true.extend(y.cpu().tolist())
+            scores_e.extend(score_e)
+            scores_r.extend(score_r)
+
+        scores = scores_r if self.score_metric == "reconstruction" else scores_e
+        return np.array(y_true), np.array(scores)
 
     def evaluate(self, y_true: np.array, scores: np.array, threshold, pos_label: int = 1) -> dict:
         res = defaultdict()
