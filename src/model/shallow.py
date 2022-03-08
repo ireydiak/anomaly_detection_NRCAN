@@ -1,4 +1,5 @@
 from sklearn.svm import OneClassSVM
+from sklearn.neighbors import LocalOutlierFactor
 from recforest import RecForest as PyPiRecForest
 from src.model.base import BaseShallowModel
 
@@ -38,3 +39,21 @@ class OCSVM(BaseShallowModel):
             "nu": self.clf.nu
         }
 
+
+class LOF(BaseShallowModel):
+    def __init__(self, n_neighbors=20, verbose=True, **kwargs):
+        super(LOF, self).__init__(**kwargs)
+        self.clf = LocalOutlierFactor(
+            n_neighbors=n_neighbors,
+            novelty=True,
+            n_jobs=-1
+        )
+        self.name = "LOF"
+
+    def resolve_params(self, dataset_name: str):
+        pass
+
+    def get_params(self) -> dict:
+        return {
+            "n_neighbors": self.clf.n_neighbors
+        }

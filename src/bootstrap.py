@@ -13,13 +13,13 @@ from src.model.DUAD import DUAD
 from src.model.one_class import DeepSVDD
 from src.model.transformers import NeuTraLAD
 from src.model.reconstruction import AutoEncoder as AE, DAGMM, MemAutoEncoder as MemAE, SOMDAGMM
-from src.model.shallow import RecForest, OCSVM
+from src.model.shallow import RecForest, OCSVM, LOF
 from src.trainer.adversarial import ALADTrainer
 from src.trainer.base import BaseTrainer
 from src.trainer.density import DSEBMTrainer
 from src.trainer.one_class import DeepSVDDTrainer
 from src.trainer.reconstruction import AutoEncoderTrainer as AETrainer, DAGMMTrainer, MemAETrainer, SOMDAGMMTrainer
-from src.trainer.shallow import OCSVMTrainer, RecForestTrainer
+from src.trainer.shallow import OCSVMTrainer, RecForestTrainer, LOFTrainer
 from src.trainer.transformers import NeuTraLADTrainer
 from src.trainer.DUADTrainer import DUADTrainer
 from src.utils.utils import average_results
@@ -36,6 +36,7 @@ available_models = [
     "MemAE",
     "DUAD",
     "OC-SVM",
+    "LOF",
     "RecForest",
     "DSEBM",
     "DeepSVDD",
@@ -87,6 +88,7 @@ model_trainer_map = {
     "NeuTraLAD": (NeuTraLAD, NeuTraLADTrainer),
     # Shallow Models
     "OC-SVM": (OCSVM, OCSVMTrainer),
+    "LOF": (LOF, LOFTrainer),
     "RecForest": (RecForest, RecForestTrainer)
 }
 
