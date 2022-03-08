@@ -10,7 +10,7 @@ class AutoEncoderTrainer(BaseTrainer):
 
     def score(self, sample: torch.Tensor):
         _, X_prime = self.model(sample)
-        return ((sample - X_prime) ** 2).sum()
+        return ((sample - X_prime) ** 2).sum(axis=1)
 
     def train_iter(self, X):
         code, X_prime = self.model(X)
@@ -18,7 +18,7 @@ class AutoEncoderTrainer(BaseTrainer):
         reg = 0.5
         loss = ((X - X_prime) ** 2).sum(axis=-1).mean() + reg * l2_z
 
-        return loss.item()
+        return loss
 
 
 class DAGMMTrainer(BaseTrainer):
@@ -54,11 +54,9 @@ class DAGMMTrainer(BaseTrainer):
         self.model.eval()
 
         with torch.no_grad():
-
             scores, y_true = [], []
-
             for row in dataset:
-                X, y, _ = row
+                X, y = row
                 X = X.to(self.device).float()
                 # forward pass
                 code, x_prime, cosim, z, gamma = self.model(X)
@@ -68,7 +66,7 @@ class DAGMMTrainer(BaseTrainer):
                 y_true.extend(y)
                 scores.extend(sample_energy.cpu().numpy())
 
-            return np.array(y_true), np.array(scores)
+        return np.array(y_true), np.array(scores)
 
     def weighted_log_sum_exp(self, x, weights, dim):
         """
@@ -161,6 +159,8 @@ class DAGMMTrainer(BaseTrainer):
 
         # Applying log-sum-exp stability trick
         # https://www.xarg.org/2016/06/the-log-sum-exp-trick-in-machine-learning/
+        if exp_term.ndim == 1:
+            exp_term = exp_term.unsqueeze(0)
         max_val = torch.max(exp_term.clamp(min=0), dim=1, keepdim=True)[0]
         exp_result = torch.exp(exp_term - max_val)
 
@@ -204,6 +204,10 @@ class MemAETrainer(BaseTrainer):
 
 
 class SOMDAGMMTrainer(BaseTrainer):
+
+    def before_training(self, dataset: DataLoader):
+        self.train_som(dataset.dataset.dataset.X)
+
     def train_som(self, X):
         self.model.train_som(X)
 
@@ -228,7 +232,7 @@ class SOMDAGMMTrainer(BaseTrainer):
         with torch.no_grad():
             scores, y_true = [], []
             for row in dataset:
-                X, y, _ = row
+                X, y = row
                 X = X.to(self.device).float()
 
                 sample_energy, _ = self.score(X)

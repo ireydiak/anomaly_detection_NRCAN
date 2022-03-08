@@ -56,7 +56,7 @@ class DSEBMTrainer(BaseTrainer):
         scores_e, scores_r = [], []
         with torch.no_grad():
             for row in dataset:
-                X, y, _ = row
+                X, y = row
                 X = X.to(self.device).float()
 
                 score_e, score_r = self.score(X)

@@ -54,7 +54,7 @@ class BaseTrainer(ABC):
 
         optimizer = self.set_optimizer()
 
-        print('Started training')
+        print("Started training")
         for epoch in range(self.n_epochs):
             epoch_loss = 0.0
             with trange(len(dataset)) as t:
@@ -89,6 +89,8 @@ class BaseTrainer(ABC):
             for row in dataset:
                 X, y = row
                 X = X.to(self.device).float()
+                if len(X) < self.batch_size:
+                    break
                 score = self.score(X)
                 y_true.extend(y.cpu().tolist())
                 scores.extend(score.cpu().tolist())
@@ -110,36 +112,37 @@ class BaseTrainer(ABC):
         q = np.linspace(0, 99, 100)
         thresholds = np.percentile(combined_scores, q)
         res = {"Precision": -1, "Recall": -1, "F1-Score": -1, "AUROC": -1, "AUPR": -1, "Thresh_star": -1}
+        y_true = y_test.astype(int)
+        res["AUPR"] = sk_metrics.average_precision_score(y_true, test_score)
+        res["AUROC"] = sk_metrics.roc_auc_score(y_true, test_score)
 
         for thresh, qi in zip(thresholds, q):
             # Prediction using the threshold value
             y_pred = (test_score >= thresh).astype(int)
-            y_true = y_test.astype(int)
 
             precision, recall, f_score, _ = sk_metrics.precision_recall_fscore_support(
-                y_true, y_pred, average='binary', pos_label=pos_label
+                y_true, y_pred, average="binary", pos_label=pos_label
             )
 
             if f_score > res["F1-Score"]:
+                res["F1-Score"] = f_score
                 res["Precision"] = precision
                 res["Recall"] = recall
-                res["AUPR"] = sk_metrics.average_precision_score(y_true, test_score)
-                res["AUROC"] = sk_metrics.roc_auc_score(y_true, test_score)
                 res["Thresh_star"] = thresh
 
         return res
 
-    def evaluate(self, y_true: np.array, scores: np.array, threshold: float, pos_label: int = 1) -> dict:
+    def evaluate(self, combined_scores, y_test: np.array, test_scores: np.array, threshold: float, pos_label: int = 1) -> dict:
         res = {"Precision": -1, "Recall": -1, "F1-Score": -1, "AUROC": -1, "AUPR": -1}
 
-        thresh = np.percentile(scores, threshold)
-        y_pred = self.predict(scores, thresh)
+        thresh = np.percentile(combined_scores, threshold)
+        y_pred = self.predict(test_scores, thresh)
         res["Precision"], res["Recall"], res["F1-Score"], _ = sk_metrics.precision_recall_fscore_support(
-            y_true, y_pred, average='binary', pos_label=pos_label
+            y_test, y_pred, average='binary', pos_label=pos_label
         )
 
-        res["AUROC"] = sk_metrics.roc_auc_score(y_true, scores)
-        res["AUPR"] = sk_metrics.average_precision_score(y_true, scores)
+        res["AUROC"] = sk_metrics.roc_auc_score(y_test, test_scores)
+        res["AUPR"] = sk_metrics.average_precision_score(y_test, test_scores)
         return res
 
 
@@ -170,24 +173,19 @@ class BaseShallowTrainer(ABC):
         self.n_epochs = None
         self.lr = None
 
-    @abstractmethod
-    def score(self, sample: torch.Tensor):
-        pass
-
-    @abstractmethod
     def train(self, dataset: DataLoader):
-        pass
+        self.model.clf.fit(dataset.dataset.dataset.X)
+
+    def score(self, sample: torch.Tensor):
+        return self.model.predict(sample.numpy())
 
     def test(self, dataset: DataLoader) -> Union[np.array, np.array]:
-        self.model.eval()
         y_true, scores = [], []
-        with torch.no_grad():
-            for row in dataset:
-                X, y, _ = row
-                X = X.to(self.device).float()
-                score = self.score(X)
-                y_true.extend(y.cpu().tolist())
-                scores.extend(score.cpu().tolist())
+        for row in dataset:
+            X, y = row
+            score = self.score(X)
+            y_true.extend(y.cpu().tolist())
+            scores.extend(score.cpu().tolist())
 
         return np.array(y_true), np.array(scores)
 

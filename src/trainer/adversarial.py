@@ -72,7 +72,11 @@ class ALADTrainer(BaseTrainer):
             ge_losses, d_losses = 0, 0
             with trange(len(dataset)) as t:
                 for sample in dataset:
-                    X, _, _ = sample
+                    X, _ = sample
+
+                    if len(X) < self.batch_size:
+                        break
+
                     X_dis, X_gen = X.to(self.device).float(), X.clone().to(self.device).float()
                     # Cleaning gradients
                     self.optim_ge.zero_grad()

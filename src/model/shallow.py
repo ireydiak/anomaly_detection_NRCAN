@@ -1,11 +1,12 @@
+import torch
 from sklearn.svm import OneClassSVM
 from recforest import RecForest as PyPiRecForest
+from torch.utils.data import DataLoader
+
 from src.model.base import BaseShallowModel
 
 
 class RecForest(BaseShallowModel):
-    def resolve_params(self, dataset_name: str):
-        pass
 
     def __init__(self, n_jobs=-1, random_state=-1, **kwargs):
         super(RecForest, self).__init__(**kwargs)
@@ -13,6 +14,12 @@ class RecForest(BaseShallowModel):
         
     def get_params(self) -> dict:
         return {}
+
+    def score(self, sample: torch.Tensor):
+        return self.clf.predict(sample.numpy())
+
+    def resolve_params(self, dataset_name: str):
+        pass
 
 
 class OCSVM(BaseShallowModel):
@@ -27,8 +34,8 @@ class OCSVM(BaseShallowModel):
         )
         self.name = "OC-SVM"
 
-    def resolve_params(self, dataset_name: str):
-        pass
+    def score(self, sample: torch.Tensor):
+        return -self.clf.predict(sample.numpy())
 
     def get_params(self) -> dict:
         return {
@@ -37,4 +44,7 @@ class OCSVM(BaseShallowModel):
             "shrinking": self.clf.shrinking,
             "nu": self.clf.nu
         }
+
+    def resolve_params(self, dataset_name: str):
+        pass
 

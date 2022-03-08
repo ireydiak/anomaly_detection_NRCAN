@@ -9,11 +9,14 @@ class DeepSVDD(BaseModel):
     (https://scikit-learn.org/stable/modules/generated/sklearn.svm.OneClassSVM.html#sklearn.svm.OneClassSVM.decision_function)
     """
 
+    def resolve_params(self, dataset_name: str):
+        pass
+
     def __init__(self, **kwargs):
         super(DeepSVDD, self).__init__(**kwargs)
-        self.net = self._build_network()
         self.rep_dim = self.in_features // 4
         self.name = "DeepSVDD"
+        self.net = self._build_network()
 
     def _build_network(self):
         return nn.Sequential(
@@ -26,4 +29,7 @@ class DeepSVDD(BaseModel):
         return self.net(X)
 
     def get_params(self) -> dict:
-        return {"in_features": self.in_features, "rep_dim": self.rep_dim}
+        return {
+            "in_features": self.in_features,
+            "rep_dim": self.rep_dim
+        }

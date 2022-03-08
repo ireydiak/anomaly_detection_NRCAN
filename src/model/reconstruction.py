@@ -8,18 +8,62 @@ from torch import nn
 from typing import Tuple, List
 
 
-class AutoEncoder(nn.Module):
+class AutoEncoder(BaseModel):
     """
     Implements a basic Deep Auto Encoder
     """
 
-    def __init__(self, enc_layers, dec_layers, **kwargs):
-        super(AutoEncoder, self).__init__()
+    def __init__(self, **kwargs):
+        self.encoder, self.decoder, self.latent_dim = None, None, None
+        super(AutoEncoder, self).__init__(**kwargs)
+        # self.latent_dim = dec_layers[0][0]
+        # self.in_features = enc_layers[-1][1]
+        # self.encoder = self._make_linear(enc_layers)
+        # self.decoder = self._make_linear(dec_layers)
+        self.name = "AutoEncoder"
+
+    def score(self, sample: torch.Tensor):
+        pass
+
+    def train_iter(self, sample: torch.Tensor):
+        pass
+
+    def resolve_params(self, dataset_name: str):
+        if dataset_name == "Arrhythmia":
+            enc_layers = [
+                (self.in_features, 10, nn.Tanh()),
+                (10, 1, None)
+            ]
+            dec_layers = [
+                (1, 10, nn.Tanh()),
+                (10, self.in_features, None)
+            ]
+        elif dataset_name == "Thyroid":
+            enc_layers = [
+                (self.in_features, 12, nn.Tanh()),
+                (12, 4, nn.Tanh()),
+                (4, 1, None)
+            ]
+            dec_layers = [
+                (1, 4, nn.Tanh()),
+                (4, 12, nn.Tanh()),
+                (12, self.in_features, None)
+            ]
+        else:
+            enc_layers = [
+                (self.in_features, 60, nn.Tanh()),
+                (60, 30, nn.Tanh()),
+                (30, 10, nn.Tanh()),
+                (10, 1, None)
+            ]
+            dec_layers = [
+                (1, 10, nn.Tanh()),
+                (10, 30, nn.Tanh()),
+                (30, 60, nn.Tanh()),
+                (60, self.in_features, None)]
         self.latent_dim = dec_layers[0][0]
-        self.in_features = enc_layers[-1][1]
         self.encoder = self._make_linear(enc_layers)
         self.decoder = self._make_linear(dec_layers)
-        self.name = "AutoEncoder"
 
     def _make_linear(self, layers: List[Tuple]):
         """
@@ -68,10 +112,10 @@ class DAGMM(BaseModel):
         self.lambda_1 = lambda_1
         self.lambda_2 = lambda_2
         self.reg_covar = reg_covar
-        self.K = 4
-        self.latent_dim = 1
         self.ae = None
         self.gmm = None
+        self.K = None
+        self.latent_dim = None
         self.name = "DAGMM"
         super(DAGMM, self).__init__(**kwargs)
         self.cosim = nn.CosineSimilarity()
@@ -80,36 +124,37 @@ class DAGMM(BaseModel):
     def resolve_params(self, dataset_name: str):
         # defaults to parameters described in section 4.3 of the paper
         # https://sites.cs.ucsb.edu/~bzong/doc/iclr18-dagmm.pdf.
+        latent_dim = self.latent_dim or 1
         if dataset_name == 'Arrhythmia':
-            enc_layers = [(self.in_features, 10, nn.Tanh()), (10, self.latent_dim, None)]
-            dec_layers = [(self.latent_dim, 10, nn.Tanh()), (10, self.in_features, None)]
-            gmm_layers = [(self.latent_dim + 2, 10, nn.Tanh()), (None, None, nn.Dropout(0.5)),
-                          (10, 2, nn.Softmax(dim=-1))]
-        elif dataset_name == "Thyroid":
-            enc_layers = [(self.in_features, 12, nn.Tanh()), (12, 4, nn.Tanh()), (4, self.latent_dim, None)]
-            dec_layers = [(self.latent_dim, 4, nn.Tanh()), (4, 12, nn.Tanh()), (12, self.in_features, None)]
-            gmm_layers = [(self.latent_dim + 2, 10, nn.Tanh()), (None, None, nn.Dropout(0.5)),
-                          (10, 2, nn.Softmax(dim=-1))]
-        else:
-            enc_layers = [
-                (self.in_features, 60, nn.Tanh()),
-                (60, 30, nn.Tanh()),
-                (30, 10, nn.Tanh()),
-                (10, self.latent_dim, None)
-            ]
-            dec_layers = [
-                (self.latent_dim, 10, nn.Tanh()),
-                (10, 30, nn.Tanh()),
-                (30, 60, nn.Tanh()),
-                (60, self.in_features, None)]
+            K = 2
             gmm_layers = [
-                (self.latent_dim + 2, 10, nn.Tanh()),
+                (latent_dim + 2, 10, nn.Tanh()),
                 (None, None, nn.Dropout(0.5)),
-                (10, 4, nn.Softmax(dim=-1))
+                (10, K, nn.Softmax(dim=-1))
             ]
-
-        self.ae = AutoEncoder(enc_layers, dec_layers)
-        self.gmm = GMM(gmm_layers)
+        elif dataset_name == "Thyroid":
+            K = 2
+            gmm_layers = [
+                (latent_dim + 2, 10, nn.Tanh()),
+                (None, None, nn.Dropout(0.5)),
+                (10, K, nn.Softmax(dim=-1))
+            ]
+        else:
+            K = 4
+            gmm_layers = [
+                (latent_dim + 2, 10, nn.Tanh()),
+                (None, None, nn.Dropout(0.5)),
+                (10, K, nn.Softmax(dim=-1))
+            ]
+        self.latent_dim = latent_dim
+        self.K = K
+        self.ae = AutoEncoder(
+            dataset_name=dataset_name,
+            in_features=self.in_features,
+            n_instances=self.n_instances,
+            device=self.device
+        )
+        self.gmm = GMM(gmm_layers, K=K)
 
     def forward(self, x: torch.Tensor):
         """
@@ -295,8 +340,8 @@ class DAGMM(BaseModel):
 
     def get_params(self) -> dict:
         return {
-            "\u03BB_1": self.lambda_1,
-            "\u03BB_2": self.lambda_2,
+            "lambda_1": self.lambda_1,
+            "lambda_2": self.lambda_2,
             "latent_dim": self.ae.latent_dim,
             "K": self.gmm.K
         }
@@ -313,7 +358,7 @@ default_som_args = {
 
 
 class SOMDAGMM(BaseModel):
-    def __init__(self, n_som: int, lambda_1=0.1, lambda_2=0.005, **kwargs):
+    def __init__(self, n_som: int = 1, lambda_1: float = 0.1, lambda_2: float = 0.005, **kwargs):
         self.som_args = None
         self.dagmm = None
         self.soms = None
@@ -333,15 +378,25 @@ class SOMDAGMM(BaseModel):
             "y": grid_length,
             "lr": 0.6,
             "neighborhood_function": "bubble",
-            'n_epoch': 8000,
-            'n_som': self.n_som
+            "n_epoch": 8000,
+            "n_som": self.n_som
         }
         self.soms = [MiniSom(
             self.som_args['x'], self.som_args['y'], self.in_features,
             neighborhood_function=self.som_args['neighborhood_function'],
             learning_rate=self.som_args['lr']
-        )] * self.som_args.get("n_som", 1)
-        self.dagmm = DAGMM(dataset_name=dataset_name)
+        )] * self.som_args.get('n_som', 1)
+        # if dataset_name == "Thyroid":
+        #     latent_dim = 7
+        # else:
+        #     latent_dim = 3
+        self.dagmm = DAGMM(
+            dataset_name=dataset_name,
+            in_features=self.in_features,
+            n_instances=self.n_instances,
+            device=self.device,
+            # latent_dim=latent_dim
+        )
 
     def train_som(self, X: torch.Tensor):
         # SOM-generated low-dimensional representation

@@ -340,8 +340,8 @@ def train_model(
             y_test_true, test_scores = model_trainer.test(test_ldr)
             y_true = np.concatenate((y_train_true, y_test_true), axis=0)
             scores = np.concatenate((train_scores, test_scores), axis=0)
-            print("Evaluating model with threshold tau=%d" % thresh)
-            results = model_trainer.evaluate(y_true, scores, threshold=thresh)
+            print("Evaluating model")
+            results = model_trainer.estimate_optimal_threshold(scores, test_scores, y_test_true)
             for k, v in results.items():
                 all_results[k].append(v)
     else:
@@ -356,8 +356,8 @@ def train_model(
             y_test_true, test_scores = model_trainer.test(test_ldr)
             y_true = np.concatenate((y_train_true, y_test_true), axis=0)
             scores = np.concatenate((train_scores, test_scores), axis=0)
-            print("Evaluating model with threshold tau=%d" % thresh)
-            results = model_trainer.evaluate(y_true, scores, threshold=thresh)
+            print("Evaluating model")
+            results = model_trainer.estimate_optimal_threshold(scores, test_scores, y_test_true)
             # y_true, scores = model_trainer.test(datamanager.get_test_set())
             # results = model_trainer.evaluate(y_true, scores, thresh)
             print(results)

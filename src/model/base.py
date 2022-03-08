@@ -9,7 +9,7 @@ from torch import nn
 class BaseModel(nn.Module):
 
     def __init__(self, dataset_name: str, in_features: int, n_instances: int, device: str):
-        super().__init__()
+        super(BaseModel, self).__init__()
         self.dataset_name = dataset_name
         self.device = device
         self.in_features = in_features
