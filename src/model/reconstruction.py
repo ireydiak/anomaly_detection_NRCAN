@@ -8,50 +8,44 @@ from torch import nn
 from typing import Tuple, List
 
 
-class AutoEncoder(BaseModel):
+class AutoEncoder(nn.Module):
     """
     Implements a basic Deep Auto Encoder
     """
 
-    def __init__(self, **kwargs):
-        self.encoder, self.decoder, self.latent_dim = None, None, None
-        super(AutoEncoder, self).__init__(**kwargs)
-        # self.latent_dim = dec_layers[0][0]
-        # self.in_features = enc_layers[-1][1]
-        # self.encoder = self._make_linear(enc_layers)
-        # self.decoder = self._make_linear(dec_layers)
+    def __init__(self, enc_layers: list, dec_layers: list, **kwargs):
+        super(AutoEncoder, self).__init__()
+        self.latent_dim = dec_layers[0][0]
+        self.in_features = enc_layers[-1][1]
+        self.encoder = self._make_linear(enc_layers)
+        self.decoder = self._make_linear(dec_layers)
         self.name = "AutoEncoder"
 
-    def score(self, sample: torch.Tensor):
-        pass
-
-    def train_iter(self, sample: torch.Tensor):
-        pass
-
-    def resolve_params(self, dataset_name: str):
+    @staticmethod
+    def from_dataset(in_features, dataset_name: str):
         if dataset_name == "Arrhythmia":
             enc_layers = [
-                (self.in_features, 10, nn.Tanh()),
+                (in_features, 10, nn.Tanh()),
                 (10, 1, None)
             ]
             dec_layers = [
                 (1, 10, nn.Tanh()),
-                (10, self.in_features, None)
+                (10, in_features, None)
             ]
         elif dataset_name == "Thyroid":
             enc_layers = [
-                (self.in_features, 12, nn.Tanh()),
+                (in_features, 12, nn.Tanh()),
                 (12, 4, nn.Tanh()),
                 (4, 1, None)
             ]
             dec_layers = [
                 (1, 4, nn.Tanh()),
                 (4, 12, nn.Tanh()),
-                (12, self.in_features, None)
+                (12, in_features, None)
             ]
         else:
             enc_layers = [
-                (self.in_features, 60, nn.Tanh()),
+                (in_features, 60, nn.Tanh()),
                 (60, 30, nn.Tanh()),
                 (30, 10, nn.Tanh()),
                 (10, 1, None)
@@ -60,10 +54,8 @@ class AutoEncoder(BaseModel):
                 (1, 10, nn.Tanh()),
                 (10, 30, nn.Tanh()),
                 (30, 60, nn.Tanh()),
-                (60, self.in_features, None)]
-        self.latent_dim = dec_layers[0][0]
-        self.encoder = self._make_linear(enc_layers)
-        self.decoder = self._make_linear(dec_layers)
+                (60, in_features, None)]
+        return AutoEncoder(enc_layers, dec_layers)
 
     def _make_linear(self, layers: List[Tuple]):
         """
@@ -97,7 +89,7 @@ class AutoEncoder(BaseModel):
 
     def get_params(self) -> dict:
         return {
-            "latent_dim": self.latent_dim,
+            "latent_dim": self.latent_dim
         }
 
 
@@ -148,12 +140,7 @@ class DAGMM(BaseModel):
             ]
         self.latent_dim = latent_dim
         self.K = K
-        self.ae = AutoEncoder(
-            dataset_name=dataset_name,
-            in_features=self.in_features,
-            n_instances=self.n_instances,
-            device=self.device
-        )
+        self.ae = AutoEncoder.from_dataset(self.in_features, dataset_name)
         self.gmm = GMM(gmm_layers, K=K)
 
     def forward(self, x: torch.Tensor):

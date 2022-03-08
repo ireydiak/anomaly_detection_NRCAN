@@ -10,6 +10,7 @@ class DUAD(BaseModel):
         self.r = r
         self.latent_dim = 1
         self.name = "DUAD"
+        self.ae = None
         super(DUAD, self).__init__(**kwargs)
         self.cosim = nn.CosineSimilarity()
 
@@ -26,7 +27,6 @@ class DUAD(BaseModel):
             (30, 60, nn.Tanh()),
             (60, self.in_features, None)
         ]
-
         self.ae = AE(enc_layers, dec_layers).to(self.device)
 
     def encode(self, x):
@@ -42,9 +42,8 @@ class DUAD(BaseModel):
         return code, x_prime, h_x
 
     def get_params(self) -> dict:
-        params = dict(
-            duad_p=self.p,
-            duad_p0=self.p0,
-            duad_r=self.r
-        )
-        return params
+        return {
+            "duad_p": self.p,
+            "duad_p0": self.p0,
+            "duad_r": self.r
+        }

@@ -16,6 +16,12 @@ class BaseModel(nn.Module):
         self.n_instances = n_instances
         self.resolve_params(dataset_name)
 
+    def get_params(self) -> dict:
+        return {
+            "in_features": self.in_features,
+            "n_instances": self.n_instances
+        }
+
     def reset(self):
         self.apply(self.weight_reset)
 
@@ -45,6 +51,11 @@ class BaseModel(nn.Module):
         torch.save(self.state_dict(), filename + "pt")
         # return torch.load(weights_path)
 
+    def get_params(self) -> dict:
+        return {
+            "in_features": self.in_features,
+            "n_instances": self.n_instances
+        }
 
 class BaseShallowModel(ABC):
 
@@ -55,7 +66,19 @@ class BaseShallowModel(ABC):
         self.n_instances = n_instances
         self.resolve_params(dataset_name)
 
-    @abstractmethod
     def resolve_params(self, dataset_name: str):
         pass
 
+    def reset(self):
+        """
+        This function does nothing.
+        It exists only for consistency with deep models
+        """
+        pass
+
+    def save(self, filename):
+        """
+        This function does nothing.
+        It exists only for consistency with deep models
+        """
+        pass

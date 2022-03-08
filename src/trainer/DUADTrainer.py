@@ -1,44 +1,37 @@
-import warnings
 import torch
 import numpy as np
 
 from copy import deepcopy
 from torch import nn
 from tqdm import trange
-from typing import Callable
 from src.datamanager.DataManager import DataManager
 from src.model.DUAD import DUAD
-from src.utils.metrics import score_recall_precision, score_recall_precision_w_thresold
 from sklearn.mixture import GaussianMixture
+from torch import optim
 
 
 class DUADTrainer:
 
-    def __init__(self, model: DUAD, dm: DataManager,
-                 optimizer_factory: Callable[[torch.nn.Module], torch.optim.Optimizer],
-                 use_cuda=True,
-                 **kwargs
-                 ):
-
+    def __init__(self,
+                 model: DUAD,
+                 dm: DataManager,
+                 n_epochs: int,
+                 lr: float = 1e-4,
+                 device: str = "cuda",
+                 **kwargs):
         self.metric_hist = []
         self.dm = dm
 
         self.r = kwargs.get('r', 10)
         self.p = kwargs.get('p_s', 30)
         self.p0 = kwargs.get('p_0', 35)
+        self.lr = lr
+        self.n_epochs = n_epochs
         self.num_cluster = kwargs.get('num_cluster', 20)
 
-        device_name = 'cuda:0' if use_cuda else 'cpu'
-        if use_cuda and not torch.cuda.is_available():
-            warnings.warn("CUDA is not available. Suppress this warning by passing "
-                          "use_cuda=False to {}()."
-                          .format(self.__class__.__name__), RuntimeWarning)
-            print('\n\n')
-            device_name = 'cpu'
-
-        self.device = torch.device(device_name)
+        self.device = device
         self.model = model.to(self.device)
-        self.optim = optimizer_factory(self.model)
+        self.optimizer = optim.Adam(self.model.parameters(), lr=self.lr)
 
         self.criterion = nn.MSELoss()
 
@@ -69,7 +62,9 @@ class DUADTrainer:
 
         return indices_selection
 
-    def train(self, n_epochs: int):
+    def train(self):
+        # switch back to train mode
+        self.model.train()
         print(f'Training with {self.__class__.__name__}')
         mean_loss = np.inf
         self.dm.update_train_set(self.dm.get_selected_indices())
@@ -113,8 +108,8 @@ class DUADTrainer:
         # print(set(L).difference(set(L_old)))
         reev_count = 0
         while len(set(L_old).difference(set(L))) <= 10 or reev_count > REEVAL_LIMIT:
-            for epoch in range(n_epochs):
-                print(f"\nEpoch: {epoch + 1} of {n_epochs}")
+            for epoch in range(self.n_epochs):
+                print(f"\nEpoch: {epoch + 1} of {self.n_epochs}")
                 if (epoch + 1) % self.r == 0:
                     self.model.eval()
                     L_old = deepcopy(L)
@@ -283,10 +278,10 @@ class DUADTrainer:
         loss = ((X - X_prime) ** 2).sum(axis=-1).mean() + reg * l2_z  # self.criterion(X, X_prime)
 
         # Use autograd to compute the backward pass.
-        self.optim.zero_grad()
+        self.optimizer.zero_grad()
         loss.backward()
         # updates the weights using gradient descent
-        self.optim.step()
+        self.optimizer.step()
 
         return loss.item()
 
@@ -340,12 +335,4 @@ class DUADTrainer:
 
             combined_score = np.concatenate([train_score, test_score], axis=0)
 
-            res = score_recall_precision_w_thresold(combined_score, test_score, test_labels, pos_label=pos_label,
-                                                    threshold=energy_threshold)
-
-            score_recall_precision(combined_score, test_score, test_labels)
-
-            # switch back to train mode
-            self.model.train()
-
-            return res, test_z, test_labels, combined_score
+            return combined_score, test_score, test_labels

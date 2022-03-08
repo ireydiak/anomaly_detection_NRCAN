@@ -10,18 +10,19 @@ from src.model.adversarial import ALAD
 from src.model.base import BaseModel
 from src.model.density import DSEBM
 from src.model.DUAD import DUAD
-from src.model.one_class import DeepSVDD
+from src.model.one_class import DeepSVDD, DROCC
 from src.model.transformers import NeuTraLAD
 from src.model.reconstruction import AutoEncoder as AE, DAGMM, MemAutoEncoder as MemAE, SOMDAGMM
-from src.model.shallow import RecForest, OCSVM
+from src.model.shallow import RecForest, OCSVM, LOF
 from src.trainer.adversarial import ALADTrainer
 from src.trainer.base import BaseTrainer
 from src.trainer.density import DSEBMTrainer
-from src.trainer.one_class import DeepSVDDTrainer
+from src.trainer.one_class import DeepSVDDTrainer, EdgeMLDROCCTrainer
 from src.trainer.reconstruction import AutoEncoderTrainer as AETrainer, DAGMMTrainer, MemAETrainer, SOMDAGMMTrainer
-from src.trainer.shallow import OCSVMTrainer, RecForestTrainer
+from src.trainer.shallow import OCSVMTrainer, RecForestTrainer, LOFTrainer
 from src.trainer.transformers import NeuTraLADTrainer
 from src.trainer.DUADTrainer import DUADTrainer
+from src.utils import metrics
 from src.utils.utils import average_results
 from src.datamanager.dataset import AbstractDataset
 from src.datamanager.DataManager import DataManager
@@ -32,14 +33,16 @@ available_models = [
     "AE",
     "ALAD",
     "DAGMM",
-    "SOM-DAGMM",
-    "MemAE",
+    "DeepSVDD",
+    "DSEBM",
+    "DROCC",
     "DUAD",
+    "LOF",
+    "MemAE",
+    "NeuTraLAD"
     "OC-SVM",
     "RecForest",
-    "DSEBM",
-    "DeepSVDD",
-    "NeuTraLAD"
+    "SOM-DAGMM",
 ]
 available_datasets = [
     "Arrhythmia",
@@ -80,6 +83,7 @@ model_trainer_map = {
     "AE": (AE, AETrainer),
     "DAGMM": (DAGMM, DAGMMTrainer),
     "DSEBM": (DSEBM, DSEBMTrainer),
+    "DROCC": (DROCC, EdgeMLDROCCTrainer),
     "DUAD": (DUAD, DUADTrainer),
     "MemAE": (MemAE, MemAETrainer),
     "DeepSVDD": (DeepSVDD, DeepSVDDTrainer),
@@ -87,6 +91,7 @@ model_trainer_map = {
     "NeuTraLAD": (NeuTraLAD, NeuTraLADTrainer),
     # Shallow Models
     "OC-SVM": (OCSVM, OCSVMTrainer),
+    "LOF": (LOF, LOFTrainer),
     "RecForest": (RecForest, RecForestTrainer)
 }
 
@@ -97,226 +102,53 @@ def resolve_model_trainer(
         n_epochs: int,
         batch_size: int,
         learning_rate: float,
-        device: str
+        device: str,
+        datamanager: DataManager = None
 ):
-    model_trainer_tuple = model_trainer_map.get(model_name, None)
-    assert model_trainer_tuple, "Model %s not found" % model_name
-    model, trainer = model_trainer_tuple
-    model = model(
-        dataset_name=dataset.name,
-        in_features=dataset.in_features,
-        n_instances=dataset.n_instances,
-        device=device
-    )
-    trainer = trainer(
-        model=model,
-        lr=learning_rate,
-        n_epochs=n_epochs,
-        batch_size=batch_size,
-        device=device
-    )
+    if model_name == "DUAD":
+        model = DUAD(
+            dataset.in_features,
+            10,
+            dataset_name=dataset.name,
+            in_features=dataset.in_features,
+            n_instances=dataset.n_instances,
+            device=device
+        )
+        trainer = DUADTrainer(
+            model=model,
+            dm=datamanager,
+            device=device,
+            n_epochs=n_epochs,
+            p=35,
+            p_0=30,
+            r=10,
+            num_cluster=20,
+            lr=learning_rate
+        )
+    else:
+        model_trainer_tuple = model_trainer_map.get(model_name, None)
+        assert model_trainer_tuple, "Model %s not found" % model_name
+        model, trainer = model_trainer_tuple
+        model = model(
+            dataset_name=dataset.name,
+            in_features=dataset.in_features,
+            n_instances=dataset.n_instances,
+            device=device
+        )
+        trainer = trainer(
+            model=model,
+            lr=learning_rate,
+            n_epochs=n_epochs,
+            batch_size=batch_size,
+            device=device
+        )
 
     return model, trainer
 
 
-#
-# def resolve_trainer(trainer_str: str, optimizer_factory, **kwargs):
-#     model, trainer = None, None
-#     device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
-#     in_features = dataset.get_shape()[1]
-#     latent_dim = kwargs.get("latent_dim", in_features // 2)
-#     reg_covar = kwargs.get("reg_covar", 1e-12)
-#     if trainer_str == 'DAGMM' or trainer_str == 'SOM-DAGMM' or trainer_str == 'AE':
-#         if dataset.name == 'Arrhythmia' or (dataset.name == 'Thyroid' and trainer_str != 'DAGMM'):
-#             enc_layers = [(D, 10, nn.Tanh()), (10, L, None)]
-#             dec_layers = [(L, 10, nn.Tanh()), (10, D, None)]
-#             gmm_layers = [(L + 2, 10, nn.Tanh()), (None, None, nn.Dropout(0.5)), (10, 2, nn.Softmax(dim=-1))]
-#         elif dataset.name == 'Thyroid' and trainer_str == 'DAGMM':
-#             enc_layers = [(D, 12, nn.Tanh()), (12, 4, nn.Tanh()), (4, L, None)]
-#             dec_layers = [(L, 4, nn.Tanh()), (4, 12, nn.Tanh()), (12, D, None)]
-#             gmm_layers = [(L + 2, 10, nn.Tanh()), (None, None, nn.Dropout(0.5)), (10, 2, nn.Softmax(dim=-1))]
-#         else:
-#             enc_layers = [(D, 60, nn.Tanh()), (60, 30, nn.Tanh()), (30, 10, nn.Tanh()), (10, L, None)]
-#             dec_layers = [(L, 10, nn.Tanh()), (10, 30, nn.Tanh()), (30, 60, nn.Tanh()), (60, D, None)]
-#             gmm_layers = [(L + 2, 10, nn.Tanh()), (None, None, nn.Dropout(0.5)), (10, 4, nn.Softmax(dim=-1))]
-#
-#         if trainer_str == 'DAGMM':
-#             model = DAGMM(D, ae_layers=(enc_layers, dec_layers), gmm_layers=gmm_layers, reg_covar=reg_covar)
-#             trainer = DAGMMTrainTestManager(
-#                 model=model, dm=dm, optimizer_factory=optimizer_factory,
-#             )
-#         elif trainer_str == 'AE':
-#             model = AE(enc_layers, dec_layers)
-#             trainer = AETrainer(
-#                 model=model, dm=dm, optimizer_factory=optimizer_factory
-#             )
-#         else:
-#             gmm_input = kwargs.get('n_som', 1) * 2 + kwargs.get('latent_dim', 1) + 2
-#             if dataset.name == 'Arrhythmia':
-#                 gmm_layers = [(gmm_input, 10, nn.Tanh()), (None, None, nn.Dropout(0.5)), (10, 2, nn.Softmax(dim=-1))]
-#             else:
-#                 gmm_layers = [(gmm_input, 10, nn.Tanh()), (None, None, nn.Dropout(0.5)), (10, 4, nn.Softmax(dim=-1))]
-#
-#             dagmm = DAGMM(
-#                 dataset.get_shape()[1],
-#                 ae_layers=(enc_layers, dec_layers),
-#                 gmm_layers=gmm_layers, reg_covar=reg_covar
-#             )
-#             # set these values according to the used dataset
-#             grid_length = int(np.sqrt(5 * np.sqrt(len(dataset)))) // 2
-#             grid_length = 32 if grid_length > 32 else grid_length
-#             som_args = {
-#                 "x": grid_length,
-#                 "y": grid_length,
-#                 "lr": 0.6,
-#                 "neighborhood_function": "bubble",
-#                 'n_epoch': 8000,
-#                 'n_som': kwargs.get('n_som')
-#             }
-#             model = SOMDAGMM(dataset.get_shape()[1], dagmm, som_args=som_args)
-#             trainer = SOMDAGMMTrainer(
-#                 model=model, dm=dm, optimizer_factory=optimizer_factory
-#             )
-#             som_train_data = dataset.split_train_test()[0]
-#             data = [som_train_data[i][0] for i in range(len(som_train_data))]
-#             trainer.train_som(data)
-#
-#     elif trainer_str == 'MemAE':
-#         print(f"training on {device}")
-#         model = MemAE(dataset.name, D, device).to(device)
-#         alpha = kwargs.get("alpha", 2e-4)
-#         trainer = MemAETrainer(
-#             alpha=alpha,
-#             model=model,
-#             device=device,
-#             lr=kwargs.get("learning_rate"),
-#             batch_size=batch_size,
-#             n_epochs=kwargs.get("num_epochs", 200)
-#         )
-#     elif trainer_str == "DUAD":
-#         model = DUAD(D, 10)
-#         trainer = DUADTrainer(model=model, dm=dm, optimizer_factory=optimizer_factory, device=device,
-#                               p=kwargs.get('p_s'), p_0=kwargs.get('p_0'), r=kwargs.get('r'),
-#                               num_cluster=kwargs.get('num_cluster'))
-#     elif trainer_str == 'ALAD':
-#         # bsize = kwargs.get('batch_size', None)
-#         model = ALAD(D, L, device=device).to(device)
-#         trainer = ALADTrainer(
-#             model=model,
-#             dm=dm,
-#             device=device,
-#             learning_rate=lr,
-#             L=L
-#         )
-#     elif trainer_str == 'DeepSVDD':
-#         model = DeepSVDD(D)
-#         trainer = DeepSVDDTrainer(
-#             model,
-#             optimizer_factory=optimizer_factory,
-#             dm=dm,
-#             R=kwargs.get('R'),
-#             c=kwargs.get('c'),
-#             device=device
-#         )
-#
-#     elif trainer_str == 'DSEBM':
-#         # bsize = kwargs.get('batch_size', None)
-#         lr = kwargs.get('learning_rate', None)
-#
-#         assert batch_size and lr
-#         model = DSEBM(D, dataset=dataset.name).to(device)
-#         trainer = DSEBMTrainer(
-#             model=model,
-#             dm=dm,
-#             device=device,
-#             batch=batch_size, dim=D, learning_rate=lr,
-#         )
-#     elif trainer_str == 'NeurTraAD':
-#         # bsize = kwargs.get('batch_size', None)
-#         lr = kwargs.get('learning_rate', None)
-#
-#         assert batch_size and lr
-#
-#         # Load a pretrained model in case it should be used
-#
-#         model = NeuTraLAD(D, device=device, temperature=0.07, dataset=dataset.name).to(device)
-#         trainer = NeuTraADTrainer(
-#             model=model,
-#             dm=dm,
-#             device=device,
-#             optimizer_factory=optimizer_factory,
-#             L=L, learning_rate=lr,
-#         )
-#
-#     return model, trainer
-#
-#
-# def train_shallow_model():
-#     X_train, _ = get_X_from_loader(dm.get_train_set())
-#     X_test, y_test = get_X_from_loader(dm.get_test_set())
-#     print(f'Starting training: {args.model}')
-#
-#     all_results = defaultdict(list)
-#     for r in range(n_runs):
-#         print(f"Run number {r}/{n_runs}")
-#
-#         # Create the model with the appropriate parameters.
-#         if args.model == 'RECFOREST':
-#             model = RecForest(n_jobs=-1, random_state=-1)
-#         elif args.model == 'OC-SVM':
-#             print(f"Using nu = {args.nu}.")
-#             model = OneClassSVM(kernel='rbf', gamma='scale', shrinking=False, verbose=True, nu=args.nu)
-#         else:
-#             print(f"'{args.model}' is not a supported sklearn model.")
-#             exit(1)
-#
-#         model.fit(X_train)
-#         print('Finished learning process')
-#
-#         anomaly_score_train = []
-#         anomaly_score_test = []
-#
-#         # prediction for the training set
-#         for i, X_i in enumerate(dm.get_train_set(), 0):
-#             # OC-SVM predicts -1 for outliers (and 1 for inliers), however we want outliers to be 1.
-#             # So we negate the predictions.
-#             if args.model == 'OC-SVM':
-#                 anomaly_score_train.append(-model.predict(X_i[0].numpy()))
-#             else:
-#                 anomaly_score_train.append(model.predict(X_i[0].numpy()))
-#         anomaly_score_train = np.concatenate(anomaly_score_train)
-#
-#         # prediction for the test set
-#         y_test = []
-#         for i, X_i in enumerate(dm.get_test_set(), 0):
-#             # OC-SVM predicts -1 for outliers (and 1 for inliers), however we want outliers to be 1.
-#             # So we negate the predictions.
-#             if args.model == 'OC-SVM':
-#                 anomaly_score_test.append(-model.predict(X_i[0].numpy()))
-#             else:
-#                 anomaly_score_test.append(model.predict(X_i[0].numpy()))
-#             y_test.append(X_i[1].numpy())
-#
-#         anomaly_score_test = np.concatenate(anomaly_score_test)
-#         y_test = np.concatenate(y_test)
-#
-#         anomaly_score = np.concatenate([anomaly_score_train, anomaly_score_test])
-#         # dump metrics with different thresholds
-#         res = score_recall_precision(anomaly_score, anomaly_score_test, y_test)
-#         # results = score_recall_precision_w_thresold(
-#         #     anomaly_score, anomaly_score_test, y_test, pos_label=1, threshold=args.p_threshold
-#         # )
-#         for k, v in res.items():
-#             all_results[k].append(v)
-#
-#     print('Averaging results')
-#     final_results = average_results(all_results)
-#     store_results(final_results, params, args.model, args.dataset, args.dataset_path)
-
-
 def train_model(
         model: BaseModel,
-        model_trainer: BaseTrainer,
+        model_trainer,
         train_ldr: DataLoader,
         test_ldr: DataLoader,
         dataset_name: str,
@@ -341,25 +173,27 @@ def train_model(
             y_true = np.concatenate((y_train_true, y_test_true), axis=0)
             scores = np.concatenate((train_scores, test_scores), axis=0)
             print("Evaluating model")
-            results = model_trainer.estimate_optimal_threshold(scores, test_scores, y_test_true)
+            results = metrics.estimate_optimal_threshold(scores, test_scores, y_test_true)
             for k, v in results.items():
                 all_results[k].append(v)
     else:
         for i in range(n_runs):
             print(f"Run {i + 1} of {n_runs}")
-            #_ = model_trainer.train(datamanager.get_train_set())
-            _ = model_trainer.train(train_ldr)
+            if model.name == "DUAD":
+                model_trainer.train()
+            else:
+                _ = model_trainer.train(train_ldr)
             print("Finished learning process")
             print("Evaluating model on test set")
             # We test with the minority samples as the positive class
-            y_train_true, train_scores = model_trainer.test(train_ldr)
-            y_test_true, test_scores = model_trainer.test(test_ldr)
-            y_true = np.concatenate((y_train_true, y_test_true), axis=0)
-            scores = np.concatenate((train_scores, test_scores), axis=0)
-            print("Evaluating model")
-            results = model_trainer.estimate_optimal_threshold(scores, test_scores, y_test_true)
-            # y_true, scores = model_trainer.test(datamanager.get_test_set())
-            # results = model_trainer.evaluate(y_true, scores, thresh)
+            if model.name == "DUAD":
+                scores, test_scores, y_test_true = model_trainer.evaluate_on_test_set()
+            else:
+                y_train_true, train_scores = model_trainer.test(train_ldr)
+                y_test_true, test_scores = model_trainer.test(test_ldr)
+                y_true = np.concatenate((y_train_true, y_test_true), axis=0)
+                scores = np.concatenate((train_scores, test_scores), axis=0)
+            results = metrics.estimate_optimal_threshold(scores, test_scores, y_test_true)
             print(results)
             for k, v in results.items():
                 all_results[k].append(v)
@@ -394,9 +228,15 @@ def train(
 
     # split data in train and test sets
     # we train only on the majority class
-    train_ldr, test_ldr = dataset.loaders(batch_size=batch_size, seed=42)
-    #train_set, test_set = dataset.train_test_split(test_ratio=0.50, corruption_ratio=corruption_ratio)
-    #dm = DataManager(train_set, test_set, batch_size=batch_size)
+    if model_name == "DUAD":
+        # DataManager for DUAD only
+        train_set, test_set = dataset.split_train_test(test_pct=0.50)
+        dm = DataManager(train_set, test_set, batch_size=batch_size)
+        train_ldr = None,
+        test_ldr = None
+    else:
+        train_ldr, test_ldr = dataset.loaders(batch_size=batch_size, seed=42)
+        dm = None
 
     # check path
     for p in [results_path, models_path]:
@@ -409,7 +249,8 @@ def train(
         batch_size=batch_size,
         n_epochs=n_epochs,
         learning_rate=learning_rate,
-        device=device
+        device=device,
+        datamanager=dm
     )
     res = train_model(
         model=model,
