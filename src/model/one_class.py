@@ -13,6 +13,7 @@ class DeepSVDD(BaseModel):
         super(DeepSVDD, self).__init__(**kwargs)
         self.net = self._build_network()
         self.rep_dim = self.in_features // 4
+        self.name = "DeepSVDD"
 
     def _build_network(self):
         return nn.Sequential(

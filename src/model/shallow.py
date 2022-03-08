@@ -25,6 +25,7 @@ class OCSVM(BaseShallowModel):
             verbose=verbose,
             nu=nu
         )
+        self.name = "OC-SVM"
 
     def resolve_params(self, dataset_name: str):
         pass

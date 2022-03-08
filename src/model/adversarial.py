@@ -18,6 +18,7 @@ class ALAD(BaseModel):
         self.D_xx = None
         self.D_xz = None
         self.latent_dim = None
+        self.name = "ALAD"
         super(ALAD, self).__init__(**kwargs)
 
     def resolve_params(self, dataset_name: str):

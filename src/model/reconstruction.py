@@ -19,6 +19,7 @@ class AutoEncoder(nn.Module):
         self.in_features = enc_layers[-1][1]
         self.encoder = self._make_linear(enc_layers)
         self.decoder = self._make_linear(dec_layers)
+        self.name = "AutoEncoder"
 
     def _make_linear(self, layers: List[Tuple]):
         """
@@ -71,6 +72,7 @@ class DAGMM(BaseModel):
         self.latent_dim = 1
         self.ae = None
         self.gmm = None
+        self.name = "DAGMM"
         super(DAGMM, self).__init__(**kwargs)
         self.cosim = nn.CosineSimilarity()
         self.softmax = nn.Softmax(dim=-1)
@@ -318,6 +320,7 @@ class SOMDAGMM(BaseModel):
         self.n_som = n_som
         self.lambda_1 = lambda_1
         self.lambda_2 = lambda_2
+        self.name = "SOMDAGMM"
         super(SOMDAGMM, self).__init__(**kwargs)
 
     def resolve_params(self, dataset_name: str):
@@ -407,6 +410,7 @@ class MemAutoEncoder(BaseModel):
         dataset_name: Name of the dataset (used to set the parameters)
         in_features: Number of variables in the dataset
         """
+        self.name = "MemAE"
         self.latent_dim = None
         self.encoder = None
         self.decoder = None

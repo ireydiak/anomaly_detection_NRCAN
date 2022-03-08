@@ -9,6 +9,7 @@ class DUAD(BaseModel):
         self.p = p
         self.r = r
         self.latent_dim = 1
+        self.name = "DUAD"
         super(DUAD, self).__init__(**kwargs)
         self.cosim = nn.CosineSimilarity()
 

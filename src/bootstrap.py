@@ -3,6 +3,9 @@ import torch
 import os
 from collections import defaultdict
 from datetime import datetime as dt
+
+from torch.utils.data import DataLoader
+
 from src.model.adversarial import ALAD
 from src.model.base import BaseModel
 from src.model.density import DSEBM
@@ -314,7 +317,8 @@ def resolve_model_trainer(
 def train_model(
         model: BaseModel,
         model_trainer: BaseTrainer,
-        datamanager: DataManager,
+        train_ldr: DataLoader,
+        test_ldr: DataLoader,
         dataset_name: str,
         n_runs: int,
         thresh: float,
@@ -332,19 +336,24 @@ def train_model(
             model_trainer.model = model
             print("Evaluating the model on test set")
             # We test with the minority samples as the positive class
-            results, test_z, test_label, energy = model_trainer.evaluate_on_test_set(
-                energy_threshold=thresh)
+            y_train_true, train_scores = model_trainer.test(train_ldr)
+            y_test_true, test_scores = model_trainer.test(test_ldr)
+            y_true = np.concatenate((y_train_true, y_test_true), axis=0)
+            scores = np.concatenate((train_scores, test_scores), axis=0)
+            print("Evaluating model with threshold tau=%d" % thresh)
+            results = model_trainer.evaluate(y_true, scores, threshold=thresh)
             for k, v in results.items():
                 all_results[k].append(v)
     else:
         for i in range(n_runs):
             print(f"Run {i + 1} of {n_runs}")
-            _ = model_trainer.train(datamanager.get_train_set())
+            #_ = model_trainer.train(datamanager.get_train_set())
+            _ = model_trainer.train(train_ldr)
             print("Finished learning process")
             print("Evaluating model on test set")
             # We test with the minority samples as the positive class
-            y_train_true, train_scores = model_trainer.test(datamanager.get_train_set())
-            y_test_true, test_scores = model_trainer.test(datamanager.get_test_set())
+            y_train_true, train_scores = model_trainer.test(train_ldr)
+            y_test_true, test_scores = model_trainer.test(test_ldr)
             y_true = np.concatenate((y_train_true, y_test_true), axis=0)
             scores = np.concatenate((train_scores, test_scores), axis=0)
             print("Evaluating model with threshold tau=%d" % thresh)
@@ -385,8 +394,9 @@ def train(
 
     # split data in train and test sets
     # we train only on the majority class
-    train_set, test_set = dataset.train_test_split(test_ratio=0.50, corruption_ratio=corruption_ratio)
-    dm = DataManager(train_set, test_set, batch_size=batch_size)
+    train_ldr, test_ldr = dataset.loaders(batch_size=batch_size, seed=42)
+    #train_set, test_set = dataset.train_test_split(test_ratio=0.50, corruption_ratio=corruption_ratio)
+    #dm = DataManager(train_set, test_set, batch_size=batch_size)
 
     # check path
     for p in [results_path, models_path]:
@@ -404,7 +414,8 @@ def train(
     res = train_model(
         model=model,
         model_trainer=model_trainer,
-        datamanager=dm,
+        train_ldr=train_ldr,
+        test_ldr=test_ldr,
         dataset_name=dataset_name,
         n_runs=n_runs,
         device=device,

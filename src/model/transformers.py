@@ -34,6 +34,7 @@ class NeuTraLAD(BaseModel):
         super(NeuTraLAD, self).__init__(**kwargs)
         self.cosim = nn.CosineSimilarity()
         self.enc.apply(weights_init_xavier)
+        self.name = "NeuTraLAD"
         # self.masks.apply(weights_init_xavier)
 
     def create_masks(self) -> list:

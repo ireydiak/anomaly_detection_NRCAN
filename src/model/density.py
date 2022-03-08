@@ -8,6 +8,7 @@ from src.model.base import BaseModel
 class DSEBM(BaseModel):
     def __init__(self, **kwargs):
         super(DSEBM, self).__init__(**kwargs)
+        self.name = "DSEBM"
 
     def resolve_params(self, dataset_name: str):
         if dataset_name == 'Arrhythmia' or dataset_name == 'Thyroid':
