@@ -339,7 +339,7 @@ class DUADTrainer:
 
             # Evaluation
             comp_threshold = 100 * sum(test_labels == 0) / len(test_labels)
-            res_max = score_recall_precision(combined_score, test_score, test_labels)
+            res_max = score_recall_precision(combined_score, test_score, test_labels, nq=30)
             res = score_recall_precision_w_thresold(combined_score, test_score, test_labels, pos_label=pos_label,
                                                     threshold=comp_threshold)
 
