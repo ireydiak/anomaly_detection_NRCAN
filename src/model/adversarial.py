@@ -1,8 +1,8 @@
 import torch
 import torch.nn as nn
 from torch.autograd import Variable
-from BaseModel import BaseModel
-from utils import weights_init_xavier
+from src.model.base import BaseModel
+from src.model.utils import weights_init_xavier
 
 
 # learning_rate = 1e-5
@@ -44,7 +44,7 @@ class ALAD(BaseModel):
 
         # Generator
         z_real = Variable(
-            torch.randn((X.size(0), self.L)).to(self.device),
+            torch.randn((X.size(0), self.latent_dim)).to(self.device),
             requires_grad=False
         )
         x_gen = self.G(z_real)

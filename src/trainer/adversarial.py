@@ -1,12 +1,10 @@
 import torch
 import torch.nn as nn
-import numpy as np
 from tqdm import trange
 from torch import optim
 from torch.autograd import Variable
 from torch.utils.data import DataLoader
-from typing import Union
-from .BaseTrainer import BaseTrainer
+from src.trainer.base import BaseTrainer
 
 torch.autograd.set_detect_anomaly(True)
 
@@ -74,7 +72,7 @@ class ALADTrainer(BaseTrainer):
             ge_losses, d_losses = 0, 0
             with trange(len(dataset)) as t:
                 for sample in dataset:
-                    X, _ = sample
+                    X, _, _ = sample
                     X_dis, X_gen = X.to(self.device).float(), X.clone().to(self.device).float()
                     # Cleaning gradients
                     self.optim_ge.zero_grad()

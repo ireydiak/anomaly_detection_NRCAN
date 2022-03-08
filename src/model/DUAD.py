@@ -1,17 +1,16 @@
 import torch.nn as nn
-from reconstruction import AutoEncoder as AE
-from .BaseModel import BaseModel
+from src.model.reconstruction import AutoEncoder as AE
+from src.model.base import BaseModel
 
 
 class DUAD(BaseModel):
     def __init__(self, r=10, p0=.35, p=.30, **kwargs):
-        self.cosim = nn.CosineSimilarity()
         self.p0 = p0
         self.p = p
         self.r = r
         self.latent_dim = 1
-        self.ae = None
         super(DUAD, self).__init__(**kwargs)
+        self.cosim = nn.CosineSimilarity()
 
     def resolve_params(self, dataset_name: str):
         enc_layers = [

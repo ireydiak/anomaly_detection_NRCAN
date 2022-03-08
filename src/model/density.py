@@ -2,17 +2,11 @@ import torch
 from torch import nn
 from torch.nn import Parameter
 
-from BaseModel import BaseModel
+from src.model.base import BaseModel
 
 
 class DSEBM(BaseModel):
     def __init__(self, **kwargs):
-        self.noise = None
-        self.fc_1 = None
-        self.fc_2 = None
-        self.softp = None
-        self.bias_inv_1 = None
-        self.bias_inv_2 = None
         super(DSEBM, self).__init__(**kwargs)
 
     def resolve_params(self, dataset_name: str):

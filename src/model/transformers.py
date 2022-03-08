@@ -1,12 +1,10 @@
-# Contains NeuTraLAD
-
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
 
-from .BaseModel import BaseModel
-from .utils import weights_init_xavier
+from src.model.base import BaseModel
+from src.model.utils import weights_init_xavier
 
 
 # learning_rate = 1e-5
@@ -26,11 +24,15 @@ def create_network(D: int, out_dims: np.array, bias=True) -> list:
 
 class NeuTraLAD(BaseModel):
     def __init__(self, temperature: float, n_layers=3, **kwargs):
-        super(NeuTraLAD, self).__init__(**kwargs)
         self.n_layers = n_layers
         self.temperature = temperature
+        self.K = None
+        self.Z = None
+        self.enc = None
+        self.masks = []
+        self.emb_out_dims = None
+        super(NeuTraLAD, self).__init__(**kwargs)
         self.cosim = nn.CosineSimilarity()
-        self._build_network()
         self.enc.apply(weights_init_xavier)
         # self.masks.apply(weights_init_xavier)
 
@@ -43,15 +45,6 @@ class NeuTraLAD(BaseModel):
             masks[K_i] = nn.Sequential(*net_layers).to(self.device)
         return masks
 
-    def _build_network(self):
-        # Encoder
-        # out_dims = np.linspace(self.D, self.Z, self.n_layers, dtype=np.int32)
-        out_dims = self.emb_out_dims
-        enc_layers = create_network(self.D, out_dims)[:-1]  # remove ReLU from the last layer
-        self.enc = nn.Sequential(*enc_layers).to(self.device)
-        # Masks / Transformations
-        self.masks = self._create_masks()
-
     def resolve_params(self, dataset: str) -> (int, int):
         K, Z = 7, 32
         # out_dims = np.linspace(self.D, Z, self.n_layers, dtype=np.int32)
@@ -63,10 +56,14 @@ class NeuTraLAD(BaseModel):
         elif dataset == 'Arrhythmia':
             K = 11
             out_dims = [60, 40] + [Z]
-            # out_dims[:-1] *= 2
         self.K = K
         self.Z = Z
         self.emb_out_dims = out_dims
+        # Encoder
+        enc_layers = create_network(self.D, self.emb_out_dims)[:-1]  # removes ReLU from the last layer
+        self.enc = nn.Sequential(*enc_layers).to(self.device)
+        # Masks / Transformations
+        self.masks = self._create_masks()
 
     def get_params(self) -> dict:
         return {

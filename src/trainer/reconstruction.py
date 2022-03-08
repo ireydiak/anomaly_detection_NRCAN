@@ -1,8 +1,9 @@
 import torch
 import numpy as np
 from torch.utils.data.dataloader import DataLoader
-from BaseTrainer import BaseTrainer
-from src.loss import EntropyLoss
+from src.trainer.base import BaseTrainer
+from src.loss.EntropyLoss import EntropyLoss
+from torch import nn
 
 
 class AutoEncoderTrainer(BaseTrainer):
@@ -57,7 +58,7 @@ class DAGMMTrainer(BaseTrainer):
             scores, y_true = [], []
 
             for row in dataset:
-                X, y = row
+                X, y, _ = row
                 X = X.to(self.device).float()
                 # forward pass
                 code, x_prime, cosim, z, gamma = self.model(X)
@@ -185,9 +186,9 @@ class DAGMMTrainer(BaseTrainer):
 
 
 class MemAETrainer(BaseTrainer):
-    def __init__(self, alpha: float, **kwargs) -> None:
+    def __init__(self, **kwargs) -> None:
         super(MemAETrainer, self).__init__(**kwargs)
-        self.alpha = alpha
+        self.alpha = 2e-4
         self.recon_loss_fn = nn.MSELoss().to(self.device)
         self.entropy_loss_fn = EntropyLoss().to(self.device)
 
@@ -225,11 +226,9 @@ class SOMDAGMMTrainer(BaseTrainer):
         self.model.eval()
 
         with torch.no_grad():
-
             scores, y_true = [], []
-
             for row in dataset:
-                X, y = row
+                X, y, _ = row
                 X = X.to(self.device).float()
 
                 sample_energy, _ = self.score(X)

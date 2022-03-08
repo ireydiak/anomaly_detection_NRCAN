@@ -1,10 +1,8 @@
 import copy
 import gzip
 import pickle
-from abc import abstractmethod
-
 import torch
-
+from abc import abstractmethod, ABC
 from torch import nn
 
 
@@ -46,3 +44,18 @@ class BaseModel(nn.Module):
         #     pickle.dump(model, f, protocol=pickle.HIGHEST_PROTOCOL)
         torch.save(self.state_dict(), filename + "pt")
         # return torch.load(weights_path)
+
+
+class BaseShallowModel(ABC):
+
+    def __init__(self, dataset_name: str, in_features: int, n_instances: int, device: str):
+        self.dataset_name = dataset_name
+        self.device = device
+        self.in_features = in_features
+        self.n_instances = n_instances
+        self.resolve_params(dataset_name)
+
+    @abstractmethod
+    def resolve_params(self, dataset_name: str):
+        pass
+

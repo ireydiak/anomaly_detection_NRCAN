@@ -1,9 +1,6 @@
-# Contains DeepSVDD
-#TODO DROCC
-
 import torch.nn as nn
 from torch import Tensor
-from .BaseModel import BaseModel
+from src.model.base import BaseModel
 
 
 class DeepSVDD(BaseModel):
@@ -19,13 +16,13 @@ class DeepSVDD(BaseModel):
 
     def _build_network(self):
         return nn.Sequential(
-            nn.Linear(self.D, self.D // 2),
+            nn.Linear(self.in_features, self.in_features // 2),
             nn.ReLU(),
-            nn.Linear(self.D // 2, self.rep_dim)
+            nn.Linear(self.in_features // 2, self.rep_dim)
         ).to(self.device)
 
     def forward(self, X: Tensor):
         return self.net(X)
 
     def get_params(self) -> dict:
-        return {'D': self.D, 'rep_dim': self.rep_dim}
+        return {"in_features": self.in_features, "rep_dim": self.rep_dim}

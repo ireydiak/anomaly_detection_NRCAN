@@ -1,28 +1,22 @@
-from collections import defaultdict
-from typing import Union
 import numpy as np
 import torch
 import torch.nn as nn
+
+from collections import defaultdict
+from typing import Union
 from torch import optim
 from torch.nn import Parameter
 from torch.utils.data import DataLoader
 from sklearn import metrics
-from trainer.BaseTrainer import BaseTrainer
+from src.trainer.base import BaseTrainer
 
 
 class DSEBMTrainer(BaseTrainer):
-    def __init__(self, model,
-                 dim: int,
-                 lr: float = 1e-4,
-                 n_epochs: int = 100,
-                 batch_size: int = 128,
-                 n_jobs_dataloader: int = 0,
-                 device: str = 'cuda'):
-        super(DSEBMTrainer, self).__init__(model, lr=lr, n_epochs=n_epochs, batch_size=batch_size, device=device)
+    def __init__(self, **kwargs):
+        super(DSEBMTrainer, self).__init__(**kwargs)
         self.criterion = nn.BCEWithLogitsLoss()
-        self.b_prime = Parameter(torch.Tensor(batch_size, dim).to(self.device))
+        self.b_prime = Parameter(torch.Tensor(self.batch_size, self.model.in_features).to(self.device))
         torch.nn.init.xavier_normal_(self.b_prime)
-        self.dim = dim
         self.optim = optim.Adam(
             list(self.model.parameters()) + [self.b_prime],
             lr=self.lr, betas=(0.5, 0.999)
@@ -62,7 +56,7 @@ class DSEBMTrainer(BaseTrainer):
         scores_e, scores_r = [], []
         with torch.no_grad():
             for row in dataset:
-                X, y = row
+                X, y, _ = row
                 X = X.to(self.device).float()
 
                 score_e, score_r = self.score(X)

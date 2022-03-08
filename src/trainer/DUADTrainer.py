@@ -1,14 +1,15 @@
 import warnings
 import torch
 import numpy as np
+
 from copy import deepcopy
 from torch import nn
 from tqdm import trange
 from typing import Callable
 from src.datamanager.DataManager import DataManager
 from src.model.DUAD import DUAD
-from sklearn.mixture import GaussianMixture
 from src.utils.metrics import score_recall_precision, score_recall_precision_w_thresold
+from sklearn.mixture import GaussianMixture
 
 
 class DUADTrainer:

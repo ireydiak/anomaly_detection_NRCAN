@@ -66,6 +66,7 @@ def average_results(results: dict):
         # final_results[f'{k}_std'] = np.std(v)
     return final_results
 
+
 def optimizer_setup(optimizer_class: Type[torch.optim.Optimizer], **hyperparameters) -> Callable[
     [torch.nn.Module], torch.optim.Optimizer]:
     """

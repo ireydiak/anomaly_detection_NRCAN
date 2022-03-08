@@ -1,7 +1,7 @@
 from torch.utils.data.dataloader import DataLoader
 import torch
 import numpy as np
-from trainer.BaseTrainer import BaseTrainer
+from src.trainer.base import BaseTrainer
 
 
 class DeepSVDDTrainer(BaseTrainer):

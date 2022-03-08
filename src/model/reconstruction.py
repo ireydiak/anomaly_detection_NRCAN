@@ -1,11 +1,11 @@
 import numpy as np
 import torch
 from minisom import MiniSom
-from .memory_module import MemoryUnit
-from . import GMM
-from typing import Tuple, List
+from src.model.base import BaseModel
+from src.model.GMM import GMM
+from src.model.memory_module import MemoryUnit
 from torch import nn
-from BaseModel import BaseModel
+from typing import Tuple, List
 
 
 class AutoEncoder(nn.Module):
@@ -67,13 +67,13 @@ class DAGMM(BaseModel):
         self.lambda_1 = lambda_1
         self.lambda_2 = lambda_2
         self.reg_covar = reg_covar
-        self.cosim = nn.CosineSimilarity()
-        self.softmax = nn.Softmax(dim=-1)
-        self.phi, self.mu, self.cov_mat = None, None, None
         self.K = 4
         self.latent_dim = 1
-        self.ae, self.gmm = None, None
+        self.ae = None
+        self.gmm = None
         super(DAGMM, self).__init__(**kwargs)
+        self.cosim = nn.CosineSimilarity()
+        self.softmax = nn.Softmax(dim=-1)
 
     def resolve_params(self, dataset_name: str):
         # defaults to parameters described in section 4.3 of the paper
@@ -107,7 +107,7 @@ class DAGMM(BaseModel):
             ]
 
         self.ae = AutoEncoder(enc_layers, dec_layers)
-        self.gmm = GMM.GMM(gmm_layers)
+        self.gmm = GMM(gmm_layers)
 
     def forward(self, x: torch.Tensor):
         """
@@ -312,12 +312,12 @@ default_som_args = {
 
 class SOMDAGMM(BaseModel):
     def __init__(self, n_som: int, lambda_1=0.1, lambda_2=0.005, **kwargs):
+        self.som_args = None
+        self.dagmm = None
+        self.soms = None
         self.n_som = n_som
         self.lambda_1 = lambda_1
         self.lambda_2 = lambda_2
-        self.som_args = {}
-        self.soms = []
-        self.dagmm = None
         super(SOMDAGMM, self).__init__(**kwargs)
 
     def resolve_params(self, dataset_name: str):
@@ -407,10 +407,10 @@ class MemAutoEncoder(BaseModel):
         dataset_name: Name of the dataset (used to set the parameters)
         in_features: Number of variables in the dataset
         """
-        self.mem_rep = None
-        self.decoder = None
-        self.encoder = None
         self.latent_dim = None
+        self.encoder = None
+        self.decoder = None
+        self.mem_rep = None
         super(MemAutoEncoder, self).__init__(**kwargs)
 
     def resolve_params(self, dataset_name: str):
@@ -469,13 +469,13 @@ class MemAutoEncoder(BaseModel):
                 nn.Tanh(),
                 nn.Linear(60, self.in_features)
             ]
+        self.latent_dim = enc_layers[-1].out_features
         self.encoder = nn.Sequential(
             *enc_layers
         ).to(self.device)
         self.decoder = nn.Sequential(
             *dec_layers
         ).to(self.device)
-        self.latent_dim = enc_layers[-1].out_features
         self.mem_rep = MemoryUnit(mem_dim, self.latent_dim, shrink_thres, device=self.device).to(self.device)
 
     def forward(self, x):

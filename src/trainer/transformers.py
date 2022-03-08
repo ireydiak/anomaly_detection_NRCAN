@@ -1,9 +1,9 @@
 import warnings
+import torch
+import numpy as np
 from torch import nn
 from torch.optim.lr_scheduler import ExponentialLR, StepLR
 from tqdm import trange
-import torch
-import numpy as np
 from typing import Callable
 from src.datamanager import DataManager
 from src.utils.metrics import score_recall_precision, score_recall_precision_w_thresold
