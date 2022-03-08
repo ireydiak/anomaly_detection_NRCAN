@@ -23,6 +23,7 @@ class BaseTrainer(ABC):
         self.n_jobs_dataloader = n_jobs_dataloader
         self.n_epochs = n_epochs
         self.lr = lr
+        self.optimizer = self.set_optimizer()
 
     @abstractmethod
     def train_iter(self, sample: torch.Tensor):
@@ -52,8 +53,6 @@ class BaseTrainer(ABC):
 
         self.before_training(dataset)
 
-        optimizer = self.set_optimizer()
-
         print("Started training")
         for epoch in range(self.n_epochs):
             epoch_loss = 0.0
@@ -66,13 +65,13 @@ class BaseTrainer(ABC):
                         break
 
                     # Reset gradient
-                    optimizer.zero_grad()
+                    self.optimizer.zero_grad()
 
                     loss = self.train_iter(X)
 
                     # Backpropagation
                     loss.backward()
-                    optimizer.step()
+                    self.optimizer.step()
 
                     epoch_loss += loss.item()
                     t.set_postfix(

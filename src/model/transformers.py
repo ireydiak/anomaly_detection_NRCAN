@@ -23,7 +23,7 @@ def create_network(D: int, out_dims: np.array, bias=True) -> list:
 
 
 class NeuTraLAD(BaseModel):
-    def __init__(self, temperature: float, n_layers=3, **kwargs):
+    def __init__(self, temperature: float = 0.07, n_layers: int = 3, **kwargs):
         self.n_layers = n_layers
         self.temperature = temperature
         self.K = None
@@ -39,16 +39,16 @@ class NeuTraLAD(BaseModel):
 
     def create_masks(self) -> list:
         masks = [None] * self.K
-        out_dims = np.array([self.D] * self.n_layers)
+        out_dims = np.array([self.in_features] * self.n_layers)
         for K_i in range(self.K):
-            net_layers = create_network(self.D, out_dims, bias=False)
+            net_layers = create_network(self.in_features, out_dims, bias=False)
             net_layers[-1] = nn.Sigmoid()
             masks[K_i] = nn.Sequential(*net_layers).to(self.device)
         return masks
 
     def resolve_params(self, dataset: str) -> (int, int):
         K, Z = 7, 32
-        # out_dims = np.linspace(self.D, Z, self.n_layers, dtype=np.int32)
+        # out_dims = np.linspace(self.in_features, Z, self.n_layers, dtype=np.int32)
         out_dims = [90, 70, 50] + [Z]
         if dataset == 'Thyroid':
             Z = 12
@@ -61,14 +61,14 @@ class NeuTraLAD(BaseModel):
         self.Z = Z
         self.emb_out_dims = out_dims
         # Encoder
-        enc_layers = create_network(self.D, self.emb_out_dims)[:-1]  # removes ReLU from the last layer
+        enc_layers = create_network(self.in_features, self.emb_out_dims)[:-1]  # removes ReLU from the last layer
         self.enc = nn.Sequential(*enc_layers).to(self.device)
         # Masks / Transformations
-        self.masks = self._create_masks()
+        self.masks = self.create_masks()
 
     def get_params(self) -> dict:
         return {
-            'in_features': self.D,
+            'in_features': self.in_features,
             'K': self.K,
             'temperature': self.temperature
         }
