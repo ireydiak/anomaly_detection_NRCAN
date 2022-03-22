@@ -47,6 +47,7 @@ class DataManager:
         self.input_shape = input_shape
         self.train_set = train_dataset
         self.test_set = test_dataset
+        self.anomaly_ratio = sum(test_dataset.dataset.y == 1)/len(test_dataset)
         self.validation = validation
         self.kwargs = kwargs
         self.seed = seed
