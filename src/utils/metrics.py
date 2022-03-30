@@ -4,6 +4,8 @@ from sklearn import metrics as sk_metrics
 def estimate_optimal_threshold(test_score, y_test, pos_label=1, nq=100):
     nq = nq or 100
     normal_sample_ratio = 100 * sum(y_test == 0) / len(y_test)
+    print(f'ratio of nomal test data: {normal_sample_ratio}')
+
     q = np.linspace(normal_sample_ratio - 5, min(normal_sample_ratio + 5, 100), nq)
     thresholds = np.percentile(test_score, q)
     res = {"Precision": -1, "Recall": -1, "F1-Score": -1, "AUROC": -1, "AUPR": -1, "Thresh_star": -1}

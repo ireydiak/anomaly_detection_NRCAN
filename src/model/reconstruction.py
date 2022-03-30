@@ -8,6 +8,23 @@ from torch import nn
 from typing import Tuple, List
 
 
+class AutoEncoderModel(BaseModel):
+    def __init__(self, dataset_name: str, in_features: int, n_instances: int, device: str, **kwargs):
+        super(AutoEncoderModel, self).__init__(dataset_name, in_features, n_instances, device, **kwargs)
+
+        latent_dim = kwargs.get('ae_latent_dim', 1)
+        self.net = AutoEncoder.from_dataset(in_features, dataset_name, latent_dim)
+        self.name = "AutoEncoder"
+
+    def forward(self, x):
+        """
+        This function compute the output of the network in the forward pass
+        :param x: input
+        :return: output of the model
+        """
+        return self.net(x)
+
+
 class AutoEncoder(nn.Module):
     """
     Implements a basic Deep Auto Encoder

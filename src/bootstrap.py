@@ -12,7 +12,7 @@ from src.model.density import DSEBM
 from src.model.DUAD import DUAD
 from src.model.one_class import DeepSVDD, DROCC
 from src.model.transformers import NeuTraLAD
-from src.model.reconstruction import AutoEncoder as AE, DAGMM, MemAutoEncoder as MemAE, SOMDAGMM
+from src.model.reconstruction import AutoEncoderModel as AE, DAGMM, MemAutoEncoder as MemAE, SOMDAGMM
 from src.model.shallow import RecForest, OCSVM, LOF
 from src.trainer.adversarial import ALADTrainer
 from src.trainer.density import DSEBMTrainer
@@ -38,7 +38,7 @@ available_models = [
     "DUAD",
     "LOF",
     "MemAE",
-    "NeuTraLAD"
+    "NeuTraLAD",
     "OC-SVM",
     "RecForest",
     "SOM-DAGMM",
@@ -137,18 +137,13 @@ def resolve_model_trainer(
         assert model_trainer_tuple, "Model %s not found" % model_name
         model, trainer = model_trainer_tuple
 
-        if model_name == "AE":
-            model = AE.from_dataset(dataset_name=dataset.name,
-                                    in_features=dataset.in_features,
-                                    latent_dim=ae_latent_dim)
-        else:
-            model = model(
-                dataset_name=dataset.name,
-                in_features=dataset.in_features,
-                n_instances=dataset.n_instances,
-                device=device,
-                ae_latent_dim=ae_latent_dim
-            )
+        model = model(
+            dataset_name=dataset.name,
+            in_features=dataset.in_features,
+            n_instances=dataset.n_instances,
+            device=device,
+            ae_latent_dim=ae_latent_dim
+        )
         trainer = trainer(
             model=model,
             lr=learning_rate,
