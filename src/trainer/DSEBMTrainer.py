@@ -73,7 +73,7 @@ class DSEBMTrainer:
                     t.update()
 
     def evaluate_on_test_set(self, pos_label=1, **kwargs):
-        test_labels, scores_r, scores_e = [], [], []
+        labels, scores_r, scores_e = [], [], []
         test_ldr = self.dm.get_test_set()
         energy_threshold = kwargs.get('energy_threshold', 80)
 
@@ -81,6 +81,34 @@ class DSEBMTrainer:
 
         scores_e_train = []
         scores_r_train = []
+
+        # Create pytorch's train data_loader
+        train_loader = self.dm.get_init_train_loader()
+        for X_i, _, _ in train_loader:
+            # transfer tensors to selected device
+            X = X_i.float().to(self.device)
+            if len(X) < self.batch:
+                break
+
+            # Evaluation of the score based on the energy
+            with torch.no_grad():
+                flat = X - self.b_prime
+                out = self.model(X)
+                energies = 0.5 * torch.sum(torch.square(flat), dim=1) - torch.sum(out, dim=1)
+            scores_e_train.append(energies.cpu().numpy())
+
+            # Evaluation of the score based on the reconstruction error
+            X.requires_grad_()
+            out = self.model(X)
+            energy = self.energy(X, out)
+            dEn_dX = torch.autograd.grad(energy, X)[0]
+            # fx = X - dEn_dX
+            # delta = X - fx
+            rec_errs = torch.linalg.norm(dEn_dX, 2, keepdim=False, dim=1)
+            scores_r_train.append(rec_errs.cpu().numpy())
+
+        scores_e_train = np.concatenate(scores_e_train, axis=0)
+        scores_r_train = np.concatenate(scores_r_train, axis=0)
 
         # Calculate score using estimated parameters on test set
         for X_i, label in test_ldr:
@@ -105,39 +133,34 @@ class DSEBMTrainer:
 
             rec_errs = torch.linalg.norm(dEn_dX, 2, keepdim=False, dim=1)
             scores_r.append(rec_errs.cpu().numpy())
-            test_labels.append(label.numpy())
+            labels.append(label.numpy())
 
         scores_r = np.concatenate(scores_r, axis=0)
         scores_e = np.concatenate(scores_e, axis=0)
-        test_labels = np.concatenate(test_labels, axis=0)
+        labels = np.concatenate(labels, axis=0)
 
         combined_scores_e = np.concatenate([scores_e_train, scores_e], axis=0)
         combined_scores_r = np.concatenate([scores_r_train, scores_r], axis=0)
 
-        comp_threshold = 100 * sum(test_labels == 0) / len(test_labels)
         # Result based on energy
-        res_max1 = score_recall_precision(combined_scores_e, scores_e, test_labels)
-        res1 = score_recall_precision_w_thresold(combined_scores_e, scores_e, test_labels, pos_label=pos_label,
-                                                 threshold=comp_threshold)
+        res1 = score_recall_precision_w_thresold(combined_scores_e, scores_e, labels, pos_label=pos_label,
+                                                 threshold=energy_threshold)
         res1 = self.ren_dict_keys(res1, 'en')
-        res_max1 = self.ren_dict_keys(res_max1, 'en')
-        res1 = dict(res1, **res_max1)
+        print('Evaluation with energy\n')
+        score_recall_precision(combined_scores_e, scores_e, labels)
 
         # Result based on reconstruction
-        res2 = score_recall_precision_w_thresold(combined_scores_r, scores_r, test_labels, pos_label=pos_label,
-                                                 threshold=comp_threshold)
-        res_max2 = score_recall_precision(combined_scores_r, scores_r, test_labels)
-
+        res2 = score_recall_precision_w_thresold(combined_scores_r, scores_r, labels, pos_label=pos_label,
+                                                 threshold=energy_threshold)
         res2 = self.ren_dict_keys(res2, 'rec')
-        res_max2 = self.ren_dict_keys(res_max2, 'rec')
-        res2 = dict(res2, **res_max2)
+        print('\n\nEvaluation with reconstruction')
+        score_recall_precision(combined_scores_r, scores_r, labels)
 
         res = dict(res1, **res2)
-
         # switch back to train mode
         self.model.train()
 
-        return res, None, None, None
+        return res, _, _, _
 
     def ren_dict_keys(self, d: dict, prefix=''):
         d_ = {}

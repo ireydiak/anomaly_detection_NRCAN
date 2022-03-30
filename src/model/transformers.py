@@ -7,7 +7,6 @@ from .BaseModel import BaseModel
 from .utils import weights_init_xavier
 
 
-
 # learning_rate = 1e-5
 # batch_size = 50
 # latent_dim = 32
@@ -23,11 +22,11 @@ def create_network(D: int, out_dims: np.array, bias=True) -> list:
     return net_layers
 
 
-class NeuTraAD(BaseModel):
+class NeuTraLAD(BaseModel):
     def __init__(self, D: int, device, temperature: float, dataset: str, n_layers=3,
                  trans_type='res'
                  ):
-        super(NeuTraAD, self).__init__()
+        super(NeuTraLAD, self).__init__()
         self.device = device
         self.D = D
         self.n_layers = n_layers
@@ -38,15 +37,11 @@ class NeuTraAD(BaseModel):
         self.cosim = nn.CosineSimilarity()
         self._build_network()
 
-        # self.enc.apply(weights_init_xavier)
-        # for mask in self.masks:
-        #     mask.apply(weights_init_xavier)
-        # self.masks.apply(weights_init_xavier)
+
 
     def _create_masks(self) -> list:
         masks = [None] * self.K
-        out_dims = self.trans_layers or np.array([self.D] * self.n_layers)
-        # out_dims[:-1] *= 3
+        out_dims = self.trans_layers or np.array([self.in_features] * self.n_layers)
         for K_i in range(self.K):
             net_layers = create_network(self.D, out_dims, bias=False)
             net_layers[-1] = nn.Sigmoid()

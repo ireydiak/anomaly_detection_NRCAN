@@ -4,7 +4,7 @@ from copy import deepcopy
 from matplotlib import pyplot as plt
 from sklearn.metrics import confusion_matrix, average_precision_score, precision_recall_curve, \
     plot_precision_recall_curve
-from torch import nn
+from torch import nn, optim
 from tqdm import trange
 
 import torch
@@ -24,31 +24,27 @@ from viz.viz import plot_2D_latent, plot_energy_percentile
 
 class DUADTrainer:
 
-    def __init__(self, model: DUAD, dm: DataManager,
-                 optimizer_factory: Callable[[torch.nn.Module], torch.optim.Optimizer],
-                 use_cuda=True,
-                 **kwargs
-                 ):
+    def __init__(self,
+                 model: DUAD,
+                 dm: DataManager,
+                 n_epochs: int,
+                 lr: float = 1e-4,
+                 device: str = "cpu",
+                 **kwargs):
 
         self.metric_hist = []
         self.dm = dm
 
-        self.r = kwargs.get('r', 10)
-        self.p = kwargs.get('p_s', 30)
-        self.p0 = kwargs.get('p_0', 35)
-        self.num_cluster = kwargs.get('num_cluster', 20)
-
-        device_name = 'cuda:0' if use_cuda else 'cpu'
-        if use_cuda and not torch.cuda.is_available():
-            warnings.warn("CUDA is not available. Suppress this warning by passing "
-                          "use_cuda=False to {}()."
-                          .format(self.__class__.__name__), RuntimeWarning)
-            print('\n\n')
-            device_name = 'cpu'
-
-        self.device = torch.device(device_name)
+        self.r = kwargs.get('duad_r', 10)
+        self.p = kwargs.get('duad_p_s', 30)
+        self.p0 = kwargs.get('duad_p_0', 35)
+        self.num_cluster = kwargs.get('duad_num_cluster', 20)
+        self.lr = lr
+        self.n_epochs = n_epochs
+        self.device = device
         self.model = model.to(self.device)
-        self.optim = optimizer_factory(self.model)
+        self.optimizer = optim.Adam(self.model.parameters(), lr=self.lr,
+                                    weight_decay=kwargs.get('duad_num_cluster', 20))
 
         self.criterion = nn.MSELoss()
 
@@ -335,17 +331,17 @@ class DUADTrainer:
             test_z = np.concatenate(test_z, axis=0)
             test_labels = np.concatenate(test_labels, axis=0)
 
-            combined_score = np.concatenate([train_score, test_score], axis=0)
+            # combined_score = np.concatenate([train_score, test_score], axis=0)
 
             # Evaluation
-            comp_threshold = 100 * sum(test_labels == 0) / len(test_labels)
-            res_max = score_recall_precision(combined_score, test_score, test_labels, nq=30)
-            res = score_recall_precision_w_thresold(combined_score, test_score, test_labels, pos_label=pos_label,
-                                                    threshold=comp_threshold)
+            # comp_threshold = 100 * sum(test_labels == 0) / len(test_labels)
+            # res_max = score_recall_precision(combined_score, test_score, test_labels, nq=30)
+            # res = score_recall_precision_w_thresold(combined_score, test_score, test_labels, pos_label=pos_label,
+            #                                         threshold=comp_threshold)
 
             # switch back to train mode
             self.model.train()
 
-            res = dict(res, **res_max)
+            # res = dict(res, **res_max)
 
-            return res, test_z, test_labels, combined_score
+            return test_score, test_labels
