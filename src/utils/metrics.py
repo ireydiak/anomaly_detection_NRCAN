@@ -2,29 +2,51 @@ import numpy as np
 from sklearn import metrics as sk_metrics
 
 
-def estimate_optimal_threshold(combined_scores, test_score, y_test, pos_label=1):
-    q = np.linspace(0, 99, 100)
-    thresholds = np.percentile(combined_scores, q)
-    res = {"Precision": -1, "Recall": -1, "F1-Score": -1, "AUROC": -1, "AUPR": -1, "Thresh_star": -1}
-    y_true = y_test.astype(int)
-    res["AUPR"] = sk_metrics.average_precision_score(y_true, test_score)
-    res["AUROC"] = sk_metrics.roc_auc_score(y_true, test_score)
+def estimate_optimal_threshold(combined_scores, test_score, y_test, pos_label=1, nq=100):
+    # def score_recall_precision(combined_score, test_score, test_labels, pos_label=1, nq=100):
+    ratio = 100 * sum(y_test == 0) / len(y_test)
+    q = np.linspace(ratio - 5, min(ratio + 5, 100), nq)
+    thresholds = np.percentile(test_score, q)
 
-    for thresh, qi in zip(thresholds, q):
+    result_search = []
+    confusion_matrices = []
+    f1 = np.zeros(shape=nq)
+    r = np.zeros(shape=nq)
+    p = np.zeros(shape=nq)
+    auc = np.zeros(shape=nq)
+    aupr = np.zeros(shape=nq)
+
+    for i, (thresh, qi) in enumerate(zip(thresholds, q)):
+        # print(f"Threshold :{thresh:.3f}--> {qi:.3f}")
         # Prediction using the threshold value
         y_pred = (test_score >= thresh).astype(int)
+        y_true = y_test.astype(int)
 
+        accuracy = sk_metrics.accuracy_score(y_true, y_pred)
         precision, recall, f_score, _ = sk_metrics.precision_recall_fscore_support(
-            y_true, y_pred, average="binary", pos_label=pos_label
+            y_true, y_pred, average='binary', pos_label=pos_label
         )
+        avgpr = sk_metrics.average_precision_score(y_true, test_score)
+        roc = sk_metrics.roc_auc_score(y_true, test_score)
+        cm = sk_metrics.confusion_matrix(y_true, y_pred, labels=[1, 0])
+        confusion_matrices.append(cm)
+        result_search.append([accuracy, precision, recall, f_score])
+        f1[i] = f_score
+        r[i] = recall
+        p[i] = precision
+        auc[i] = roc
+        aupr[i] = avgpr
 
-        if f_score > res["F1-Score"]:
-            res["F1-Score"] = f_score
-            res["Precision"] = precision
-            res["Recall"] = recall
-            res["Thresh_star"] = thresh
+    arm = np.argmax(f1)
 
-    return res
+    return {
+        "Precision": p[arm],
+        "Recall": r[arm],
+        "F1-Score": f1[arm],
+        "AUPR": aupr[arm],
+        "AUROC": auc[arm],
+        "Thresh_star": thresholds[arm]
+    }
 
 
 def score_recall_precision_w_thresold(combined_score, test_score, test_labels, threshold, pos_label=1):

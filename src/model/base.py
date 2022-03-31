@@ -48,14 +48,9 @@ class BaseModel(nn.Module):
         # model.to('cpu')
         # with gzip.open(filename, 'wb') as f:
         #     pickle.dump(model, f, protocol=pickle.HIGHEST_PROTOCOL)
-        torch.save(self.state_dict(), filename + "pt")
+        torch.save(self.state_dict(), filename)
         # return torch.load(weights_path)
 
-    def get_params(self) -> dict:
-        return {
-            "in_features": self.in_features,
-            "n_instances": self.n_instances
-        }
 
 class BaseShallowModel(ABC):
 
