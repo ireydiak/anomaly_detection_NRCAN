@@ -15,6 +15,7 @@ def estimate_optimal_threshold(combined_scores, test_score, y_test, pos_label=1,
     p = np.zeros(shape=nq)
     auc = np.zeros(shape=nq)
     aupr = np.zeros(shape=nq)
+    qis = np.zeros(shape=nq)
 
     for i, (thresh, qi) in enumerate(zip(thresholds, q)):
         # print(f"Threshold :{thresh:.3f}--> {qi:.3f}")
@@ -36,6 +37,7 @@ def estimate_optimal_threshold(combined_scores, test_score, y_test, pos_label=1,
         p[i] = precision
         auc[i] = roc
         aupr[i] = avgpr
+        qis[i] = qi
 
     arm = np.argmax(f1)
 
@@ -45,7 +47,8 @@ def estimate_optimal_threshold(combined_scores, test_score, y_test, pos_label=1,
         "F1-Score": f1[arm],
         "AUPR": aupr[arm],
         "AUROC": auc[arm],
-        "Thresh_star": thresholds[arm]
+        "Thresh_star": thresholds[arm],
+        "Quantile_star": thresholds[arm]
     }
 
 
