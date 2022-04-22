@@ -37,8 +37,8 @@ def score_recall_precision(combined_score, test_score, test_labels, pos_label=1,
 
         accuracy = sk_metrics.accuracy_score(y_true, y_pred)
         precision, recall, f_score, _ = sk_metrics.precision_recall_fscore_support(y_true, y_pred,
-                                                                        average='binary',
-                                                                        pos_label=pos_label)
+                                                                                   average='binary',
+                                                                                   pos_label=pos_label)
         cm = sk_metrics.confusion_matrix(y_true, y_pred, labels=[1, 0])
         confusion_matrices.append(cm)
         result_search.append([accuracy, precision, recall, f_score])
@@ -68,7 +68,7 @@ def score_recall_precision_w_thresold(combined_score, test_score, test_labels, p
 
     accuracy = sk_metrics.accuracy_score(y_true, y_pred)
     precision, recall, f_score, _ = sk_metrics.precision_recall_fscore_support(
-      y_true, y_pred, average='binary', pos_label=pos_label
+        y_true, y_pred, average='binary', pos_label=pos_label
     )
 
     res = {"Accuracy": accuracy,
