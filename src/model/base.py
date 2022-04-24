@@ -7,9 +7,10 @@ from torch import nn
 
 class BaseModel(nn.Module):
 
-    def __init__(self, in_features: int, device: str, **kwargs):
+    def __init__(self, in_features: int, n_instances: int, device: str, **kwargs):
         super(BaseModel, self).__init__()
         self.device = device
+        self.n_instances = n_instances
         self.in_features = in_features
 
     def get_params(self) -> dict:

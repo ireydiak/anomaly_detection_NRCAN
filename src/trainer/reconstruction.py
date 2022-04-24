@@ -188,7 +188,7 @@ class DAGMMTrainer(BaseTrainer):
 class MemAETrainer(BaseTrainer):
     def __init__(self, **kwargs) -> None:
         super(MemAETrainer, self).__init__(**kwargs)
-        self.alpha = 2e-4
+        self.alpha = self.model.alpha
         self.recon_loss_fn = nn.MSELoss().to(self.device)
         self.entropy_loss_fn = EntropyLoss().to(self.device)
 

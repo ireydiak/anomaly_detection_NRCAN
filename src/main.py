@@ -56,7 +56,7 @@ def argument_parser():
         "-o",
         "--results-path",
         type=str,
-        default="../results",
+        default=None,
         help="Where the results will be stored"
     )
     parser.add_argument(

@@ -35,11 +35,11 @@ available_models = [
     # "DROCC",
     # "DUAD",
     # "LOF",
-    # "MemAE",
+    MemAE,
     # "NeuTraLAD",
     # "OC-SVM",
     # "RecForest",
-    # "SOM-DAGMM",
+    SOMDAGMM,
 ]
 available_datasets = [
     "Arrhythmia",
@@ -59,9 +59,9 @@ model_trainer_map = {
     # "DSEBM": (DSEBM, DSEBMTrainer),
     # "DROCC": (DROCC, EdgeMLDROCCTrainer),
     # "DUAD": (DUAD, DUADTrainer),
-    # "MemAE": (MemAE, MemAETrainer),
+    "MemAE": (MemAE, MemAETrainer),
     # "DeepSVDD": (DeepSVDD, DeepSVDDTrainer),
-    # "SOM-DAGMM": (SOMDAGMM, SOMDAGMMTrainer),
+    "SOMDAGMM": (SOMDAGMM, SOMDAGMMTrainer),
     # "NeuTraLAD": (NeuTraLAD, NeuTraLADTrainer),
     # Shallow Models
     # "OC-SVM": (OCSVM, OCSVMTrainer),
@@ -70,8 +70,14 @@ model_trainer_map = {
 }
 
 
-def store_results(results: dict, params: dict, model_name: str, dataset: str, dataset_path: str,
-                  results_path: str = None):
+def store_results(
+    results: dict,
+    params: dict,
+    model_name: str,
+    dataset: str,
+    dataset_path: str,
+    results_path: str = None
+):
     output_dir = results_path or f"../results/{dataset}"
     if not os.path.exists(output_dir):
         os.mkdir(output_dir)

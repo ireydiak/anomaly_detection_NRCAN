@@ -21,8 +21,8 @@ class AutoEncoder(BaseModel):
             self,
             latent_dim: int,
             act_fn: str,
-            n_layers: int = 4,
-            compression_factor: int = 2,
+            n_layers: int,
+            compression_factor: int,
             **kwargs):
         super(AutoEncoder, self).__init__(**kwargs)
         self.latent_dim = latent_dim
@@ -127,13 +127,13 @@ class DAGMM(BaseModel):
 
     def __init__(
             self,
-            n_mixtures: int = 4,
-            latent_dim: int = 1,
-            lambda_1=0.005,
-            lambda_2=0.1,
-            reg_covar=1e-12,
-            ae_n_layers=4,
-            ae_compression_factor=2,
+            n_mixtures: int,
+            latent_dim: int,
+            lambda_1: float,
+            lambda_2: float,
+            reg_covar: float,
+            n_layers: int,
+            compression_factor:int,
             ae_act_fn="relu",
             gmm_act_fn="tanh",
             **kwargs
@@ -144,8 +144,8 @@ class DAGMM(BaseModel):
         self.lambda_1 = lambda_1
         self.lambda_2 = lambda_2
         self.reg_covar = reg_covar
-        self.ae_n_layers = ae_n_layers
-        self.ae_compression_factor = ae_compression_factor
+        self.ae_n_layers = n_layers
+        self.ae_compression_factor = compression_factor
         self.ae_act_fn = ae_act_fn
         self.gmm_act_fn = activation_mapper[gmm_act_fn]
         self.cosim = nn.CosineSimilarity()
@@ -157,15 +157,16 @@ class DAGMM(BaseModel):
     @staticmethod
     def get_args_desc():
         return [
-            ("n_mixtures", int, 4, "Number of mixtures for the GMM network"),
-            ("latent_dim", int, 1, "Latent dimension of the AE network"),
-            ("lambda_1", float, 0.005, "Lambda 1 parameter used during optimization"),
-            ("lambda_2", float, 0.1, "Lambda 2 parameter used during optimization"),
-            ("reg_covar", float, 1e-12, "Small epsilon value added to covariance matrix to ensure it remains reversible."),
-            ("ae_n_layers", int, 4, "Number of layers for the AE network"),
-            ("ae_compression_factor", int, 2, "Compression factor for the AE network"),
-            ("ae_act_fn", str, "relu", "Activation function of the AE network"),
-            ("gmm_act_fn", str, "tanh", "Activation function of the GMM network"),
+            ("n_mixtures", int, 4, "Number of mixtures for the GMM network."),
+            ("latent_dim", int, 1, "Latent dimension of the AE network."),
+            ("lambda_1", float, 0.1, "Coefficient for the energy loss."),
+            ("lambda_2", float, 0.005, "Coefficient of the penalization for degenerate covariance matrices."),
+            ("reg_covar", float, 1e-12,
+             "Small epsilon value added to covariance matrix to ensure it remains invertible."),
+            ("n_layers", int, 4, "Number of layers for the AE network."),
+            ("compression_factor", int, 2, "Compression factor for the AE network."),
+            ("ae_act_fn", str, "relu", "Activation function of the AE network."),
+            ("gmm_act_fn", str, "tanh", "Activation function of the GMM network."),
         ]
 
     def _build_network(self):
@@ -182,7 +183,8 @@ class DAGMM(BaseModel):
             n_layers=self.ae_n_layers,
             compression_factor=self.ae_compression_factor,
             in_features=self.in_features,
-            device=self.device
+            device=self.device,
+            n_instances=self.n_instances
         )
         self.gmm = GMM(layers=gmm_layers)
 
@@ -388,17 +390,54 @@ default_som_args = {
 
 
 class SOMDAGMM(BaseModel):
-    def __init__(self, n_som: int = 1, lambda_1: float = 0.1, lambda_2: float = 0.005, **kwargs):
+    name = "SOMDAGMM"
+
+    def __init__(
+            self,
+            n_soms: int,
+            n_mixtures: int,
+            latent_dim: int,
+            reg_covar: float,
+            n_layers: int,
+            compression_factor: int,
+            lambda_1: float,
+            lambda_2: float,
+            ae_act_fn="relu",
+            gmm_act_fn="tanh",
+            **kwargs):
+        super(SOMDAGMM, self).__init__(**kwargs)
+        self.n_mixtures = n_mixtures
+        self.latent_dim = latent_dim
+        self.reg_covar = reg_covar
+        self.n_layers = n_layers
+        self.compression_factor = compression_factor
+        self.ae_act_fn = ae_act_fn
+        self.gmm_act_fn = gmm_act_fn
+        self.n_som = n_soms
+        self.lambda_1 = lambda_1
+        self.lambda_2 = lambda_2
         self.som_args = None
         self.dagmm = None
         self.soms = None
-        self.n_som = n_som
-        self.lambda_1 = lambda_1
-        self.lambda_2 = lambda_2
-        self.name = "SOMDAGMM"
-        super(SOMDAGMM, self).__init__(**kwargs)
+        self._build_network()
 
-    def resolve_params(self, dataset_name: str):
+    @staticmethod
+    def get_args_desc():
+        return [
+            ("n_soms", int, 1, "Number of SOM"),
+            ("n_mixtures", int, 4, "Number of mixtures for the GMM network"),
+            ("latent_dim", int, 1, "Latent dimension of the AE network"),
+            ("lambda_1", float, 0.005, "Lambda 1 parameter used during optimization"),
+            ("lambda_2", float, 0.1, "Lambda 2 parameter used during optimization"),
+            ("reg_covar", float, 1e-12,
+             "Small epsilon value added to covariance matrix to ensure it remains reversible."),
+            ("n_layers", int, 4, "Number of layers for the AE network"),
+            ("compression_factor", int, 2, "Compression factor for the AE network"),
+            ("ae_act_fn", str, "relu", "Activation function of the AE network"),
+            ("gmm_act_fn", str, "tanh", "Activation function of the GMM network"),
+        ]
+
+    def _build_network(self):
         # set these values according to the used dataset
         # Use 0.6 for KDD; 0.8 for IDS2018 with babel as neighborhood function as suggested in the paper.
         grid_length = int(np.sqrt(5 * np.sqrt(self.n_instances))) // 2
@@ -418,17 +457,26 @@ class SOMDAGMM(BaseModel):
         )] * self.som_args.get('n_som', 1)
         # DAGMM
         self.dagmm = DAGMM(
-            dataset_name=dataset_name,
             in_features=self.in_features,
             n_instances=self.n_instances,
             device=self.device,
+            n_mixtures=self.n_mixtures,
+            latent_dim=self.latent_dim,
+            lambda_1=self.lambda_1,
+            lambda_2=self.lambda_2,
+            reg_covar=self.reg_covar,
+            n_layers=self.n_layers,
+            compression_factor=self.compression_factor,
+            ae_act_fn=self.ae_act_fn,
+            gmm_act_fn=self.gmm_act_fn,
         )
         # Replace DAGMM's GMM network
         gmm_input = self.n_som * 2 + self.dagmm.latent_dim + 2
-        if dataset_name == "Arrhythmia":
-            gmm_layers = [(gmm_input, 10, nn.Tanh()), (None, None, nn.Dropout(0.5)), (10, 2, nn.Softmax(dim=-1))]
-        else:
-            gmm_layers = [(gmm_input, 10, nn.Tanh()), (None, None, nn.Dropout(0.5)), (10, 4, nn.Softmax(dim=-1))]
+        gmm_layers = [
+            (gmm_input, 10, nn.Tanh()),
+            (None, None, nn.Dropout(0.5)),
+            (10, self.n_mixtures, nn.Softmax(dim=-1))
+        ]
         self.dagmm.gmm = GMM(gmm_layers).to(self.device)
 
     def train_som(self, X: torch.Tensor):
@@ -475,8 +523,18 @@ class SOMDAGMM(BaseModel):
 
 
 class MemAutoEncoder(BaseModel):
+    name = "MemAE"
 
-    def __init__(self, **kwargs):
+    def __init__(
+            self,
+            mem_dim: int,
+            latent_dim: int,
+            shrink_thres: float,
+            n_layers: int,
+            compression_factor: int,
+            act_fn="relu",
+            **kwargs
+    ):
         """
         Implements model Memory AutoEncoder as described in the paper
         `Memorizing Normality to Detect Anomaly: Memory-augmented Deep Autoencoder (MemAE) for Unsupervised Anomaly Detection`.
@@ -498,77 +556,54 @@ class MemAutoEncoder(BaseModel):
         dataset_name: Name of the dataset (used to set the parameters)
         in_features: Number of variables in the dataset
         """
-        self.name = "MemAE"
-        self.latent_dim = None
+        super(MemAutoEncoder, self).__init__(**kwargs)
+        self.latent_dim = latent_dim
+        self.act_fn = activation_mapper[act_fn]
+        self.shrink_thres = shrink_thres
+        self.n_layers = n_layers
+        self.compression_factor = compression_factor
+        self.mem_dim = mem_dim
         self.encoder = None
         self.decoder = None
         self.mem_rep = None
-        super(MemAutoEncoder, self).__init__(**kwargs)
+        self._build_network()
 
-    def resolve_params(self, dataset_name: str):
-        mem_dim = 50
-        shrink_thres = 0.0025
-        if dataset_name == 'Arrhythmia':
-            enc_layers = [
-                nn.Linear(self.in_features, self.in_features // 2),
-                nn.Tanh(),
-                nn.Linear(self.in_features // 2, self.in_features // 4),
-                nn.Tanh(),
-                nn.Linear(self.in_features // 4, self.in_features // 6),
-                nn.Tanh(),
-                nn.Linear(self.in_features // 6, 10)
-            ]
-            dec_layers = [
-                nn.Linear(10, self.in_features // 6),
-                nn.Tanh(),
-                nn.Linear(self.in_features // 6, self.in_features // 4),
-                nn.Tanh(),
-                nn.Linear(self.in_features // 4, self.in_features // 2),
-                nn.Tanh(),
-                nn.Linear(self.in_features // 2, self.in_features),
-            ]
-        elif dataset_name == 'Thyroid':
-            enc_layers = [
-                nn.Linear(self.in_features, 4),
-                nn.Tanh(),
-                nn.Linear(4, 2),
-                nn.Tanh(),
-                nn.Linear(2, 1)
-            ]
-            dec_layers = [
-                nn.Linear(1, 2),
-                nn.Tanh(),
-                nn.Linear(2, 4),
-                nn.Tanh(),
-                nn.Linear(4, self.in_features)
-            ]
-        else:
-            enc_layers = [
-                nn.Linear(self.in_features, 60),
-                nn.Tanh(),
-                nn.Linear(60, 30),
-                nn.Tanh(),
-                nn.Linear(30, 10),
-                nn.Tanh(),
-                nn.Linear(10, 3)
-            ]
-            dec_layers = [
-                nn.Linear(3, 10),
-                nn.Tanh(),
-                nn.Linear(10, 30),
-                nn.Tanh(),
-                nn.Linear(30, 60),
-                nn.Tanh(),
-                nn.Linear(60, self.in_features)
-            ]
-        self.latent_dim = enc_layers[-1].out_features
-        self.encoder = nn.Sequential(
-            *enc_layers
-        ).to(self.device)
-        self.decoder = nn.Sequential(
-            *dec_layers
-        ).to(self.device)
-        self.mem_rep = MemoryUnit(mem_dim, self.latent_dim, shrink_thres, device=self.device).to(self.device)
+    @staticmethod
+    def get_args_desc():
+        return [
+            ("shrink_thres", float, 0.0025, "Shrink threshold for hard shrinking relu"),
+            ("latent_dim", int, 1, "Latent dimension of the AE network"),
+            ("mem_dim", int, 50, "Number of memory units"),
+            ("n_layers", int, 4, "Number of layers for the AE network"),
+            ("alpha", float, 2e-4, "Coefficient for the entropy loss"),
+            ("compression_factor", int, 2, "Compression factor for the AE network"),
+            ("act_fn", str, "relu", "Activation function of the AE network"),
+        ]
+
+    def _build_network(self):
+        # Create the ENCODER layers
+        enc_layers = []
+        in_features = self.in_features
+        compression_factor = self.compression_factor
+        for _ in range(self.n_layers - 1):
+            out_features = in_features // compression_factor
+            enc_layers.append(
+                [in_features, out_features, self.act_fn]
+            )
+            in_features = out_features
+            compression_factor += self.compression_factor
+        enc_layers.append(
+            [in_features, self.latent_dim, None]
+        )
+        # Create DECODER layers by simply reversing the encoder
+        dec_layers = [[b, a, c] for a, b, c in reversed(enc_layers)]
+        # Add and remove activation function from the first and last layer
+        dec_layers[0][-1] = self.act_fn
+        dec_layers[-1][-1] = None
+        # Create networks
+        self.encoder = utils.create_network(enc_layers)
+        self.decoder = utils.create_network(dec_layers)
+        self.mem_rep = MemoryUnit(self.mem_dim, self.latent_dim, self.shrink_thres, device=self.device).to(self.device)
 
     def forward(self, x):
         f_e = self.encoder(x)
@@ -579,5 +614,7 @@ class MemAutoEncoder(BaseModel):
     def get_params(self):
         return {
             "latent_dim": self.latent_dim,
-            "in_features": self.in_features
+            "in_features": self.in_features,
+            "shrink_thres": self.shrink_thres,
+            "mem_dim": self.mem_dim
         }

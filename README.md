@@ -17,22 +17,6 @@ DROCC and MemAE closely follows the original implementations already available o
 - [x] [RecForest](https://epubs.siam.org/doi/pdf/10.1137/1.9781611976700.15)
 - [x] [SOM-DAGMM](https://arxiv.org/pdf/2008.12686.pdf)
 
-## Suggested parameters
-#### DAGMM
-| Dataset    | n_mixtures | latent_dim | lambda_1 | lambda_2 | reg_covar |
-|------------|------------|------------|----------|----------|-----------|
-| Arrhythmia | 2          | 1          | 0.005    | 0.1      | 1e-12     |
-| Thyroid    | 4          | 1          | 0.005    | 0.1      | 1e-12     |
-| Default    | 4          | 1          | 0.005    | 0.1      | 1e-12     |
- 
-#### AutoEncoder
-| Dataset    | latent_dim | compression_factor | n_layers | act_fn |
-|------------|------------|--------------------|----------|--------|
-| Arrhythmia | 10         | 1                  | 2        | tanh   |
-| Thyroid    | 1          | 2                  | 3        | tanh   |
-| Default    | 1          | 0.005              | 4        | relu   |
-
-
 ## Dependencies
 A complete dependency list is available in requirements.txt.
 We list here the most important ones:
@@ -60,6 +44,11 @@ $ python -m src.main
 --batch-size [batch_size]
 ```
 
+## Parameters
+Our codebase was made to maximize the number of parameters a user can set without modifying the code while minimizing the argparse footprint.
+
+Global parameters are
+
 Our model contains the following parameters:
 - `-m`: selected machine learning model (**required**)
 - `-d`: path to the dataset (**required**)
@@ -75,6 +64,101 @@ Our model contains the following parameters:
 - `--test-mode`: loads models from `--model_path` and tests them (default=False)
 Please note that datasets must be stored in `.npz` or `.mat` files. Use the preprocessing scripts within `data_process`
 to generate these files.
+Model specific parameters are
+- AE 
+  - `--ae-latent-dim`: latent dimension of the network
+    - Default: 1
+  - `--ae-n-layers`: number of layers of the network
+    - Default: 4
+  - `--ae-compression-factor`: compression factor for the network
+    - Default: 2
+  - `--ae-act-fn`: activation function of the network
+    - Default: `relu`
+- DAGMM
+  - `--dagmm-latent-dim`: latent dimension of the AE subnetwork
+    - Default: `1`
+  - `--dagmm-n-mixtures`: number of mixtures for the GMM network
+    - Default: `4`
+  - `--dagmm-n-layers`: number of layers of the AE network
+    - Default: `4`
+  - `--dagmm-lambda-1`: coefficient for the energy loss
+    - Default: `0.1`
+  - `--dagmm-lambda-2`: coefficient for the penalization of degenerate covariance matrices
+    - Default: `0.005`
+  - `--dagmm-reg-covar`: small epsilon value added to covariance matrix to ensure it remains invertible
+  - `--dagmm-compression-factor`: compression factor for the AE network
+    - Default: `2`
+  - `--dagmm-act-fn`: activation function of the AD network
+    - Default: `relu`
+  - `--gmm-act-fn`: activation function of the GMM network
+    - Default: `tanh`
+- SOM-DAGMM
+  - `--somdagmm-n-soms`: number of soms
+    - Default: `1`
+  - `--somdagmm-latent-dim`: latent dimension of the AE subnetwork
+  - Default: `1`
+  - `--somdagmm-n-mixtures`: number of mixtures for the GMM network
+    - Default: `4`
+  - `--somdagmm-n-layers`: number of layers of the AE network
+    - Default: `4`
+  - `--somdagmm-lambda-1`: coefficient for the energy loss
+    - Default: `0.1`
+  - `--somdagmm-lambda-2`: coefficient for the penalization of degenerate covariance matrices
+    - Default: `0.005`
+  - `--somdagmm-reg-covar`: small epsilon value added to covariance matrix to ensure it remains invertible
+  - `--somdagmm-compression-factor`: compression factor for the AE network
+    - Default: `2`
+  - `--somdagmm-ae-act-fn`: activation function of the AE network
+    - Default: `relu`
+  - `--somdagmm-gmm-act-fn`: activation function of the GMM network
+    - Default: `tanh`
+- MemAE
+  - `--memae-shrink_thres`: threshold for hard shrinking relu
+    - Default: `0.0025`
+  - `--memae-latent-dim`: latent dimension of the AE network
+    - Default: `1`
+  - `--memae-mem-dim`: number of memory units
+    - Default: `50`
+  - `--mem-ae-alpha`: coefficient for the entropy loss
+  - `--memae-n-layers`: number of layers of the AE network
+    - Default: `4`
+  - `--memae-compression-factor`: compression factor for the AE network
+    - Default: `2`
+  - `--somdagmm-ae-act-fn`: activation function of the AE network
+    - Default: `relu`
+
+## Suggested parameters
+#### DAGMM
+| Dataset    | n_mixtures | latent_dim | lambda_1 | lambda_2 | reg_covar |
+|------------|------------|------------|----------|----------|-----------|
+| Arrhythmia | 2          | 1          | 0.1      | 0.005    | 1e-12     |
+| Thyroid    | 4          | 1          | 0.1      | 0.005    | 1e-12     |
+| Default    | 4          | 1          | 0.1      | 0.005    | 1e-12     |
+ 
+#### AutoEncoder
+| Dataset    | latent_dim | compression_factor | n_layers | act_fn |
+|------------|------------|--------------------|----------|--------|
+| Arrhythmia | 10         | 1                  | 2        | tanh   |
+| Thyroid    | 1          | 2                  | 3        | tanh   |
+| Default    | 1          | 0.005              | 4        | relu   |
+
+#### MemAE
+| Dataset    | latent_dim | compression_factor | n_layers | alpha | act_fn |
+|------------|------------|--------------------|----------|-------|--------|
+| Arrhythmia | 10         | 2                  | 4        | 2e-4  | tanh   |
+| Thyroid    | 4          | 2                  | 3        | 2e-4  | tanh   |
+| Default    | 3          | 2                  | 4        | 2e-4  | relu   |
+
+#### SOM-DAGMM
+| Dataset    | latent_dim | compression_factor | n_layers | act_fn |
+|------------|------------|--------------------|----------|--------|
+| Arrhythmia | ?          | ?                  | ?        | ?      |
+| Thyroid    | ?          | ?                  | ?        | ?      |
+| Default    | ?          | ?                  | ?        | ?      |
+
+
+
+
 
 ## Example
 To train a DAGMM on the KDD 10 percent dataset with the default parameters described in the original paper:
