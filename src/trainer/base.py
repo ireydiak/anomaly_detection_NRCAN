@@ -91,8 +91,8 @@ class BaseTrainer(ABC):
             for row in dataset:
                 X, y = row
                 X = X.to(self.device).float()
-                if len(X) < self.batch_size:
-                    break
+                # if len(X) < self.batch_size:
+                #     break
                 score = self.score(X)
                 y_true.extend(y.cpu().tolist())
                 scores.extend(score.cpu().tolist())

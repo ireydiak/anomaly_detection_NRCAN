@@ -1,3 +1,6 @@
+import gzip
+import pickle
+
 import numpy as np
 import torch
 from minisom import MiniSom
@@ -8,30 +11,20 @@ from torch import nn
 from typing import Tuple, List
 
 
-class AutoEncoderModel(BaseModel):
-    def __init__(self, dataset_name: str, in_features: int, n_instances: int, device: str, **kwargs):
-        super(AutoEncoderModel, self).__init__(dataset_name, in_features, n_instances, device, **kwargs)
-
-        latent_dim = kwargs.get('ae_latent_dim', 1)
-        self.net = AutoEncoder.from_dataset(in_features, dataset_name, latent_dim)
-        self.name = "AutoEncoder"
-
-    def forward(self, x):
-        """
-        This function compute the output of the network in the forward pass
-        :param x: input
-        :return: output of the model
-        """
-        return self.net(x)
-
-
 class AutoEncoder(nn.Module):
     """
     Implements a basic Deep Auto Encoder
     """
 
-    def __init__(self, enc_layers: list, dec_layers: list, **kwargs):
+    def __init__(self, enc_layers: list = None, dec_layers: list = None, **kwargs):
+        latent_dim = kwargs.get("ae_latent_dim", 1)
+        cond = (enc_layers and dec_layers) or (kwargs.get("dataset_name", None) and kwargs.get("in_features", None))
+        assert cond, "please provide either the name of the dataset and the number of features or specify the encoder and decoder layers"
         super(AutoEncoder, self).__init__()
+        if not enc_layers or not dec_layers:
+            enc_layers, dec_layers = AutoEncoder.resolve_layers(kwargs.get("in_features"),
+                                                                kwargs.get("dataset_name"),
+                                                                latent_dim=latent_dim)
         self.latent_dim = dec_layers[0][0]
         self.in_features = enc_layers[-1][1]
         self.encoder = self._make_linear(enc_layers)
@@ -39,7 +32,12 @@ class AutoEncoder(nn.Module):
         self.name = "AutoEncoder"
 
     @staticmethod
-    def from_dataset(in_features, dataset_name: str, latent_dim=1):
+    def from_dataset(in_features: int, dataset_name: str):
+        enc_layers, dec_layers = AutoEncoder.resolve_layers(in_features, dataset_name)
+        return AutoEncoder(enc_layers, dec_layers)
+
+    @staticmethod
+    def resolve_layers(in_features: int, dataset_name: str, latent_dim=1):
         if dataset_name == "Arrhythmia":
             enc_layers = [
                 (in_features, 10, nn.Tanh()),
@@ -60,7 +58,7 @@ class AutoEncoder(nn.Module):
                 (4, 12, nn.Tanh()),
                 (12, in_features, None)
             ]
-        else:
+        elif "kdd" in dataset_name.lower():
             enc_layers = [
                 (in_features, 60, nn.Tanh()),
                 (60, 30, nn.Tanh()),
@@ -72,7 +70,19 @@ class AutoEncoder(nn.Module):
                 (10, 30, nn.Tanh()),
                 (30, 60, nn.Tanh()),
                 (60, in_features, None)]
-        return AutoEncoder(enc_layers, dec_layers)
+        else:
+            enc_layers = [
+                (in_features, in_features // 2, nn.ReLU()),
+                (in_features // 2, in_features // 4, nn.ReLU()),
+                (in_features // 4, in_features // 6, nn.ReLU()),
+                (in_features // 6, latent_dim, None)
+            ]
+            dec_layers = [
+                (latent_dim, in_features // 6, nn.ReLU()),
+                (in_features // 6, in_features // 4, nn.ReLU()),
+                (in_features // 4, in_features // 2, nn.ReLU()),
+                (in_features // 2, in_features, None)]
+        return enc_layers, dec_layers
 
     def _make_linear(self, layers: List[Tuple]):
         """
@@ -106,8 +116,28 @@ class AutoEncoder(nn.Module):
 
     def get_params(self) -> dict:
         return {
+            "in_features": self.in_features,
             "latent_dim": self.latent_dim
         }
+
+    def reset(self):
+        self.apply(self.weight_reset)
+
+    def weight_reset(self, m):
+        reset_parameters = getattr(m, "reset_parameters", None)
+        if callable(reset_parameters):
+            m.reset_parameters()
+
+    @staticmethod
+    def load(filename):
+        # Load model from file (.pklz)
+        with gzip.open(filename, 'rb') as f:
+            model = pickle.load(f)
+        assert isinstance(model, BaseModel)
+        return model
+
+    def save(self, filename):
+        torch.save(self.state_dict(), filename)
 
 
 class DAGMM(BaseModel):

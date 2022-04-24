@@ -12,7 +12,7 @@ from src.model.density import DSEBM
 from src.model.DUAD import DUAD
 from src.model.one_class import DeepSVDD, DROCC
 from src.model.transformers import NeuTraLAD
-from src.model.reconstruction import AutoEncoderModel as AE, DAGMM, MemAutoEncoder as MemAE, SOMDAGMM
+from src.model.reconstruction import AutoEncoder as AE, DAGMM, MemAutoEncoder as MemAE, SOMDAGMM
 from src.model.shallow import RecForest, OCSVM, LOF
 from src.trainer.adversarial import ALADTrainer
 from src.trainer.density import DSEBMTrainer
@@ -23,10 +23,8 @@ from src.trainer.transformers import NeuTraLADTrainer
 from src.trainer.DUADTrainer import DUADTrainer
 from src.utils import metrics
 from src.utils.utils import average_results
-from src.datamanager.dataset import AbstractDataset
 from src.datamanager.DataManager import DataManager
-from src.datamanager.dataset import ArrhythmiaDataset, KDD10Dataset, NSLKDDDataset, IDS2018Dataset, USBIDSDataset, \
-    ThyroidDataset
+from src.datamanager.dataset import *
 
 available_models = [
     "AE",
@@ -46,6 +44,7 @@ available_models = [
 available_datasets = [
     "Arrhythmia",
     "KDD10",
+    "MalMem2022",
     "NSLKDD",
     "IDS2018",
     "USBIDS",
@@ -74,7 +73,7 @@ def store_model(model, model_name: str, dataset: str, models_path: str = None):
     output_dir = models_path or f'../models/{dataset}/{model_name}/{dt.now().strftime("%d_%m_%Y_%H_%M_%S")}"'
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
-    model.save(f"{output_dir}/model")
+    model.save(f"{output_dir}/{model_name}.pt")
 
 
 model_trainer_map = {

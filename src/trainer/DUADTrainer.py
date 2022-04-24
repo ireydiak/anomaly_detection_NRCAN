@@ -18,8 +18,8 @@ from datamanager.DataManager import DataManager
 from model.DUAD import DUAD
 from sklearn.mixture import GaussianMixture
 
-from utils.metrics import score_recall_precision, score_recall_precision_w_thresold
-from viz.viz import plot_2D_latent, plot_energy_percentile
+# from utils.metrics import score_recall_precision, score_recall_precision_w_thresold
+# from viz.viz import plot_2D_latent, plot_energy_percentile
 
 
 class DUADTrainer:
