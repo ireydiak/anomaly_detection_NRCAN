@@ -56,7 +56,7 @@ def argument_parser():
         "-o",
         "--results-path",
         type=str,
-        default="./results",
+        default="../results",
         help="Where the results will be stored"
     )
     parser.add_argument(
@@ -85,7 +85,7 @@ def argument_parser():
     parser.add_argument(
         "--model-path",
         type=str,
-        default="./models",
+        default="../models",
         help="Path where the model's weights are stored and loaded"
     )
     parser.add_argument(

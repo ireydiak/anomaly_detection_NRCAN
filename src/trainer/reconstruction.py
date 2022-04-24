@@ -147,7 +147,7 @@ class DAGMMTrainer(BaseTrainer):
         mu_z = z.unsqueeze(1) - mu.unsqueeze(0)
 
         # scaler
-        inv_cov_mat = torch.cholesky_inverse(torch.cholesky(cov_mat))
+        inv_cov_mat = torch.cholesky_inverse(torch.linalg.cholesky(cov_mat))
         # inv_cov_mat = torch.linalg.inv(cov_mat)
         det_cov_mat = torch.linalg.cholesky(2 * np.pi * cov_mat)
         det_cov_mat = torch.diagonal(det_cov_mat, dim1=1, dim2=2)

@@ -25,6 +25,14 @@ DROCC and MemAE closely follows the original implementations already available o
 | Thyroid    | 4          | 1          | 0.005    | 0.1      | 1e-12     |
 | Default    | 4          | 1          | 0.005    | 0.1      | 1e-12     |
  
+#### AutoEncoder
+| Dataset    | latent_dim | compression_factor | n_layers | act_fn |
+|------------|------------|--------------------|----------|--------|
+| Arrhythmia | 10         | 1                  | 2        | tanh   |
+| Thyroid    | 1          | 2                  | 3        | tanh   |
+| Default    | 1          | 0.005              | 4        | relu   |
+
+
 ## Dependencies
 A complete dependency list is available in requirements.txt.
 We list here the most important ones:

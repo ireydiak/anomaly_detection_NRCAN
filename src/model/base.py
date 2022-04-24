@@ -1,23 +1,20 @@
-import copy
 import gzip
 import pickle
 import torch
-from abc import abstractmethod, ABC
+from abc import ABC
 from torch import nn
 
 
 class BaseModel(nn.Module):
 
-    def __init__(self, in_features: int, n_instances: int, device: str, **kwargs):
+    def __init__(self, in_features: int, device: str, **kwargs):
         super(BaseModel, self).__init__()
         self.device = device
         self.in_features = in_features
-        self.n_instances = n_instances
 
     def get_params(self) -> dict:
         return {
             "in_features": self.in_features,
-            "n_instances": self.n_instances
         }
 
     def reset(self):
@@ -36,10 +33,6 @@ class BaseModel(nn.Module):
         assert isinstance(model, BaseModel)
         return model
 
-    @abstractmethod
-    def resolve_params(self, dataset_name: str):
-        pass
-
     def save(self, filename):
         # Save model to file (.pt)
         torch.save(self.state_dict(), filename)
@@ -47,11 +40,10 @@ class BaseModel(nn.Module):
 
 class BaseShallowModel(ABC):
 
-    def __init__(self, dataset_name: str, in_features: int, n_instances: int, device: str):
+    def __init__(self, dataset_name: str, in_features: int, device: str):
         self.dataset_name = dataset_name
         self.device = device
         self.in_features = in_features
-        self.n_instances = n_instances
         self.resolve_params(dataset_name)
 
     def resolve_params(self, dataset_name: str):

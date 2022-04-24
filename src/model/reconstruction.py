@@ -3,100 +3,67 @@ import pickle
 
 import numpy as np
 import torch
+from torch import nn
 from minisom import MiniSom
 from src.model.base import BaseModel
 from src.model.GMM import GMM
 from src.model.memory_module import MemoryUnit
-from torch import nn
-from typing import Tuple, List
+from src.model import utils
 
 
-class AutoEncoder(nn.Module):
+class AutoEncoder(BaseModel):
     """
     Implements a basic Deep Auto Encoder
     """
+    name = "AE"
 
-    def __init__(self, enc_layers: list = None, dec_layers: list = None, **kwargs):
-        latent_dim = kwargs.get("ae_latent_dim", 1)
-        cond = (enc_layers and dec_layers) or (kwargs.get("dataset_name", None) and kwargs.get("in_features", None))
-        assert cond, "please provide either the name of the dataset and the number of features or specify the encoder and decoder layers"
-        super(AutoEncoder, self).__init__()
-        if not enc_layers or not dec_layers:
-            enc_layers, dec_layers = AutoEncoder.resolve_layers(kwargs.get("in_features"),
-                                                                kwargs.get("dataset_name"),
-                                                                latent_dim=latent_dim)
-        self.latent_dim = dec_layers[0][0]
-        self.in_features = enc_layers[-1][1]
-        self.encoder = self._make_linear(enc_layers)
-        self.decoder = self._make_linear(dec_layers)
-        self.name = "AutoEncoder"
+    def __init__(
+            self,
+            latent_dim: int,
+            act_fn: str,
+            n_layers: int = 4,
+            compression_factor: int = 2,
+            **kwargs):
+        super(AutoEncoder, self).__init__(**kwargs)
+        self.latent_dim = latent_dim
+        self.act_fn = activation_mapper[act_fn]
+        self.n_layers = n_layers
+        self.compression_factor = compression_factor
+        self.encoder, self.decoder = None, None
+        self._build_network()
+
+    def _build_network(self):
+        # Create the ENCODER layers
+        enc_layers = []
+        in_features = self.in_features
+        compression_factor = self.compression_factor
+        for _ in range(self.n_layers - 1):
+            out_features = in_features // compression_factor
+            enc_layers.append(
+                [in_features, out_features, self.act_fn]
+            )
+            in_features = out_features
+            compression_factor += self.compression_factor
+        enc_layers.append(
+            [in_features, self.latent_dim, None]
+        )
+        # Create DECODER layers by simply reversing the encoder
+        dec_layers = [[b, a, c] for a, b, c in reversed(enc_layers)]
+        # Add and remove activation function from the first and last layer
+        dec_layers[0][-1] = self.act_fn
+        dec_layers[-1][-1] = None
+        # Create networks
+        self.encoder = utils.create_network(enc_layers)
+        self.decoder = utils.create_network(dec_layers)
 
     @staticmethod
-    def from_dataset(in_features: int, dataset_name: str):
-        enc_layers, dec_layers = AutoEncoder.resolve_layers(in_features, dataset_name)
-        return AutoEncoder(enc_layers, dec_layers)
-
-    @staticmethod
-    def resolve_layers(in_features: int, dataset_name: str, latent_dim=1):
-        if dataset_name == "Arrhythmia":
-            enc_layers = [
-                (in_features, 10, nn.Tanh()),
-                (10, latent_dim, None)
-            ]
-            dec_layers = [
-                (latent_dim, 10, nn.Tanh()),
-                (10, in_features, None)
-            ]
-        elif dataset_name == "Thyroid":
-            enc_layers = [
-                (in_features, 12, nn.Tanh()),
-                (12, 4, nn.Tanh()),
-                (4, latent_dim, None)
-            ]
-            dec_layers = [
-                (latent_dim, 4, nn.Tanh()),
-                (4, 12, nn.Tanh()),
-                (12, in_features, None)
-            ]
-        elif "kdd" in dataset_name.lower():
-            enc_layers = [
-                (in_features, 60, nn.Tanh()),
-                (60, 30, nn.Tanh()),
-                (30, 10, nn.Tanh()),
-                (10, latent_dim, None)
-            ]
-            dec_layers = [
-                (latent_dim, 10, nn.Tanh()),
-                (10, 30, nn.Tanh()),
-                (30, 60, nn.Tanh()),
-                (60, in_features, None)]
-        else:
-            enc_layers = [
-                (in_features, in_features // 2, nn.ReLU()),
-                (in_features // 2, in_features // 4, nn.ReLU()),
-                (in_features // 4, in_features // 6, nn.ReLU()),
-                (in_features // 6, latent_dim, None)
-            ]
-            dec_layers = [
-                (latent_dim, in_features // 6, nn.ReLU()),
-                (in_features // 6, in_features // 4, nn.ReLU()),
-                (in_features // 4, in_features // 2, nn.ReLU()),
-                (in_features // 2, in_features, None)]
-        return enc_layers, dec_layers
-
-    def _make_linear(self, layers: List[Tuple]):
-        """
-        This function builds a linear model whose units and layers depend on
-        the passed @layers argument
-        :param layers: a list of tuples indicating the layers architecture (in_neuron, out_neuron, activation_function)
-        :return: a fully connected neural net (Sequentiel object)
-        """
-        net_layers = []
-        for in_neuron, out_neuron, act_fn in layers:
-            net_layers.append(nn.Linear(in_neuron, out_neuron))
-            if act_fn:
-                net_layers.append(act_fn)
-        return nn.Sequential(*net_layers)
+    def get_args_desc():
+        return [
+            ("latent_dim", int, 1, "Latent dimension of the AE network"),
+            ("n_layers", int, 4, "Number of layers for the AE network"),
+            ("compression_factor", int, 2, "Compression factor for the AE network"),
+            ("act_fn", str, "relu", "Activation function of the AE network"),
+        ]
 
     def encode(self, x):
         return self.encoder(x)
@@ -116,8 +83,10 @@ class AutoEncoder(nn.Module):
 
     def get_params(self) -> dict:
         return {
-            "in_features": self.in_features,
-            "latent_dim": self.latent_dim
+            "latent_dim": self.latent_dim,
+            "act_fn": self.act_fn.__str__,
+            "n_layers": self.n_layers,
+            "compression_factor": self.compression_factor
         }
 
     def reset(self):
@@ -177,7 +146,7 @@ class DAGMM(BaseModel):
         self.reg_covar = reg_covar
         self.ae_n_layers = ae_n_layers
         self.ae_compression_factor = ae_compression_factor
-        self.ae_act_fn = activation_mapper[ae_act_fn]
+        self.ae_act_fn = ae_act_fn
         self.gmm_act_fn = activation_mapper[gmm_act_fn]
         self.cosim = nn.CosineSimilarity()
         self.softmax = nn.Softmax(dim=-1)
@@ -200,25 +169,6 @@ class DAGMM(BaseModel):
         ]
 
     def _build_network(self):
-        # Create the ENCODER layers
-        enc_layers = []
-        in_features = self.in_features
-        compression_factor = self.ae_compression_factor
-        for _ in range(self.ae_n_layers - 1):
-            out_features = in_features // compression_factor
-            enc_layers.append(
-                [in_features, out_features, self.ae_act_fn]
-            )
-            in_features = out_features
-            compression_factor += self.ae_compression_factor
-        enc_layers.append(
-            [in_features, self.latent_dim, None]
-        )
-        # Create DECODER layers by simply reversing the encoder
-        dec_layers = [[b, a, c] for a, b, c in reversed(enc_layers)]
-        # Add and remove activation function from the first and last layer
-        dec_layers[0][-1] = self.ae_act_fn
-        dec_layers[-1][-1] = None
         # Create GMM layers
         gmm_layers = [
             [self.latent_dim + 2, 10, self.gmm_act_fn],
@@ -226,39 +176,15 @@ class DAGMM(BaseModel):
             [10, self.n_mixtures, nn.Softmax(dim=-1)]
         ]
         # Create the sub-networks (AE and GMM)
-        self.ae = AutoEncoder(enc_layers=enc_layers, dec_layers=dec_layers)
+        self.ae = AutoEncoder(
+            latent_dim=self.latent_dim,
+            act_fn=self.ae_act_fn,
+            n_layers=self.ae_n_layers,
+            compression_factor=self.ae_compression_factor,
+            in_features=self.in_features,
+            device=self.device
+        )
         self.gmm = GMM(layers=gmm_layers)
-
-    # TODO: delete dead code
-    # def resolve_params(self, dataset_name: str):
-    #     # defaults to parameters described in section 4.3 of the paper
-    #     # https://sites.cs.ucsb.edu/~bzong/doc/iclr18-dagmm.pdf.
-    #     latent_dim = self.latent_dim or 1
-    #     if dataset_name == 'Arrhythmia':
-    #         K = 2
-    #         gmm_layers = [
-    #             (latent_dim + 2, 10, nn.Tanh()),
-    #             (None, None, nn.Dropout(0.5)),
-    #             (10, K, nn.Softmax(dim=-1))
-    #         ]
-    #     elif dataset_name == "Thyroid":
-    #         K = 2
-    #         gmm_layers = [
-    #             (latent_dim + 2, 10, nn.Tanh()),
-    #             (None, None, nn.Dropout(0.5)),
-    #             (10, K, nn.Softmax(dim=-1))
-    #         ]
-    #     else:
-    #         K = 4
-    #         gmm_layers = [
-    #             (latent_dim + 2, 10, nn.Tanh()),
-    #             (None, None, nn.Dropout(0.5)),
-    #             (10, K, nn.Softmax(dim=-1))
-    #         ]
-    #     self.latent_dim = latent_dim
-    #     self.K = K
-    #     self.ae = AutoEncoder.from_dataset(self.in_features, dataset_name)
-    #     self.gmm = GMM(gmm_layers)
 
     def forward(self, x: torch.Tensor):
         """
@@ -402,7 +328,7 @@ class DAGMM(BaseModel):
         mu_z = z.unsqueeze(1) - mu.unsqueeze(0)
 
         # scaler
-        inv_cov_mat = torch.cholesky_inverse(torch.cholesky(cov_mat))
+        inv_cov_mat = torch.cholesky_inverse(torch.linalg.cholesky(cov_mat))
         # inv_cov_mat = torch.linalg.inv(cov_mat)
         det_cov_mat = torch.linalg.cholesky(2 * np.pi * cov_mat)
         det_cov_mat = torch.diagonal(det_cov_mat, dim1=1, dim2=2)
@@ -447,7 +373,7 @@ class DAGMM(BaseModel):
             "lambda_1": self.lambda_1,
             "lambda_2": self.lambda_2,
             "latent_dim": self.ae.latent_dim,
-            "K": self.gmm.K
+            "n_mixtures": self.gmm.K
         }
 
 

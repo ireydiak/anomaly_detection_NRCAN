@@ -27,7 +27,7 @@ from src.datamanager.DataManager import DataManager
 from src.datamanager.dataset import *
 
 available_models = [
-    # "AE",
+    AE,
     # "ALAD",
     DAGMM,
     # "DeepSVDD",
@@ -54,7 +54,7 @@ available_datasets = [
 model_trainer_map = {
     # Deep Models
     # "ALAD": (ALAD, ALADTrainer),
-    # "AE": (AE, AETrainer),
+    "AE": (AE, AETrainer),
     "DAGMM": (DAGMM, DAGMMTrainer),
     # "DSEBM": (DSEBM, DSEBMTrainer),
     # "DROCC": (DROCC, EdgeMLDROCCTrainer),
