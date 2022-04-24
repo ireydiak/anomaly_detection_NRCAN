@@ -1,9 +1,10 @@
+import torch
 import torch.nn as nn
 from torch import Tensor
 from .BaseModel import BaseModel
 
 
-class DeepSVDD(BaseModel):
+class DeepSVDD:
     """
     Follows SKLearn's API
     (https://scikit-learn.org/stable/modules/generated/sklearn.svm.OneClassSVM.html#sklearn.svm.OneClassSVM.decision_function)

@@ -79,7 +79,7 @@ def clean_step(path_to_dataset: str, export_path: str, backup: bool = False) -> 
     return df, y, stats
 
 
-def normalize_step(df: pd.DataFrame, y: np.ndarray, base_path: str, backup: bool = False):
+def normalize_step(df: pd.DataFrame, y: np.ndarray, base_path: str, backup: bool = False, norm=True):
     print(f'Processing {len(df.columns)} features')
 
     # Split numerical and non-numerical columns
@@ -93,7 +93,8 @@ def normalize_step(df: pd.DataFrame, y: np.ndarray, base_path: str, backup: bool
     # This way we avoid normalizing values that are already between 0 and 1.
     to_scale = df[num_cols][(df[num_cols] < 0.0).any(axis=1) & (df[num_cols] > 1.0).any(axis=1)].columns
     print(f"Scaling {len(to_scale)} columns: " + ", ".join([str(col) for col in num_cols]))
-    df[to_scale] = scaler.fit_transform(df[to_scale].values.astype(np.float64))
+    if norm:
+        df[to_scale] = scaler.fit_transform(df[to_scale].values.astype(np.float64))
     # Merge normalized dataframe with labels
     X = np.concatenate(
         (df.values, y.reshape(-1, 1)),
@@ -113,7 +114,7 @@ def normalize_step(df: pd.DataFrame, y: np.ndarray, base_path: str, backup: bool
 
 if __name__ == '__main__':
     # Assumes `path` points to the ann-*.data
-    path, export_path, backup = utils.parse_args()
+    path, export_path, backup, normlize_flag = utils.parse_args()
     # 0 - Prepare folder structure
     utils.prepare(export_path)
     path_to_clean = f"{export_path}/{utils.folder_struct['clean_step']}/ann_thyroid.csv"
@@ -127,4 +128,4 @@ if __name__ == '__main__':
         utils.save_stats(export_path + '/ann_thyroid_info.csv', clean_stats)
 
     # 2 - Normalize numerical values and treat categorical values
-    normalize_step(df, y, export_path)
+    normalize_step(df, y, export_path, norm=normlize_flag)

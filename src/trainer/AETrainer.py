@@ -89,16 +89,16 @@ class AETrainer:
 
         with torch.no_grad():
             # Create pytorch's train data_loader
-            train_loader = self.dm.get_init_train_loader()
-            for i, data in enumerate(train_loader, 0):
-                # transfer tensors to selected device
-                train_inputs = data[0].float().to(self.device)
-
-                # forward pass
-                code, X_prime = self.model(train_inputs)
-
-                train_score.append(((train_inputs - X_prime) ** 2).sum(axis=-1).squeeze().cpu().numpy())
-            train_score = np.concatenate(train_score, axis=0)
+            # train_loader = self.dm.get_init_train_loader()
+            # for i, data in enumerate(train_loader, 0):
+            #     # transfer tensors to selected device
+            #     train_inputs = data[0].float().to(self.device)
+            #
+            #     # forward pass
+            #     code, X_prime = self.model(train_inputs)
+            #
+            #     train_score.append(((train_inputs - X_prime) ** 2).sum(axis=-1).squeeze().cpu().numpy())
+            # train_score = np.concatenate(train_score, axis=0)
 
             # Calculate score using estimated parameters
             test_score = []
@@ -121,11 +121,15 @@ class AETrainer:
 
             combined_score = np.concatenate([train_score, test_score], axis=0)
 
-            score_recall_precision(combined_score, test_score, test_labels)
+            comp_threshold = 100 * sum(test_labels == 0) / len(test_labels)
+
+            res_max = score_recall_precision(combined_score, test_score, test_labels)
             res = score_recall_precision_w_thresold(combined_score, test_score, test_labels, pos_label=pos_label,
-                                                    threshold=energy_threshold)
+                                                    threshold=comp_threshold)
 
             # switch back to train mode
             self.model.train()
+
+            res = dict(res, **res_max)
 
             return res, test_z, test_labels, combined_score

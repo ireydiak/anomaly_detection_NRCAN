@@ -24,11 +24,16 @@ def parse_args() -> Tuple[str, str]:
         '--backup', type=bool, default=False,
         help='Save a backup after the cleaning process to keep track of modifications.'
     )
+    feature_parser = parser.add_mutually_exclusive_group(required=False)
+    feature_parser.add_argument('--norm', dest='norm', action='store_true')
+    feature_parser.add_argument('--no-norm', dest='norm', action='store_false')
+    parser.set_defaults(norm=True)
+
 
     args = parser.parse_args()
     return args.path if not args.path.endswith('/') else args.path[:-1], \
            args.export_path if not args.export_path.endswith('/') else args.export_path[:-1], \
-           args.backup
+           args.backup, args.norm
 
 
 def prepare(base_path: str):

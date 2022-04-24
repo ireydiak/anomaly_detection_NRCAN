@@ -3,7 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
 
-from .BaseModel import BaseModel
+from .base import BaseModel
 from .utils import weights_init_xavier
 
 
@@ -22,58 +22,64 @@ def create_network(D: int, out_dims: np.array, bias=True) -> list:
     return net_layers
 
 
-class NeuTraAD(BaseModel):
-    def __init__(self, D: int, device, temperature: float, dataset: str, n_layers=3
+class NeuTraLAD(BaseModel):
+    def __init__(self, n_layers=3,
+                 trans_type='res', temperature: float = 0.07,
+                 **kwargs
                  ):
-        super(NeuTraAD, self).__init__()
-        self.device = device
-        self.D = D
-        self.n_layers = n_layers
-        self.dataset = dataset
-        self.K, self.Z, self.emb_out_dims = self._resolve_params(dataset)
-        self.temperature = temperature
-        self.cosim = nn.CosineSimilarity()
-        self._build_network()
 
-        self.enc.apply(weights_init_xavier)
-        # self.masks.apply(weights_init_xavier)
+        self.n_layers = n_layers
+        super(NeuTraLAD, self).__init__(**kwargs)
+
+        self.temperature = temperature
+        self.trans_type = trans_type
+        self.cosim = nn.CosineSimilarity()
+        self.name = "NeuTraLAD"
 
     def _create_masks(self) -> list:
         masks = [None] * self.K
-        out_dims = np.array([self.D] * self.n_layers)
-        # out_dims[:-1] *= 3
+        out_dims = self.trans_layers or np.array([self.in_features] * self.n_layers)
         for K_i in range(self.K):
-            net_layers = create_network(self.D, out_dims, bias=False)
+            net_layers = create_network(self.in_features, out_dims, bias=False)
             net_layers[-1] = nn.Sigmoid()
             masks[K_i] = nn.Sequential(*net_layers).to(self.device)
         return masks
 
     def _build_network(self):
         # Encoder
-        # out_dims = np.linspace(self.D, self.Z, self.n_layers, dtype=np.int32)
-        out_dims = self.emb_out_dims
-        enc_layers = create_network(self.D, out_dims)[:-1]  # remove ReLU from the last layer
+        enc_layers = create_network(self.in_features, self.emb_out_dims)[:-1]  # remove ReLU from the last layer
         self.enc = nn.Sequential(*enc_layers).to(self.device)
         # Masks / Transformations
         self.masks = self._create_masks()
 
-    def _resolve_params(self, dataset: str) -> (int, int):
+    def resolve_params(self, dataset: str):
         K, Z = 7, 32
         # out_dims = np.linspace(self.D, Z, self.n_layers, dtype=np.int32)
         out_dims = [90, 70, 50] + [Z]
+        trans_layers = [24, 6]
         if dataset == 'Thyroid':
-            Z = 12
-            K = 4
-            out_dims = [60, 40] + [Z]
+            Z = 24
+            K = 11
+            out_dims = [24] * 4 + [Z]
+            trans_layers = [24, 6]
         elif dataset == 'Arrhythmia':
             K = 11
-            out_dims = [60, 40] + [Z]
+            out_dims = [64] * 4 + [Z]
+            trans_layers = [200, self.in_features]
             # out_dims[:-1] *= 2
-        return K, Z, out_dims
+        else:
+            self.trans_type = 'mul'
+            K = 11
+            out_dims = [64] * 4 + [Z]
+            trans_layers = [200, self.in_features]
+        self.K, self.Z, self.emb_out_dims, self.trans_layers = K, Z, out_dims, trans_layers
+        self._build_network()
+
+        return K, Z, out_dims, trans_layers
 
     def get_params(self) -> dict:
         return {
-            'D': self.D,
+            'D': self.in_features,
             'K': self.K,
             'temperature': self.temperature
         }
@@ -82,9 +88,9 @@ class NeuTraAD(BaseModel):
         Xk = self._computeX_k(X)
         Xk = Xk.permute((1, 0, 2))
         Zk = self.enc(Xk)
-        # Zk = F.normalize(Zk, dim=-1)
+        Zk = F.normalize(Zk, dim=-1)
         Z = self.enc(X)
-        # Z = F.normalize(Z, dim=-1)
+        Z = F.normalize(Z, dim=-1)
         Hij = self._computeBatchH_ij(Zk)
         Hx_xk = self._computeBatchH_x_xk(Z, Zk)
 
@@ -128,8 +134,16 @@ class NeuTraAD(BaseModel):
 
     def _computeX_k(self, X):
         X_t_s = []
+
+        def transform(type):
+            if type == 'res':
+                return lambda mask, X: mask(X) + X
+            else:
+                return lambda mask, X: mask(X) * X
+
+        t_function = transform(self.trans_type)
         for k in range(self.K):
-            X_t_k = self.masks[k](X) * X
+            X_t_k = t_function(self.masks[k], X)
             X_t_s.append(X_t_k)
         X_t_s = torch.stack(X_t_s, dim=0)
 
@@ -137,3 +151,11 @@ class NeuTraAD(BaseModel):
 
     def forward(self, X: torch.Tensor):
         return self.score(X)
+
+
+def h_func(x_k, x_l, temp=0.1):
+    mat = F.cosine_similarity(x_k, x_l)
+
+    return torch.exp(
+        mat / 0.1
+    )

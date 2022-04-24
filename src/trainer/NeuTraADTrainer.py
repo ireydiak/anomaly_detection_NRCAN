@@ -4,7 +4,7 @@ from copy import deepcopy
 from matplotlib import pyplot as plt
 from sklearn.metrics import confusion_matrix, average_precision_score, precision_recall_curve, \
     plot_precision_recall_curve
-from torch import nn
+from torch import nn, optim
 from torch.optim.lr_scheduler import ExponentialLR, StepLR
 from tqdm import trange
 
@@ -14,8 +14,6 @@ import numpy as np
 from typing import Callable
 
 from datamanager import DataManager
-
-
 
 from utils.metrics import score_recall_precision, score_recall_precision_w_thresold
 
@@ -40,7 +38,12 @@ class NeuTraADTrainer:
 
         self.device = torch.device(device_name)
         self.model = model.to(self.device)
-        self.optim = optimizer_factory(self.model)
+        mask_params = list()
+        for mask in self.model.masks:
+            mask_params += list(mask.parameters())
+        self.optim =optim.Adam(list(self.model.enc.parameters()) + mask_params, lr=kwargs.get('learning_rate'),
+                               weight_decay=kwargs.get('weight_decay'))
+        # self.optim = optimizer_factory()
         self.scheduler = StepLR(self.optim, step_size=20, gamma=0.9)
 
         self.criterion = nn.MSELoss()
@@ -67,7 +70,8 @@ class NeuTraADTrainer:
             losses.append(loss / len(train_ldr))
             lrs.append(self.optim.param_groups[0]["lr"])
             # val_losses.append(self.evaluate_on_validation_set())
-            # if epoch % 20 == 0:
+            # if epoch % 10 == 0:
+            #     self.evaluate_on_test_set()
 
             # self.scheduler.step()
 
@@ -91,8 +95,6 @@ class NeuTraADTrainer:
                 loss = scores.mean().item()
                 val_loss.append(loss)
 
-
-
                 # switch back to train mode
         self.model.train()
         return np.mean(val_loss)
@@ -107,32 +109,21 @@ class NeuTraADTrainer:
         # updates the weights using gradient descent
         self.optim.step()
 
-
         return loss.item()
+
 
     def evaluate_on_test_set(self, pos_label=1, **kwargs):
         """
         function that evaluate the model on the test set
         """
-
         test_loader = self.dm.get_test_set()
         energy_threshold = kwargs.get('energy_threshold', 80)
         # Change the model to evaluation mode
         self.model.eval()
-        train_score = []
+        # train_score = []
 
         with torch.no_grad():
             # Create pytorch's train data_loader
-            train_loader = self.dm.get_init_train_loader()
-            for i, data in enumerate(train_loader, 0):
-                # transfer tensors to selected device
-                train_inputs = data[0].float().to(self.device)
-
-                # forward pass
-                scores = self.model(train_inputs)
-
-                train_score.append(scores.cpu().numpy())
-            train_score = np.concatenate(train_score, axis=0)
 
             # Calculate score using estimated parameters
             test_score = []
@@ -154,13 +145,17 @@ class NeuTraADTrainer:
             # test_z = np.concatenate(test_z, axis=0)
             test_labels = np.concatenate(test_labels, axis=0)
 
-            combined_score = np.concatenate([train_score, test_score], axis=0)
+            combined_score = test_score # np.concatenate([train_score, test_score], axis=0)
 
-            score_recall_precision(combined_score, test_score, test_labels)
+            comp_threshold = 100 * sum(test_labels == 0)/len(test_labels)
+
+            res_max = score_recall_precision(combined_score, test_score, test_labels)
             res = score_recall_precision_w_thresold(combined_score, test_score, test_labels, pos_label=pos_label,
-                                                    threshold=energy_threshold)
+                                                    threshold=comp_threshold)
 
             # switch back to train mode
             self.model.train()
 
+            res = dict(res, **res_max)
+            # print(res)
             return res, test_z, test_labels, combined_score

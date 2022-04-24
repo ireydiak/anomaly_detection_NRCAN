@@ -1,30 +1,33 @@
-import numpy as np
-import torch
 import torch.nn as nn
-from minisom import MiniSom
-
-
-from .AutoEncoder import AutoEncoder as AE
-from .BaseModel import BaseModel
+from src.model.reconstruction import AutoEncoder as AE
+from src.model.base import BaseModel
 
 
 class DUAD(BaseModel):
-    def __init__(self, input_size, r, p0=.35, p=.30, ae_layers=None, **kwargs):
-        super(DUAD, self).__init__()
-
-        if not ae_layers:
-            enc_layers = [(input_size, 60, nn.Tanh()), (60, 30, nn.Tanh()), (30, 10, nn.Tanh()), (10, 1, None)]
-            dec_layers = [(1, 10, nn.Tanh()), (10, 30, nn.Tanh()), (30, 60, nn.Tanh()), (60, input_size, None)]
-        else:
-            enc_layers = ae_layers[0]
-            dec_layers = ae_layers[1]
-
-        self.ae = AE(enc_layers, dec_layers)
-        self.cosim = nn.CosineSimilarity()
-
+    def __init__(self, r=10, p0=.35, p=.30, **kwargs):
         self.p0 = p0
         self.p = p
         self.r = r
+        self.latent_dim = 1
+        self.name = "DUAD"
+        self.ae = None
+        super(DUAD, self).__init__(**kwargs)
+        self.cosim = nn.CosineSimilarity()
+
+    def resolve_params(self, dataset_name: str):
+        enc_layers = [
+            (self.in_features, 60, nn.Tanh()),
+            (60, 30, nn.Tanh()),
+            (30, 10, nn.Tanh()),
+            (10, self.latent_dim, None)
+        ]
+        dec_layers = [
+            (self.latent_dim, 10, nn.Tanh()),
+            (10, 30, nn.Tanh()),
+            (30, 60, nn.Tanh()),
+            (60, self.in_features, None)
+        ]
+        self.ae = AE(enc_layers, dec_layers).to(self.device)
 
     def encode(self, x):
         return self.ae.encoder(x)
@@ -39,9 +42,8 @@ class DUAD(BaseModel):
         return code, x_prime, h_x
 
     def get_params(self) -> dict:
-        params = dict(
-            duad_p=self.p,
-            duad_p0=self.p0,
-            duad_r=self.r
-        )
-        return params
+        return {
+            "duad_p": self.p,
+            "duad_p0": self.p0,
+            "duad_r": self.r
+        }
