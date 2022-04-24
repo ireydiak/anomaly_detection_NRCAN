@@ -17,6 +17,14 @@ DROCC and MemAE closely follows the original implementations already available o
 - [x] [RecForest](https://epubs.siam.org/doi/pdf/10.1137/1.9781611976700.15)
 - [x] [SOM-DAGMM](https://arxiv.org/pdf/2008.12686.pdf)
 
+## Suggested parameters
+#### DAGMM
+| Dataset    | n_mixtures | latent_dim | lambda_1 | lambda_2 | reg_covar |
+|------------|------------|------------|----------|----------|-----------|
+| Arrhythmia | 2          | 1          | 0.005    | 0.1      | 1e-12     |
+| Thyroid    | 4          | 1          | 0.005    | 0.1      | 1e-12     |
+| Default    | 4          | 1          | 0.005    | 0.1      | 1e-12     |
+ 
 ## Dependencies
 A complete dependency list is available in requirements.txt.
 We list here the most important ones:

@@ -3,14 +3,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
 
-from .base import BaseModel
-from .utils import weights_init_xavier
+from src.model.base import BaseModel
 
-
-# learning_rate = 1e-5
-# batch_size = 50
-# latent_dim = 32
-# init_kernel = tf.contrib.layers.xavier_initializer()
 
 def create_network(D: int, out_dims: np.array, bias=True) -> list:
     net_layers = []

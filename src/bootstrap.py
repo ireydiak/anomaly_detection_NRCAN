@@ -27,19 +27,19 @@ from src.datamanager.DataManager import DataManager
 from src.datamanager.dataset import *
 
 available_models = [
-    "AE",
-    "ALAD",
-    "DAGMM",
-    "DeepSVDD",
-    "DSEBM",
-    "DROCC",
-    "DUAD",
-    "LOF",
-    "MemAE",
-    "NeuTraLAD",
-    "OC-SVM",
-    "RecForest",
-    "SOM-DAGMM",
+    # "AE",
+    # "ALAD",
+    DAGMM,
+    # "DeepSVDD",
+    # "DSEBM",
+    # "DROCC",
+    # "DUAD",
+    # "LOF",
+    # "MemAE",
+    # "NeuTraLAD",
+    # "OC-SVM",
+    # "RecForest",
+    # "SOM-DAGMM",
 ]
 available_datasets = [
     "Arrhythmia",
@@ -50,6 +50,24 @@ available_datasets = [
     "USBIDS",
     "Thyroid"
 ]
+
+model_trainer_map = {
+    # Deep Models
+    # "ALAD": (ALAD, ALADTrainer),
+    # "AE": (AE, AETrainer),
+    "DAGMM": (DAGMM, DAGMMTrainer),
+    # "DSEBM": (DSEBM, DSEBMTrainer),
+    # "DROCC": (DROCC, EdgeMLDROCCTrainer),
+    # "DUAD": (DUAD, DUADTrainer),
+    # "MemAE": (MemAE, MemAETrainer),
+    # "DeepSVDD": (DeepSVDD, DeepSVDDTrainer),
+    # "SOM-DAGMM": (SOMDAGMM, SOMDAGMMTrainer),
+    # "NeuTraLAD": (NeuTraLAD, NeuTraLADTrainer),
+    # Shallow Models
+    # "OC-SVM": (OCSVM, OCSVMTrainer),
+    # "LOF": (LOF, LOFTrainer),
+    # "RecForest": (RecForest, RecForestTrainer)
+}
 
 
 def store_results(results: dict, params: dict, model_name: str, dataset: str, dataset_path: str,
@@ -76,81 +94,63 @@ def store_model(model, model_name: str, dataset: str, models_path: str = None):
     model.save(f"{output_dir}/{model_name}.pt")
 
 
-model_trainer_map = {
-    # Deep Models
-    "ALAD": (ALAD, ALADTrainer),
-    "AE": (AE, AETrainer),
-    "DAGMM": (DAGMM, DAGMMTrainer),
-    "DSEBM": (DSEBM, DSEBMTrainer),
-    "DROCC": (DROCC, EdgeMLDROCCTrainer),
-    "DUAD": (DUAD, DUADTrainer),
-    "MemAE": (MemAE, MemAETrainer),
-    "DeepSVDD": (DeepSVDD, DeepSVDDTrainer),
-    "SOM-DAGMM": (SOMDAGMM, SOMDAGMMTrainer),
-    "NeuTraLAD": (NeuTraLAD, NeuTraLADTrainer),
-    # Shallow Models
-    "OC-SVM": (OCSVM, OCSVMTrainer),
-    "LOF": (LOF, LOFTrainer),
-    "RecForest": (RecForest, RecForestTrainer)
-}
-
-
 def resolve_model_trainer(
         model_name: str,
+        model_params: dict,
         dataset: AbstractDataset,
         n_epochs: int,
         batch_size: int,
         learning_rate: float,
         weight_decay: float,
         device: str,
-        duad_r,
-        duad_p_s,
-        duad_p_0,
-        duad_num_cluster,
-        ae_latent_dim,
-        datamanager: DataManager = None,
+        # duad_r,
+        # duad_p_s,
+        # duad_p_0,
+        # duad_num_cluster,
+        # ae_latent_dim,
+        # datamanager: DataManager = None,
 ):
-    if model_name == "DUAD":
-        model = DUAD(
-            dataset.in_features,
-            10,
-            dataset_name=dataset.name,
-            in_features=dataset.in_features,
-            n_instances=dataset.n_instances,
-            device=device
-        )
-        trainer = DUADTrainer(
-            model=model,
-            dm=datamanager,
-            device=device,
-            n_epochs=n_epochs,
-            duad_p_s=duad_p_s,
-            duad_p_0=duad_p_0,
-            duad_r=duad_r,
-            duad_num_cluster=duad_num_cluster,
-            lr=learning_rate,
-            weight_decay=weight_decay
-        )
-    else:
-        model_trainer_tuple = model_trainer_map.get(model_name, None)
-        assert model_trainer_tuple, "Model %s not found" % model_name
-        model, trainer = model_trainer_tuple
+    # TODO: dead code
+    # if model_name == "DUAD":
+    #     model = DUAD(
+    #         dataset.in_features,
+    #         10,
+    #         dataset_name=dataset.name,
+    #         in_features=dataset.in_features,
+    #         n_instances=dataset.n_instances,
+    #         device=device
+    #     )
+    #     trainer = DUADTrainer(
+    #         model=model,
+    #         dm=datamanager,
+    #         device=device,
+    #         n_epochs=n_epochs,
+    #         duad_p_s=duad_p_s,
+    #         duad_p_0=duad_p_0,
+    #         duad_r=duad_r,
+    #         duad_num_cluster=duad_num_cluster,
+    #         lr=learning_rate,
+    #         weight_decay=weight_decay
+    #     )
+    model_trainer_tuple = model_trainer_map.get(model_name, None)
+    assert model_trainer_tuple, "Model %s not found" % model_name
+    model, trainer = model_trainer_tuple
 
-        model = model(
-            dataset_name=dataset.name,
-            in_features=dataset.in_features,
-            n_instances=dataset.n_instances,
-            device=device,
-            ae_latent_dim=ae_latent_dim
-        )
-        trainer = trainer(
-            model=model,
-            lr=learning_rate,
-            n_epochs=n_epochs,
-            batch_size=batch_size,
-            device=device,
-            weight_decay=weight_decay
-        )
+    model = model(
+        dataset_name=dataset.name,
+        in_features=dataset.in_features,
+        n_instances=dataset.n_instances,
+        device=device,
+        **model_params,
+    )
+    trainer = trainer(
+        model=model,
+        lr=learning_rate,
+        n_epochs=n_epochs,
+        batch_size=batch_size,
+        device=device,
+        weight_decay=weight_decay
+    )
 
     return model, trainer
 
@@ -169,7 +169,7 @@ def train_model(
 ):
     # Training and evaluation on different runs
     all_results = defaultdict(list)
-
+    print("Training model {} for {} epochs on device {}".format(model.name, model_trainer.n_epochs, device))
     if test_mode:
         for model_file_name in os.listdir(model_path):
             model = BaseModel.load(f"{model_path}/{model_file_name}")
@@ -216,6 +216,7 @@ def train_model(
 
 def train(
         model_name: str,
+        model_params: dict,
         dataset_name: str,
         dataset_path: str,
         batch_size: int,
@@ -229,11 +230,11 @@ def train(
         models_path: str,
         test_mode: bool,
         seed: int,
-        duad_r,
-        duad_p_s,
-        duad_p_0,
-        duad_num_cluster,
-        ae_latent_dim
+        # duad_r,
+        # duad_p_s,
+        # duad_p_0,
+        # duad_num_cluster,
+        # ae_latent_dim
 ):
     # Dynamically load the Dataset instance
     clsname = globals()[f'{dataset_name}Dataset']
@@ -261,18 +262,19 @@ def train(
 
     model, model_trainer = resolve_model_trainer(
         model_name=model_name,
+        model_params=model_params,
         dataset=dataset,
         batch_size=batch_size,
         n_epochs=n_epochs,
         weight_decay=weight_decay,
         learning_rate=learning_rate,
         device=device,
-        duad_r=duad_r,
-        duad_p_s=duad_p_s,
-        duad_p_0=duad_p_0,
-        duad_num_cluster=duad_num_cluster,
-        datamanager=dm,
-        ae_latent_dim=ae_latent_dim
+        # duad_r=duad_r,
+        # duad_p_s=duad_p_s,
+        # duad_p_0=duad_p_0,
+        # duad_num_cluster=duad_num_cluster,
+        # datamanager=dm,
+        # ae_latent_dim=ae_latent_dim
     )
     res = train_model(
         model=model,

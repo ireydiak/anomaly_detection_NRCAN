@@ -30,7 +30,7 @@ def argument_parser():
         '-m',
         '--model',
         type=str,
-        choices=available_models,
+        choices=[model.name for model in available_models],
         required=True
     )
     parser.add_argument(
@@ -43,9 +43,8 @@ def argument_parser():
         "--batch-size",
         type=int,
         help="The size of the training batch",
-        required = True
+        required=True
     )
-
     parser.add_argument(
         "-e",
         "--n-epochs",
@@ -57,7 +56,7 @@ def argument_parser():
         "-o",
         "--results-path",
         type=str,
-        default=None,
+        default="./results",
         help="Where the results will be stored"
     )
     parser.add_argument(
@@ -86,7 +85,7 @@ def argument_parser():
     parser.add_argument(
         "--model-path",
         type=str,
-        default="./",
+        default="./models",
         help="Path where the model's weights are stored and loaded"
     )
     parser.add_argument(
@@ -100,6 +99,18 @@ def argument_parser():
         type=float,
         default=42,
         help='the randomness seed used')
+
+    # Models params
+    for model_cls in available_models:
+        for params in model_cls.get_args_desc():
+            param_name, datatype, default_value, help_txt = params
+            param_name = param_name.replace("_", "-")
+            parser.add_argument(
+                "--{}-{}".format(model_cls.name.lower(), param_name),
+                type=datatype,
+                default=default_value,
+                help=help_txt
+            )
 
     # Auto Encoder
     parser.add_argument('-lat', '--latent-dim', type=int, default=1)
@@ -142,9 +153,12 @@ def argument_parser():
 
 if __name__ == "__main__":
     args = argument_parser()
+    model_name = args.model.lower()
+    model_params = {k.replace("%s_" % model_name, ""): v for k, v in vars(args).items() if k.lower().startswith(model_name)}
 
     bootstrap.train(
         model_name=args.model,
+        model_params=model_params,
         dataset_name=args.dataset,
         dataset_path=args.dataset_path,
         batch_size=args.batch_size,
@@ -159,10 +173,10 @@ if __name__ == "__main__":
         test_mode=args.test_mode,
         seed=args.seed,
 
-        duad_r=args.duad_r,
-        duad_p_s=args.duad_p_s,
-        duad_p_0=args.duad_p_0,
-        duad_num_cluster=args.duad_num_cluster,
-
-        ae_latent_dim=args.latent_dim
+        # duad_r=args.duad_r,
+        # duad_p_s=args.duad_p_s,
+        # duad_p_0=args.duad_p_0,
+        # duad_num_cluster=args.duad_num_cluster,
+        #
+        # ae_latent_dim=args.latent_dim
     )

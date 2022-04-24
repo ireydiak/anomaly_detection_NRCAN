@@ -8,13 +8,11 @@ from torch import nn
 
 class BaseModel(nn.Module):
 
-    def __init__(self, dataset_name: str, in_features: int, n_instances: int, device: str, **kwargs):
+    def __init__(self, in_features: int, n_instances: int, device: str, **kwargs):
         super(BaseModel, self).__init__()
-        self.dataset_name = dataset_name
         self.device = device
         self.in_features = in_features
         self.n_instances = n_instances
-        self.resolve_params(dataset_name)
 
     def get_params(self) -> dict:
         return {
@@ -43,13 +41,8 @@ class BaseModel(nn.Module):
         pass
 
     def save(self, filename):
-        # Save model to file (.pklz)
-        # model = copy.deepcopy(self.detach())
-        # model.to('cpu')
-        # with gzip.open(filename, 'wb') as f:
-        #     pickle.dump(model, f, protocol=pickle.HIGHEST_PROTOCOL)
+        # Save model to file (.pt)
         torch.save(self.state_dict(), filename)
-        # return torch.load(weights_path)
 
 
 class BaseShallowModel(ABC):

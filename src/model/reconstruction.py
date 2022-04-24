@@ -140,55 +140,125 @@ class AutoEncoder(nn.Module):
         torch.save(self.state_dict(), filename)
 
 
+# TODO: Move elsewhere (bootstrap maybe?)
+activation_mapper = {
+    "relu": nn.ReLU(),
+    "tanh": nn.Tanh(),
+    "sigmoid": nn.Sigmoid()
+}
+
+
 class DAGMM(BaseModel):
     """
     This class proposes an unofficial implementation of the DAGMM architecture proposed in
     https://sites.cs.ucsb.edu/~bzong/doc/iclr18-dagmm.pdf.
     Simply put, it's an end-to-end trained auto-encoder network complemented by a distinct gaussian mixture network.
     """
+    name = "DAGMM"
 
-    def __init__(self, lambda_1=0.005, lambda_2=0.1, reg_covar=1e-12, **kwargs):
+    def __init__(
+            self,
+            n_mixtures: int = 4,
+            latent_dim: int = 1,
+            lambda_1=0.005,
+            lambda_2=0.1,
+            reg_covar=1e-12,
+            ae_n_layers=4,
+            ae_compression_factor=2,
+            ae_act_fn="relu",
+            gmm_act_fn="tanh",
+            **kwargs
+    ):
+        super(DAGMM, self).__init__(**kwargs)
+        self.n_mixtures = n_mixtures
+        self.latent_dim = latent_dim
         self.lambda_1 = lambda_1
         self.lambda_2 = lambda_2
         self.reg_covar = reg_covar
-        self.ae = None
-        self.gmm = None
-        self.K = None
-        self.latent_dim = None
-        self.name = "DAGMM"
-        super(DAGMM, self).__init__(**kwargs)
+        self.ae_n_layers = ae_n_layers
+        self.ae_compression_factor = ae_compression_factor
+        self.ae_act_fn = activation_mapper[ae_act_fn]
+        self.gmm_act_fn = activation_mapper[gmm_act_fn]
         self.cosim = nn.CosineSimilarity()
         self.softmax = nn.Softmax(dim=-1)
+        self.ae = None
+        self.gmm = None
+        self._build_network()
 
-    def resolve_params(self, dataset_name: str):
-        # defaults to parameters described in section 4.3 of the paper
-        # https://sites.cs.ucsb.edu/~bzong/doc/iclr18-dagmm.pdf.
-        latent_dim = self.latent_dim or 1
-        if dataset_name == 'Arrhythmia':
-            K = 2
-            gmm_layers = [
-                (latent_dim + 2, 10, nn.Tanh()),
-                (None, None, nn.Dropout(0.5)),
-                (10, K, nn.Softmax(dim=-1))
-            ]
-        elif dataset_name == "Thyroid":
-            K = 2
-            gmm_layers = [
-                (latent_dim + 2, 10, nn.Tanh()),
-                (None, None, nn.Dropout(0.5)),
-                (10, K, nn.Softmax(dim=-1))
-            ]
-        else:
-            K = 4
-            gmm_layers = [
-                (latent_dim + 2, 10, nn.Tanh()),
-                (None, None, nn.Dropout(0.5)),
-                (10, K, nn.Softmax(dim=-1))
-            ]
-        self.latent_dim = latent_dim
-        self.K = K
-        self.ae = AutoEncoder.from_dataset(self.in_features, dataset_name)
-        self.gmm = GMM(gmm_layers)
+    @staticmethod
+    def get_args_desc():
+        return [
+            ("n_mixtures", int, 4, "Number of mixtures for the GMM network"),
+            ("latent_dim", int, 1, "Latent dimension of the AE network"),
+            ("lambda_1", float, 0.005, "Lambda 1 parameter used during optimization"),
+            ("lambda_2", float, 0.1, "Lambda 2 parameter used during optimization"),
+            ("reg_covar", float, 1e-12, "Small epsilon value added to covariance matrix to ensure it remains reversible."),
+            ("ae_n_layers", int, 4, "Number of layers for the AE network"),
+            ("ae_compression_factor", int, 2, "Compression factor for the AE network"),
+            ("ae_act_fn", str, "relu", "Activation function of the AE network"),
+            ("gmm_act_fn", str, "tanh", "Activation function of the GMM network"),
+        ]
+
+    def _build_network(self):
+        # Create the ENCODER layers
+        enc_layers = []
+        in_features = self.in_features
+        compression_factor = self.ae_compression_factor
+        for _ in range(self.ae_n_layers - 1):
+            out_features = in_features // compression_factor
+            enc_layers.append(
+                [in_features, out_features, self.ae_act_fn]
+            )
+            in_features = out_features
+            compression_factor += self.ae_compression_factor
+        enc_layers.append(
+            [in_features, self.latent_dim, None]
+        )
+        # Create DECODER layers by simply reversing the encoder
+        dec_layers = [[b, a, c] for a, b, c in reversed(enc_layers)]
+        # Add and remove activation function from the first and last layer
+        dec_layers[0][-1] = self.ae_act_fn
+        dec_layers[-1][-1] = None
+        # Create GMM layers
+        gmm_layers = [
+            [self.latent_dim + 2, 10, self.gmm_act_fn],
+            [None, None, nn.Dropout(0.5)],
+            [10, self.n_mixtures, nn.Softmax(dim=-1)]
+        ]
+        # Create the sub-networks (AE and GMM)
+        self.ae = AutoEncoder(enc_layers=enc_layers, dec_layers=dec_layers)
+        self.gmm = GMM(layers=gmm_layers)
+
+    # TODO: delete dead code
+    # def resolve_params(self, dataset_name: str):
+    #     # defaults to parameters described in section 4.3 of the paper
+    #     # https://sites.cs.ucsb.edu/~bzong/doc/iclr18-dagmm.pdf.
+    #     latent_dim = self.latent_dim or 1
+    #     if dataset_name == 'Arrhythmia':
+    #         K = 2
+    #         gmm_layers = [
+    #             (latent_dim + 2, 10, nn.Tanh()),
+    #             (None, None, nn.Dropout(0.5)),
+    #             (10, K, nn.Softmax(dim=-1))
+    #         ]
+    #     elif dataset_name == "Thyroid":
+    #         K = 2
+    #         gmm_layers = [
+    #             (latent_dim + 2, 10, nn.Tanh()),
+    #             (None, None, nn.Dropout(0.5)),
+    #             (10, K, nn.Softmax(dim=-1))
+    #         ]
+    #     else:
+    #         K = 4
+    #         gmm_layers = [
+    #             (latent_dim + 2, 10, nn.Tanh()),
+    #             (None, None, nn.Dropout(0.5)),
+    #             (10, K, nn.Softmax(dim=-1))
+    #         ]
+    #     self.latent_dim = latent_dim
+    #     self.K = K
+    #     self.ae = AutoEncoder.from_dataset(self.in_features, dataset_name)
+    #     self.gmm = GMM(gmm_layers)
 
     def forward(self, x: torch.Tensor):
         """

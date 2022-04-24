@@ -1,17 +1,9 @@
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
-from torch.nn.modules.activation import LeakyReLU
 from torch.autograd import Variable
+from src.model.base import BaseModel
+from src.model.utils import weights_init_xavier
 
-from .BaseModel import BaseModel
-from .utils import weights_init_xavier
-
-
-# learning_rate = 1e-5
-# batch_size = 50
-# latent_dim = 32
-# init_kernel = tf.contrib.layers.xavier_initializer()
 
 class ALAD(BaseModel):
     def __init__(self, **kwargs):

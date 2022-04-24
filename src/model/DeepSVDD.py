@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 from torch import Tensor
-from .BaseModel import BaseModel
+from src.model.base import BaseModel
 
 
 class DeepSVDD:
