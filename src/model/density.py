@@ -4,32 +4,29 @@ import torch.nn.functional as F
 from torch.autograd import Variable
 from torch.nn import Parameter
 
-from src.model.BaseModel import BaseModel
+from src.model.base import BaseModel
 
 
 class DSEBM(BaseModel):
-    def __init__(self, D: int, dataset: str):
-        super(DSEBM, self).__init__()
-        self.D = D
-        self.noise = None
-        self._build_network(dataset)
+    def __init__(self, **kwargs):
+        super(DSEBM, self).__init__(**kwargs)
+        self.name = "DSEBM"
 
-    def _build_network(self, dataset):
-
-        if dataset == 'Arrhythmia' or dataset == 'Thyroid':
-            self.fc_1 = nn.Linear(self.D, 10)
+    def resolve_params(self, dataset_name: str):
+        if dataset_name == 'Arrhythmia' or dataset_name == 'Thyroid':
+            self.fc_1 = nn.Linear(self.in_features, 10)
             self.fc_2 = nn.Linear(10, 2)
             self.softp = nn.Softplus()
 
             self.bias_inv_1 = Parameter(torch.Tensor(10))
-            self.bias_inv_2 = Parameter(torch.Tensor(self.D))
+            self.bias_inv_2 = Parameter(torch.Tensor(self.in_features))
         else:
-            self.fc_1 = nn.Linear(self.D, 128)
+            self.fc_1 = nn.Linear(self.in_features, 128)
             self.fc_2 = nn.Linear(128, 512)
             self.softp = nn.Softplus()
 
             self.bias_inv_1 = Parameter(torch.Tensor(128))
-            self.bias_inv_2 = Parameter(torch.Tensor(self.D))
+            self.bias_inv_2 = Parameter(torch.Tensor(self.in_features))
 
         torch.nn.init.xavier_normal_(self.fc_2.weight)
         torch.nn.init.xavier_normal_(self.fc_1.weight)
@@ -53,5 +50,5 @@ class DSEBM(BaseModel):
 
     def get_params(self):
         return {
-            'D': self.D
+            'in_features': self.in_features
         }

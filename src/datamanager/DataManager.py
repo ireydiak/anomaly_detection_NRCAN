@@ -24,10 +24,10 @@ class DataManager:
 
     def __init__(self, train_dataset: torch.utils.data.Dataset,
                  test_dataset: torch.utils.data.Dataset,
-                 batch_size: int = 1,
+                 batch_size: int,
                  num_classes: int = None,
                  input_shape: tuple = None,
-                 validation: float = 0.1,
+                 validation: float = 0.,
                  seed: int = 0,
                  **kwargs):
         """
@@ -47,6 +47,7 @@ class DataManager:
         self.input_shape = input_shape
         self.train_set = train_dataset
         self.test_set = test_dataset
+        self.anomaly_ratio = sum(test_dataset.dataset.y == 1)/len(test_dataset)
         self.validation = validation
         self.kwargs = kwargs
         self.seed = seed
