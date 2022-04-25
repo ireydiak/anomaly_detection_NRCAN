@@ -36,7 +36,7 @@ available_models = [
     DUAD,
     # "LOF",
     MemAE,
-    # "NeuTraLAD",
+    NeuTraLAD,
     # "OC-SVM",
     # "RecForest",
     SOMDAGMM,
@@ -63,7 +63,7 @@ model_trainer_map = {
     "MemAE": (MemAE, MemAETrainer),
     "DeepSVDD": (DeepSVDD, DeepSVDDTrainer),
     "SOMDAGMM": (SOMDAGMM, SOMDAGMMTrainer),
-    # "NeuTraLAD": (NeuTraLAD, NeuTraLADTrainer),
+    "NeuTraLAD": (NeuTraLAD, NeuTraLADTrainer),
     # Shallow Models
     # "OC-SVM": (OCSVM, OCSVMTrainer),
     # "LOF": (LOF, LOFTrainer),

@@ -17,65 +17,85 @@ def create_network(D: int, out_dims: np.array, bias=True) -> list:
 
 
 class NeuTraLAD(BaseModel):
-    def __init__(self, n_layers=3,
-                 trans_type='res', temperature: float = 0.07,
-                 **kwargs
-                 ):
+    name = "NeuTraLAD"
 
-        self.n_layers = n_layers
+    def __init__(
+            self,
+            fc_1_out: int,
+            fc_last_out: int,
+            compression_unit: int,
+            n_transforms: int,
+            n_layers: int,
+            trans_type: str,
+            temperature: float,
+            trans_fc_in: int,
+            trans_fc_out: int,
+            **kwargs
+    ):
         super(NeuTraLAD, self).__init__(**kwargs)
-
+        self.compression_unit = compression_unit
+        self.fc_1_out = fc_1_out
+        self.fc_last_out = fc_last_out
+        self.n_layers = n_layers
+        self.n_transforms = n_transforms
         self.temperature = temperature
         self.trans_type = trans_type
+        self.trans_fc_in = trans_fc_in if trans_fc_in and trans_fc_in > 0 else self.in_features
+        self.trans_fc_out = trans_fc_out if trans_fc_out and trans_fc_out > 0 else self.in_features
         self.cosim = nn.CosineSimilarity()
-        self.name = "NeuTraLAD"
+        self._build_network()
+
+    @staticmethod
+    def get_args_desc():
+        # TODO: better description
+        return [
+            ("fc_1_out", int, 90, "output dim of first hidden layer"),
+            ("fc_last_out", int, 32, "output dim of the last layer"),
+            ("compression_unit", int, 20, "used to set output dim of next layer (in_feature - compression_unit)"),
+            ("temperature", float, 0.07, "temperature parameter"),
+            ("trans_type", str, "mul", "transformation type (choose between 'res' or 'mul')"),
+            ("n_layers", int, 4, "number of layers"),
+            ("n_transforms", int, 11, "number of transformations"),
+            ("trans_fc_in", int, 200, "input dim of transformer layer"),
+            ("trans_fc_out", int, -1, "output dim of transformer layer"),
+        ]
 
     def _create_masks(self) -> list:
-        masks = [None] * self.K
-        out_dims = self.trans_layers or np.array([self.in_features] * self.n_layers)
-        for K_i in range(self.K):
+        masks = [None] * self.n_transforms
+        out_dims = self.trans_layers
+        for K_i in range(self.n_transforms):
             net_layers = create_network(self.in_features, out_dims, bias=False)
             net_layers[-1] = nn.Sigmoid()
             masks[K_i] = nn.Sequential(*net_layers).to(self.device)
         return masks
 
     def _build_network(self):
+        out_dims = [0] * self.n_layers
+        out_features = self.fc_1_out
+        for i in range(self.n_layers - 1):
+            out_dims[i] = out_features
+            out_features -= self.compression_unit
+        out_dims[-1] = self.fc_last_out
+        self.trans_layers = [self.trans_fc_in, self.trans_fc_out]
+
         # Encoder
-        enc_layers = create_network(self.in_features, self.emb_out_dims)[:-1]  # remove ReLU from the last layer
+        enc_layers = create_network(self.in_features, out_dims)[:-1]  # removes ReLU from the last layer
         self.enc = nn.Sequential(*enc_layers).to(self.device)
         # Masks / Transformations
         self.masks = self._create_masks()
 
-    def resolve_params(self, dataset: str):
-        K, Z = 7, 32
-        # out_dims = np.linspace(self.D, Z, self.n_layers, dtype=np.int32)
-        out_dims = [90, 70, 50] + [Z]
-        trans_layers = [24, 6]
-        if dataset == 'Thyroid':
-            Z = 24
-            K = 11
-            out_dims = [24] * 4 + [Z]
-            trans_layers = [24, 6]
-        elif dataset == 'Arrhythmia':
-            K = 11
-            out_dims = [64] * 4 + [Z]
-            trans_layers = [200, self.in_features]
-            # out_dims[:-1] *= 2
-        else:
-            self.trans_type = 'mul'
-            K = 11
-            out_dims = [64] * 4 + [Z]
-            trans_layers = [200, self.in_features]
-        self.K, self.Z, self.emb_out_dims, self.trans_layers = K, Z, out_dims, trans_layers
-        self._build_network()
-
-        return K, Z, out_dims, trans_layers
-
     def get_params(self) -> dict:
         return {
-            'D': self.in_features,
-            'K': self.K,
-            'temperature': self.temperature
+            "in_features": self.in_features,
+            "n_transforms": self.n_transforms,
+            "temperature": self.temperature,
+            "fc_1_out": self.fc_1_out,
+            "fc_last_out": self.fc_last_out,
+            "compression_unit": self.compression_unit,
+            "trans_type": self.trans_type,
+            "n_layers": self.n_layers,
+            "trans_fc_in": self.trans_fc_in,
+            "trans_fc_out": self.trans_fc_out
         }
 
     def score(self, X: torch.Tensor):

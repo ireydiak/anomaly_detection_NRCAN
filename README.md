@@ -164,6 +164,26 @@ Model specific parameters are:
     - default: `2`
   - `--duad-n-layers`: number of layers for the AE network
     - default: `4`
+- NeuTraLAD
+  - `--neutralad-fc-1-out`: output dim of first hidden layer
+    - default: `90`
+  - `--neutralad-fc-last-out`: output dim of the last hidden layer
+    - default: `32`
+  - `--neutralad-compression-unit`: used to set output dim of next layer (in_feature - compression_unit)
+    - default: `20`
+  - `--neutralad-n-layers`: number of layers
+    - default: `3`
+  - `--temperature`: temperature parameter
+    - default: `0.07`
+  - `--neutralad-trans-type`: type of transformation
+    - options: `res` or `mul`
+    - default: `mul`
+  - `--neutralad-n-transforms`: number of transformations to apply/learn
+    - default: `11`
+  - `--neutralad-trans-fc-in`: input dim of transformer layer
+    - default: `200`
+  - `--neutralad-trans-fc-out`: output dim of transformer layer
+    - default: `-1` (sets the value to `in_features`)
 
 ## Suggested parameters
 #### DAGMM
@@ -207,6 +227,13 @@ Model specific parameters are:
 | Arrhythmia | 10       | 2        |
 | Thyroid    | 10       | 2        |
 | Default    | 128      | 512      |
+
+#### NeuTraLAD
+| Dataset    | fc_1_out | n_layers | n_transforms | latent_dim | compression_unit | trans_fc_in | trans_fc_out |
+|------------|----------|----------|--------------|------------|------------------|-------------|--------------|
+| Arrhythmia | 10       | 4        | 11           | 32         | 0                | 200         | -1           |
+| Thyroid    | 10       | 4        | 11           | 24         | 0                | 24          | 6            |
+| Default    | 128      | 4        | 11           | 32         | 20               | 200         | -1           |
 
 ## Example
 To train a DAGMM on the KDD 10 percent dataset with the default parameters described in the original paper:
