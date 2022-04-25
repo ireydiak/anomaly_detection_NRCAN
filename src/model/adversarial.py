@@ -15,13 +15,13 @@ class ALAD(BaseModel):
         self.D_zz = None
         self.D_xx = None
         self.D_xz = None
-        self.latent_dim = latent_dim or self.in_features // 2
+        self.latent_dim = latent_dim if latent_dim and latent_dim > 0 else self.in_features // 2
         self._build_network()
 
     @staticmethod
     def get_args_desc():
         return [
-            ("latent_dim", int, None, "Latent dimension")
+            ("latent_dim", int, -1, "Latent dimension")
         ]
 
     def _build_network(self):

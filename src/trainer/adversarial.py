@@ -11,10 +11,9 @@ torch.autograd.set_detect_anomaly(True)
 
 class ALADTrainer(BaseTrainer):
     def __init__(self, **kwargs):
+        self.optim_ge, self.optim_d = None, None
         super(ALADTrainer, self).__init__(**kwargs)
         self.criterion = nn.BCEWithLogitsLoss()
-        self.optim_ge, self.optim_d = None, None
-        self.set_optimizer()
 
     def train_iter(self, sample: torch.Tensor):
         pass
@@ -24,7 +23,7 @@ class ALADTrainer(BaseTrainer):
         _, feature_gen = self.model.D_xx(sample, self.model.G(self.model.E(sample)))
         return torch.linalg.norm(feature_real - feature_gen, 2, keepdim=False, dim=1)
 
-    def set_optimizer(self):
+    def set_optimizer(self, weight_decay):
         self.optim_ge = optim.Adam(
             list(self.model.G.parameters()) + list(self.model.E.parameters()),
             lr=self.lr, betas=(0.5, 0.999)
