@@ -34,11 +34,11 @@ available_models = [
     DSEBM,
     DROCC,
     DUAD,
-    # "LOF",
+    LOF,
     MemAE,
     NeuTraLAD,
-    # "OC-SVM",
-    # "RecForest",
+    OCSVM,
+    RecForest,
     SOMDAGMM,
 ]
 
@@ -65,9 +65,9 @@ model_trainer_map = {
     "SOMDAGMM": (SOMDAGMM, SOMDAGMMTrainer),
     "NeuTraLAD": (NeuTraLAD, NeuTraLADTrainer),
     # Shallow Models
-    # "OC-SVM": (OCSVM, OCSVMTrainer),
-    # "LOF": (LOF, LOFTrainer),
-    # "RecForest": (RecForest, RecForestTrainer)
+    "OCSVM": (OCSVM, OCSVMTrainer),
+    "LOF": (LOF, LOFTrainer),
+    "RecForest": (RecForest, RecForestTrainer)
 }
 
 
@@ -110,11 +110,6 @@ def resolve_model_trainer(
         learning_rate: float,
         weight_decay: float,
         device: str,
-        # duad_r,
-        # duad_p_s,
-        # duad_p_0,
-        # duad_num_cluster,
-        # datamanager: DataManager = None,
 ):
     # TODO: dead code
     # if model_name == "DUAD":
@@ -236,10 +231,6 @@ def train(
         models_path: str,
         test_mode: bool,
         seed: int,
-        # duad_r,
-        # duad_p_s,
-        # duad_p_0,
-        # duad_num_cluster,
 ):
     # Dynamically load the Dataset instance
     clsname = globals()[f'{dataset_name}Dataset']

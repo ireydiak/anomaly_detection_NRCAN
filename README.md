@@ -51,7 +51,8 @@ Global parameters are:
 - `-m`: selected machine learning model (**required**)
 - `-d`: path to the dataset (**required**)
 - `--batch-size`: size of a training batch (**required**)
-- `--dataset`: name of the selected dataset. Choices are `Arrhythmia`, `KDD10`, `IDS2018`, `NSLKDD`, `USBIDS`, `Thyroid` (**required**).
+- `--dataset`: name of the selected dataset (**required**)
+  - options: `Arrhythmia`, `KDD10`, `IDS2018`, `NSLKDD`, `USBIDS`, `Thyroid` (**required**).
 - `-e`: number of training epochs (default=200)
 - `--n-runs`: number of time the experiment is repeated (default=1)
 - `--lr`: learning rate used during optimization (default=1e-4)
@@ -60,11 +61,11 @@ Global parameters are:
 - `--results-path`: path where the results are stored (default="../results")
 - `--model-path`: path where models will be stored (default="../models")
 - `--test-mode`: loads models from `--model_path` and tests them (default=False)
-Please note that datasets must be stored in `.npz` or `.mat` files. Use the preprocessing scripts within `data_process`
+Note that datasets must be stored in `.npz` or `.mat` files. Use the preprocessing scripts within `data_process`
 to generate these files.
 
 Model specific parameters are:
-- AE 
+- **AE** 
   - `--ae-latent-dim`: latent dimension of the network
     - default: `1`
   - `--ae-n-layers`: number of layers of the network
@@ -73,7 +74,7 @@ Model specific parameters are:
     - default: `2`
   - `--ae-act-fn`: activation function of the network
     - default: `relu`
-- DAGMM
+- **DAGMM**
   - `--dagmm-latent-dim`: latent dimension of the AE subnetwork
     - default: `1`
   - `--dagmm-n-mixtures`: number of mixtures for the GMM network
@@ -91,7 +92,7 @@ Model specific parameters are:
     - default: `relu`
   - `--gmm-act-fn`: activation function of the GMM network
     - default: `tanh`
-- SOM-DAGMM
+- **SOM-DAGMM**
   - `--somdagmm-n-soms`: number of soms
     - default: `1`
   - `--somdagmm-latent-dim`: latent dimension of the AE subnetwork
@@ -111,7 +112,7 @@ Model specific parameters are:
     - default: `relu`
   - `--somdagmm-gmm-act-fn`: activation function of the GMM network
     - default: `tanh`
-- MemAE
+- **MemAE**
   - `--memae-shrink_thres`: threshold for hard shrinking relu
     - default: `0.0025`
   - `--memae-latent-dim`: latent dimension of the AE network
@@ -125,29 +126,29 @@ Model specific parameters are:
     - default: `2`
   - `--somdagmm-ae-act-fn`: activation function of the AE network
     - default: `relu`
-- DeepSVDD
+- **DeepSVDD**
   - `--deepsvdd-n-layers`: number of layers
     - default: `2`
   - `--deepsvdd-compression-factor`: compression factor of the network
     - default: `4`
   - `--deepsvdd-act-fn`: activation function of the network
     - default: `relu`
-- DROCC
+- **DROCC**
   - `--drocc-lamb`: weight given to the adversarial loss
     - default: `1.`
   - `--drocc-radius`: radius of hypersphere to sample points from
     - default: `3.`
   - `--drocc-gamma`: parameter to vary projection
     - default: `2.`
-- ALAD
+- **ALAD**
   - `--alad-latent-dim`: latent dimension of the AE network
     - default: `None`
-- DSEBM
+- **DSEBM**
   - `--dsebm-fc-1-out`: output dimension of the first layer
     - default: `128`
   - `--dsebm-fc-2-out`: output dimension of the second layer
     - default: `512`
-- DUAD
+- **DUAD**
   - `--duad-p0`: p0 parameter
     - default: `35.`
   - `--duad-p`: p parameter
@@ -164,7 +165,7 @@ Model specific parameters are:
     - default: `2`
   - `--duad-n-layers`: number of layers for the AE network
     - default: `4`
-- NeuTraLAD
+- **NeuTraLAD**
   - `--neutralad-fc-1-out`: output dim of first hidden layer
     - default: `90`
   - `--neutralad-fc-last-out`: output dim of the last hidden layer
@@ -184,7 +185,17 @@ Model specific parameters are:
     - default: `200`
   - `--neutralad-trans-fc-out`: output dim of transformer layer
     - default: `-1` (sets the value to `in_features`)
-
+- **OCSVM**
+  - `--ocsvm-kernel`: specifies the kernel type to be used in the algorithm
+    - default: `rbf`
+  - `--ocsvm-gamma`: kernel coefficient for 'rbf', 'poly' and 'sigmoid'
+    - default: `auto`
+  - `--ocsvm-nu`: an upper bound on the fraction of training errors and a lower bound of the fraction of support vectors (should be in the interval (0, 1])
+    - default: `0.5`
+- **LOF**
+  - `--lof-n-neighbors`: the actual number of neighbors used for `kneighbors` queries
+    - default: `20`
+  
 ## Suggested parameters
 #### DAGMM
 | Dataset    | n_mixtures | latent_dim | lambda_1 | lambda_2 | reg_covar |
@@ -215,11 +226,11 @@ Model specific parameters are:
 | Default    | ?          | ?                  | ?        | ?      |
 
 #### ALAD
-| Dataset    | latent_dim       | 
-|------------|------------------|
-| Arrhythmia | 64               |
-| KDD10      | 1                |
-| Default    | in_features // 2 |
+| Dataset    | latent_dim | 
+|------------|------------|
+| Arrhythmia | 64         |
+| KDD10      | 1          |
+| Default    | -1         |
 
 #### DSEBM
 | Dataset    | fc_1_out | fc_2_out |

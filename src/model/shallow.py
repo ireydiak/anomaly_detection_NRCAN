@@ -5,19 +5,34 @@ from src.model.base import BaseShallowModel
 
 
 class RecForest(BaseShallowModel):
+    name = "RecForest"
 
     def __init__(self, n_jobs=-1, **kwargs):
         super(RecForest, self).__init__(**kwargs)
         self.clf = PyPiRecForest(n_jobs=n_jobs)
-        self.name = "RecForest"
+
+    @staticmethod
+    def get_args_desc():
+        return []
 
     def get_params(self) -> dict:
         return {}
 
 
 class OCSVM(BaseShallowModel):
-    def __init__(self, kernel="rbf", gamma="scale", shrinking=False, verbose=True, nu=0.5, **kwargs):
+    name = "OCSVM"
+
+    def __init__(
+            self,
+            kernel="rbf",
+            nu=0.5,
+            gamma="scale",
+            shrinking=False,
+            verbose=True,
+            **kwargs
+    ):
         super(OCSVM, self).__init__(**kwargs)
+        gamma = gamma if not any(char.isdigit() for char in gamma) else float(gamma)
         self.clf = OneClassSVM(
             kernel=kernel,
             gamma=gamma,
@@ -25,7 +40,14 @@ class OCSVM(BaseShallowModel):
             verbose=verbose,
             nu=nu
         )
-        self.name = "OC-SVM"
+
+    @staticmethod
+    def get_args_desc():
+        return [
+            ("kernel", str, "rbf", "sklearn: specifies the kernel type to be used in the algorithm"),
+            ("gamma", str, "auto", "sklearn: kernel coefficient for 'rbf', 'poly' and 'sigmoid'"),
+            ("nu", float, 0.5, "sklearn: an upper bound on the fraction of training errors and a lower bound of the fraction of support vectors (should be in the interval (0, 1])")
+        ]
 
     def get_params(self) -> dict:
         return {
@@ -37,14 +59,21 @@ class OCSVM(BaseShallowModel):
 
 
 class LOF(BaseShallowModel):
-    def __init__(self, n_neighbors=20, verbose=True, **kwargs):
+    name = "LOF"
+
+    def __init__(self, n_neighbors: int, **kwargs):
         super(LOF, self).__init__(**kwargs)
         self.clf = LocalOutlierFactor(
             n_neighbors=n_neighbors,
             novelty=True,
             n_jobs=-1
         )
-        self.name = "LOF"
+
+    @staticmethod
+    def get_args_desc():
+        return [
+            ("n_neighbors", int, 20, "sklearn: the actual number of neighbors used for :meth:`kneighbors` queries")
+        ]
 
     def get_params(self) -> dict:
         return {
