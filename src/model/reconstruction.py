@@ -9,6 +9,7 @@ from src.model.base import BaseModel
 from src.model.GMM import GMM
 from src.model.memory_module import MemoryUnit
 from src.model import utils
+from src.model.utils import activation_mapper
 
 
 class AutoEncoder(BaseModel):
@@ -110,11 +111,6 @@ class AutoEncoder(BaseModel):
 
 
 # TODO: Move elsewhere (bootstrap maybe?)
-activation_mapper = {
-    "relu": nn.ReLU(),
-    "tanh": nn.Tanh(),
-    "sigmoid": nn.Sigmoid()
-}
 
 
 class DAGMM(BaseModel):

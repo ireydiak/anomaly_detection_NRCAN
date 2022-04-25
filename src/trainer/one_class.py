@@ -123,22 +123,19 @@ class EdgeMLDROCCTrainer(BaseTrainer):
     !!! Most of the code is copied from https://github.com/microsoft/EdgeML/ !!!
     """
 
-    def __init__(self, mu: float = 1., radius: float = 3., gamma: float = 2., **kwargs):
+    def __init__(self, **kwargs):
         """Initialize the DROCC Trainer class
 
         Parameters
         ----------
         model: Torch neural network object
         optimizer: Total number of epochs for training.
-        lamda: Weight given to the adversarial loss
-        radius: Radius of hypersphere to sample points from.
-        gamma: Parameter to vary projection.
         device: torch.device object for device to use.
         """
         super(EdgeMLDROCCTrainer, self).__init__(**kwargs)
-        self.lamb = mu
-        self.radius = radius
-        self.gamma = gamma
+        self.lamb = self.model.lamb
+        self.radius = self.model.radius
+        self.gamma = self.model.gamma
         self.only_ce_epochs = 50
         self.ascent_step_size = 0.01
         self.ascent_num_steps = 50
@@ -146,8 +143,7 @@ class EdgeMLDROCCTrainer(BaseTrainer):
     def score(self, sample: torch.Tensor):
         logits = self.model(sample)
         logits = torch.squeeze(logits, dim=1)
-        scores = logits
-        return scores
+        return logits
 
     def train_iter(self, sample: torch.Tensor):
         pass
@@ -183,7 +179,7 @@ class EdgeMLDROCCTrainer(BaseTrainer):
                     epoch_ce_loss += ce_loss
 
                     if epoch >= self.only_ce_epochs:
-                        data = data[y == 0]
+                        data = X[y == 0]
                         # AdvLoss
                         adv_loss = self.one_class_adv_loss(data)
                         epoch_adv_loss += adv_loss

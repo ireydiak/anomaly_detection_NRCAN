@@ -112,9 +112,6 @@ def argument_parser():
                 help=help_txt
             )
 
-    # Auto Encoder
-    parser.add_argument('-lat', '--latent-dim', type=int, default=1)
-
     # NeutralAD
     parser.add_argument(
         '--trans-type',
@@ -178,5 +175,4 @@ if __name__ == "__main__":
         # duad_p_0=args.duad_p_0,
         # duad_num_cluster=args.duad_num_cluster,
         #
-        # ae_latent_dim=args.latent_dim
     )

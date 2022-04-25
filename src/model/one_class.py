@@ -4,29 +4,43 @@ import torch
 import torch.nn as nn
 from torch import Tensor
 from src.model.base import BaseModel
+from src.model.utils import activation_mapper, create_network
 
 
 class DeepSVDD(BaseModel):
-    """
-    Follows SKLearn's API
-    (https://scikit-learn.org/stable/modules/generated/sklearn.svm.OneClassSVM.html#sklearn.svm.OneClassSVM.decision_function)
-    """
+    name = "DeepSVDD"
 
-    def resolve_params(self, dataset_name: str):
-        pass
-
-    def __init__(self, **kwargs):
+    def __init__(self, n_layers: int, compression_factor: int, act_fn: str, **kwargs):
         super(DeepSVDD, self).__init__(**kwargs)
-        self.rep_dim = self.in_features // 4
-        self.name = "DeepSVDD"
-        self.net = self._build_network()
+        self.n_layers = n_layers
+        self.compression_factor = compression_factor
+        self.rep_dim = None
+        self.act_fn = activation_mapper[act_fn]
+        self._build_network()
+
+    @staticmethod
+    def get_args_desc():
+        return [
+            ("n_layers", int, 2, "Number of layers"),
+            ("compression_factor", int, 2, "Compression factor of the network"),
+            ("act_fn", str, "relu", "Activation function of the network")
+        ]
 
     def _build_network(self):
-        return nn.Sequential(
-            nn.Linear(self.in_features, self.in_features // 2),
-            nn.ReLU(),
-            nn.Linear(self.in_features // 2, self.rep_dim)
-        ).to(self.device)
+        in_features = self.in_features
+        compression_factor = self.compression_factor
+        out_features = in_features // compression_factor
+        layers = []
+        for _ in range(self.n_layers - 1):
+            layers.append([in_features, out_features, self.act_fn])
+            in_features = out_features
+            compression_factor += self.compression_factor
+            out_features = in_features // compression_factor
+        layers.append(
+            [in_features, out_features, None]
+        )
+        self.rep_dim = layers[-1][1]
+        self.net = create_network(layers).to(self.device)
 
     def forward(self, X: Tensor):
         return self.net(X)
@@ -39,15 +53,23 @@ class DeepSVDD(BaseModel):
 
 
 class DROCC(BaseModel):
+    name = "DROCC"
 
-    def __init__(self,
-                 num_classes=1,
-                 num_hidden_nodes=20,
-                 **kwargs):
+    def __init__(
+            self,
+            lamb=1.,
+            radius=3.,
+            gamma=2.,
+            num_classes=1,
+            num_hidden_nodes=20,
+            **kwargs
+    ):
         super(DROCC, self).__init__(**kwargs)
-        self.name = "DROCC"
         self.num_classes = num_classes
         self.num_hidden_nodes = num_hidden_nodes
+        self.lamb = lamb
+        self.radius = radius
+        self.gamma = gamma
         activ = nn.ReLU(True)
         self.feature_extractor = nn.Sequential(
             OrderedDict([
@@ -61,8 +83,19 @@ class DROCC(BaseModel):
             ])
         )
 
+    @staticmethod
+    def get_args_desc():
+        return [
+            ("lamb", float, 1., "Weight given to the adversarial loss"),
+            ("radius", float, 3., "Radius of hypersphere to sample points from"),
+            ("gamma", float, 2., "Parameter to vary projection")
+        ]
+
     def get_params(self) -> dict:
         return {
+            "lamb": self.lamb,
+            "radius": self.radius,
+            "gamma": self.gamma,
             "num_classes": self.num_classes,
             "num_hidden_nodes": self.num_hidden_nodes
         }
@@ -71,6 +104,3 @@ class DROCC(BaseModel):
         features = self.feature_extractor(X)
         logits = self.classifier(features.view(-1, self.size_final))
         return logits
-
-    def resolve_params(self, dataset_name: str):
-        pass

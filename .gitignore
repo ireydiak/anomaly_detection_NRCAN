@@ -1,11 +1,13 @@
-data/*
+data/**/*.csv
+data/**/*.npz
+data/**/*.mat
 .idea/
 .vscode/
 __pycache__/
 src/__pycache__/
 __pycache__
-results/*.txt
-models/*.pt
+results/**/*.txt
+models/**/*.pt
 rawdata/
 env
 venv

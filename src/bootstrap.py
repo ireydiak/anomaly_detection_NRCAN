@@ -30,9 +30,9 @@ available_models = [
     AE,
     # "ALAD",
     DAGMM,
-    # "DeepSVDD",
+    DeepSVDD,
     # "DSEBM",
-    # "DROCC",
+    DROCC,
     # "DUAD",
     # "LOF",
     MemAE,
@@ -41,6 +41,7 @@ available_models = [
     # "RecForest",
     SOMDAGMM,
 ]
+
 available_datasets = [
     "Arrhythmia",
     "KDD10",
@@ -57,10 +58,10 @@ model_trainer_map = {
     "AE": (AE, AETrainer),
     "DAGMM": (DAGMM, DAGMMTrainer),
     # "DSEBM": (DSEBM, DSEBMTrainer),
-    # "DROCC": (DROCC, EdgeMLDROCCTrainer),
+    "DROCC": (DROCC, EdgeMLDROCCTrainer),
     # "DUAD": (DUAD, DUADTrainer),
     "MemAE": (MemAE, MemAETrainer),
-    # "DeepSVDD": (DeepSVDD, DeepSVDDTrainer),
+    "DeepSVDD": (DeepSVDD, DeepSVDDTrainer),
     "SOMDAGMM": (SOMDAGMM, SOMDAGMMTrainer),
     # "NeuTraLAD": (NeuTraLAD, NeuTraLADTrainer),
     # Shallow Models
@@ -113,7 +114,6 @@ def resolve_model_trainer(
         # duad_p_s,
         # duad_p_0,
         # duad_num_cluster,
-        # ae_latent_dim,
         # datamanager: DataManager = None,
 ):
     # TODO: dead code
@@ -240,7 +240,6 @@ def train(
         # duad_p_s,
         # duad_p_0,
         # duad_num_cluster,
-        # ae_latent_dim
 ):
     # Dynamically load the Dataset instance
     clsname = globals()[f'{dataset_name}Dataset']
@@ -280,7 +279,6 @@ def train(
         # duad_p_0=duad_p_0,
         # duad_num_cluster=duad_num_cluster,
         # datamanager=dm,
-        # ae_latent_dim=ae_latent_dim
     )
     res = train_model(
         model=model,

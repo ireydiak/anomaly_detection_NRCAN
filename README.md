@@ -47,9 +47,7 @@ $ python -m src.main
 ## Parameters
 Our codebase was made to maximize the number of parameters a user can set without modifying the code while minimizing the argparse footprint.
 
-Global parameters are
-
-Our model contains the following parameters:
+Global parameters are:
 - `-m`: selected machine learning model (**required**)
 - `-d`: path to the dataset (**required**)
 - `--batch-size`: size of a training batch (**required**)
@@ -64,7 +62,8 @@ Our model contains the following parameters:
 - `--test-mode`: loads models from `--model_path` and tests them (default=False)
 Please note that datasets must be stored in `.npz` or `.mat` files. Use the preprocessing scripts within `data_process`
 to generate these files.
-Model specific parameters are
+
+Model specific parameters are:
 - AE 
   - `--ae-latent-dim`: latent dimension of the network
     - Default: 1
@@ -126,6 +125,20 @@ Model specific parameters are
     - Default: `2`
   - `--somdagmm-ae-act-fn`: activation function of the AE network
     - Default: `relu`
+- DeepSVDD
+  - `--deepsvdd-n-layers`: number of layers
+    - Default: `2`
+  - `--deepsvdd-compression-factor`: compression factor of the network
+    - Default: `4`
+  - `--deepsvdd-act-fn`: activation function of the network
+    - Default: `relu`
+- DROCC
+  - `--drocc-lamb`: weight given to the adversarial loss
+    - Default: `1.`
+  - `--drocc-radius`: radius of hypersphere to sample points from
+    - Default: `3.`
+  - `--drocc-gamma`: parameter to vary projection
+    - Default: `2.`
 
 ## Suggested parameters
 #### DAGMM

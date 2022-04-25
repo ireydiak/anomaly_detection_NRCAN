@@ -2,6 +2,12 @@ import torch
 from typing import List
 from torch import nn
 
+activation_mapper = {
+    "relu": nn.ReLU(),
+    "tanh": nn.Tanh(),
+    "sigmoid": nn.Sigmoid()
+}
+
 
 def weights_init_xavier(m):
     # Copied from https://github.com/JohnEfan/PyTorch-ALAD/blob/6e7c4a9e9f327b5b08936376f59af2399d10dc9f/utils/utils.py#L4
