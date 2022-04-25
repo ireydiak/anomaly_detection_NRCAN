@@ -1,33 +1,32 @@
 import torch
 from torch import nn
-import torch.nn.functional as F
-from torch.autograd import Variable
 from torch.nn import Parameter
-
 from src.model.base import BaseModel
 
 
 class DSEBM(BaseModel):
-    def __init__(self, **kwargs):
+    name = "DSEBM"
+
+    def __init__(self, fc_1_out: int, fc_2_out: int, **kwargs):
         super(DSEBM, self).__init__(**kwargs)
-        self.name = "DSEBM"
+        self.fc_1_out = fc_1_out
+        self.fc_2_out = fc_2_out
+        self._build_network()
 
-    def resolve_params(self, dataset_name: str):
-        if dataset_name == 'Arrhythmia' or dataset_name == 'Thyroid':
-            self.fc_1 = nn.Linear(self.in_features, 10)
-            self.fc_2 = nn.Linear(10, 2)
-            self.softp = nn.Softplus()
+    @staticmethod
+    def get_args_desc():
+        return [
+            ("fc_1_out", int, 128, "Output dimension of the first layer"),
+            ("fc_2_out", int, 512, "Output dimension of the last layer")
+        ]
 
-            self.bias_inv_1 = Parameter(torch.Tensor(10))
-            self.bias_inv_2 = Parameter(torch.Tensor(self.in_features))
-        else:
-            self.fc_1 = nn.Linear(self.in_features, 128)
-            self.fc_2 = nn.Linear(128, 512)
-            self.softp = nn.Softplus()
-
-            self.bias_inv_1 = Parameter(torch.Tensor(128))
-            self.bias_inv_2 = Parameter(torch.Tensor(self.in_features))
-
+    def _build_network(self):
+        # TODO: Make model more flexible. Users should be able to set the number of layers
+        self.fc_1 = nn.Linear(self.in_features, self.fc_1_out)
+        self.fc_2 = nn.Linear(self.fc_1_out, self.fc_2_out)
+        self.softp = nn.Softplus()
+        self.bias_inv_1 = Parameter(torch.Tensor(self.fc_1_out))
+        self.bias_inv_2 = Parameter(torch.Tensor(self.in_features))
         torch.nn.init.xavier_normal_(self.fc_2.weight)
         torch.nn.init.xavier_normal_(self.fc_1.weight)
         self.fc_1.bias.data.zero_()
@@ -50,5 +49,7 @@ class DSEBM(BaseModel):
 
     def get_params(self):
         return {
-            'in_features': self.in_features
+            "in_features": self.in_features,
+            "fc_1_out": self.fc_1_out,
+            "fc_2_out": self.fc_2_out
         }

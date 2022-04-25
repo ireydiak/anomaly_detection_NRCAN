@@ -28,12 +28,12 @@ from src.datamanager.dataset import *
 
 available_models = [
     AE,
-    # "ALAD",
+    ALAD,
     DAGMM,
     DeepSVDD,
-    # "DSEBM",
+    DSEBM,
     DROCC,
-    # "DUAD",
+    DUAD,
     # "LOF",
     MemAE,
     # "NeuTraLAD",
@@ -54,12 +54,12 @@ available_datasets = [
 
 model_trainer_map = {
     # Deep Models
-    # "ALAD": (ALAD, ALADTrainer),
+    "ALAD": (ALAD, ALADTrainer),
     "AE": (AE, AETrainer),
     "DAGMM": (DAGMM, DAGMMTrainer),
-    # "DSEBM": (DSEBM, DSEBMTrainer),
+    "DSEBM": (DSEBM, DSEBMTrainer),
     "DROCC": (DROCC, EdgeMLDROCCTrainer),
-    # "DUAD": (DUAD, DUADTrainer),
+    "DUAD": (DUAD, DUADTrainer),
     "MemAE": (MemAE, MemAETrainer),
     "DeepSVDD": (DeepSVDD, DeepSVDDTrainer),
     "SOMDAGMM": (SOMDAGMM, SOMDAGMMTrainer),

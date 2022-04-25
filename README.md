@@ -66,79 +66,104 @@ to generate these files.
 Model specific parameters are:
 - AE 
   - `--ae-latent-dim`: latent dimension of the network
-    - Default: 1
+    - default: `1`
   - `--ae-n-layers`: number of layers of the network
-    - Default: 4
+    - default: `4`
   - `--ae-compression-factor`: compression factor for the network
-    - Default: 2
+    - default: `2`
   - `--ae-act-fn`: activation function of the network
-    - Default: `relu`
+    - default: `relu`
 - DAGMM
   - `--dagmm-latent-dim`: latent dimension of the AE subnetwork
-    - Default: `1`
+    - default: `1`
   - `--dagmm-n-mixtures`: number of mixtures for the GMM network
-    - Default: `4`
+    - default: `4`
   - `--dagmm-n-layers`: number of layers of the AE network
-    - Default: `4`
+    - default: `4`
   - `--dagmm-lambda-1`: coefficient for the energy loss
-    - Default: `0.1`
+    - default: `0.1`
   - `--dagmm-lambda-2`: coefficient for the penalization of degenerate covariance matrices
-    - Default: `0.005`
+    - default: `0.005`
   - `--dagmm-reg-covar`: small epsilon value added to covariance matrix to ensure it remains invertible
   - `--dagmm-compression-factor`: compression factor for the AE network
-    - Default: `2`
+    - default: `2`
   - `--dagmm-act-fn`: activation function of the AD network
-    - Default: `relu`
+    - default: `relu`
   - `--gmm-act-fn`: activation function of the GMM network
-    - Default: `tanh`
+    - default: `tanh`
 - SOM-DAGMM
   - `--somdagmm-n-soms`: number of soms
-    - Default: `1`
+    - default: `1`
   - `--somdagmm-latent-dim`: latent dimension of the AE subnetwork
-  - Default: `1`
+    - default: `1`
   - `--somdagmm-n-mixtures`: number of mixtures for the GMM network
-    - Default: `4`
+    - default: `4`
   - `--somdagmm-n-layers`: number of layers of the AE network
-    - Default: `4`
+    - default: `4`
   - `--somdagmm-lambda-1`: coefficient for the energy loss
-    - Default: `0.1`
+    - default: `0.1`
   - `--somdagmm-lambda-2`: coefficient for the penalization of degenerate covariance matrices
-    - Default: `0.005`
+    - default: `0.005`
   - `--somdagmm-reg-covar`: small epsilon value added to covariance matrix to ensure it remains invertible
   - `--somdagmm-compression-factor`: compression factor for the AE network
-    - Default: `2`
+    - default: `2`
   - `--somdagmm-ae-act-fn`: activation function of the AE network
-    - Default: `relu`
+    - default: `relu`
   - `--somdagmm-gmm-act-fn`: activation function of the GMM network
-    - Default: `tanh`
+    - default: `tanh`
 - MemAE
   - `--memae-shrink_thres`: threshold for hard shrinking relu
-    - Default: `0.0025`
+    - default: `0.0025`
   - `--memae-latent-dim`: latent dimension of the AE network
-    - Default: `1`
+    - default: `1`
   - `--memae-mem-dim`: number of memory units
-    - Default: `50`
+    - default: `50`
   - `--mem-ae-alpha`: coefficient for the entropy loss
   - `--memae-n-layers`: number of layers of the AE network
-    - Default: `4`
+    - default: `4`
   - `--memae-compression-factor`: compression factor for the AE network
-    - Default: `2`
+    - default: `2`
   - `--somdagmm-ae-act-fn`: activation function of the AE network
-    - Default: `relu`
+    - default: `relu`
 - DeepSVDD
   - `--deepsvdd-n-layers`: number of layers
-    - Default: `2`
+    - default: `2`
   - `--deepsvdd-compression-factor`: compression factor of the network
-    - Default: `4`
+    - default: `4`
   - `--deepsvdd-act-fn`: activation function of the network
-    - Default: `relu`
+    - default: `relu`
 - DROCC
   - `--drocc-lamb`: weight given to the adversarial loss
-    - Default: `1.`
+    - default: `1.`
   - `--drocc-radius`: radius of hypersphere to sample points from
-    - Default: `3.`
+    - default: `3.`
   - `--drocc-gamma`: parameter to vary projection
-    - Default: `2.`
+    - default: `2.`
+- ALAD
+  - `--alad-latent-dim`: latent dimension of the AE network
+    - default: `None`
+- DSEBM
+  - `--dsebm-fc-1-out`: output dimension of the first layer
+    - default: `128`
+  - `--dsebm-fc-2-out`: output dimension of the second layer
+    - default: `512`
+- DUAD
+  - `--duad-p0`: p0 parameter
+    - default: `35.`
+  - `--duad-p`: p parameter
+    - default: `30.`
+  - `--duad-r`: r parameter
+    - default: `10`
+  - `--duad-n-clusters`: number of clusters
+    - default: `20`
+  - `--duad-act-fn`: activation function of the AE network
+    - default: `tanh`
+  - `--duad-latent-dim`: latent dimension of the AE network
+    - default: `10`
+  - `--duad-compression-factor`: compression factor of the AE network
+    - default: `2`
+  - `--duad-n-layers`: number of layers for the AE network
+    - default: `4`
 
 ## Suggested parameters
 #### DAGMM
@@ -169,9 +194,19 @@ Model specific parameters are:
 | Thyroid    | ?          | ?                  | ?        | ?      |
 | Default    | ?          | ?                  | ?        | ?      |
 
+#### ALAD
+| Dataset    | latent_dim       | 
+|------------|------------------|
+| Arrhythmia | 64               |
+| KDD10      | 1                |
+| Default    | in_features // 2 |
 
-
-
+#### DSEBM
+| Dataset    | fc_1_out | fc_2_out |
+|------------|----------|----------|
+| Arrhythmia | 10       | 2        |
+| Thyroid    | 10       | 2        |
+| Default    | 128      | 512      |
 
 ## Example
 To train a DAGMM on the KDD 10 percent dataset with the default parameters described in the original paper:

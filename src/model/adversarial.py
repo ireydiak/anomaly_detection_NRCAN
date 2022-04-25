@@ -6,23 +6,25 @@ from src.model.utils import weights_init_xavier
 
 
 class ALAD(BaseModel):
-    def __init__(self, **kwargs):
+    name = "ALAD"
+
+    def __init__(self, latent_dim, **kwargs):
+        super(ALAD, self).__init__(**kwargs)
         self.G = None
         self.E = None
         self.D_zz = None
         self.D_xx = None
         self.D_xz = None
-        self.latent_dim = None
-        self.name = "ALAD"
-        super(ALAD, self).__init__(**kwargs)
+        self.latent_dim = latent_dim or self.in_features // 2
+        self._build_network()
 
-    def resolve_params(self, dataset_name: str):
-        if dataset_name == "KDD10":
-            self.latent_dim = 1
-        elif dataset_name == "Arrhythmia":
-            self.latent_dim = 64
-        else:
-            self.latent_dim = self.in_features // 2
+    @staticmethod
+    def get_args_desc():
+        return [
+            ("latent_dim", int, None, "Latent dimension")
+        ]
+
+    def _build_network(self):
         self.D_xz = DiscriminatorXZ(self.in_features, 128, self.latent_dim, negative_slope=0.2, p=0.5)
         self.D_xx = DiscriminatorXX(self.in_features, 128, negative_slope=0.2, p=0.2)
         self.D_zz = DiscriminatorZZ(self.latent_dim, self.latent_dim, negative_slope=0.2, p=0.2)
@@ -34,7 +36,7 @@ class ALAD(BaseModel):
         self.G.apply(weights_init_xavier)
         self.E.apply(weights_init_xavier)
 
-    def forward(self, X):
+    def forward(self, X: torch.Tensor):
         # Encoder
         z_gen = self.E(X)
 

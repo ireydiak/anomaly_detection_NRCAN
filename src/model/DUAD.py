@@ -1,33 +1,59 @@
 import torch.nn as nn
 from src.model.reconstruction import AutoEncoder as AE
 from src.model.base import BaseModel
+from src.model.utils import activation_mapper
 
 
 class DUAD(BaseModel):
-    def __init__(self, r=10, p0=.35, p=.30, **kwargs):
+    name = "DUAD"
+
+    def __init__(
+            self,
+            r: int,
+            p0: float,
+            p: float,
+            n_clusters: int,
+            act_fn: str,
+            n_layers: int,
+            compression_factor: int,
+            latent_dim: int,
+            **kwargs
+    ):
+        super(DUAD, self).__init__(**kwargs)
         self.p0 = p0
         self.p = p
         self.r = r
+        self.n_clusters = n_clusters
         self.latent_dim = 1
-        self.name = "DUAD"
+        self.n_layers = n_layers
+        self.compression_factor = compression_factor
+        self.latent_dim = latent_dim
         self.ae = None
-        super(DUAD, self).__init__(**kwargs)
         self.cosim = nn.CosineSimilarity()
+        self.act_fn = activation_mapper[act_fn]
+        self._build_network()
 
-    def resolve_params(self, dataset_name: str):
-        enc_layers = [
-            (self.in_features, 60, nn.Tanh()),
-            (60, 30, nn.Tanh()),
-            (30, 10, nn.Tanh()),
-            (10, self.latent_dim, None)
+    @staticmethod
+    def get_args_desc():
+        # TODO: better description
+        return [
+            ("p0", float, 35., "p0 parameter"),
+            ("p", float, 30., "p parameter"),
+            ("r", int, 10, "r parameter"),
+            ("n_clusters", int, 20, "number of clusters"),
+            ("act_fn", str, "tanh", "activation function of the AE network"),
+            ("latent_dim", int, 10, "latent dimension of the AE network"),
+            ("compression_factor", int, 2, "compression factor of the AE network"),
+            ("n_layers", int, 4, "number of layers for the AE network")
         ]
-        dec_layers = [
-            (self.latent_dim, 10, nn.Tanh()),
-            (10, 30, nn.Tanh()),
-            (30, 60, nn.Tanh()),
-            (60, self.in_features, None)
-        ]
-        self.ae = AE(enc_layers, dec_layers).to(self.device)
+
+    def _build_network(self):
+        self.ae = AE(
+            latent_dim=self.latent_dim,
+            act_fn=self.act_fn,
+            n_layers=self.n_layers,
+            compression_factor=self.compression_factor
+        ).to(self.device)
 
     def encode(self, x):
         return self.ae.encoder(x)
@@ -43,7 +69,12 @@ class DUAD(BaseModel):
 
     def get_params(self) -> dict:
         return {
-            "duad_p": self.p,
-            "duad_p0": self.p0,
-            "duad_r": self.r
+            "p": self.p,
+            "p0": self.p0,
+            "r": self.r,
+            "act_fn": self.act_fn,
+            "compression_factor": self.compression_factor,
+            "latent_dim": self.latent_dim,
+            "n_layers": self.n_layers,
+            "n_clusters": self.n_clusters
         }

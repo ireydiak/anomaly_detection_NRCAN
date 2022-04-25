@@ -14,8 +14,8 @@ from typing import Callable
 
 from sklearn import metrics
 
-from datamanager.DataManager import DataManager
-from model.DUAD import DUAD
+from src.datamanager.DataManager import DataManager
+from src.model.DUAD import DUAD
 from sklearn.mixture import GaussianMixture
 
 # from utils.metrics import score_recall_precision, score_recall_precision_w_thresold
@@ -35,17 +35,17 @@ class DUADTrainer:
         self.metric_hist = []
         self.dm = dm
 
-        self.r = kwargs.get('duad_r', 10)
-        self.p = kwargs.get('duad_p_s', 30)
-        self.p0 = kwargs.get('duad_p_0', 35)
-        self.num_cluster = kwargs.get('duad_num_cluster', 20)
+        self.r = model.r
+        self.p = model.p
+        self.p0 = model.p0
+        self.num_cluster = model.n_clusters
         self.lr = lr
         self.n_epochs = n_epochs
         self.device = device
         self.model = model.to(self.device)
-        self.optimizer = optim.Adam(self.model.parameters(), lr=self.lr,
-                                    weight_decay=kwargs.get('duad_num_cluster', 20))
-
+        self.optimizer = optim.Adam(
+            self.model.parameters(), lr=self.lr, weight_decay=kwargs.get('duad_num_cluster', 20)
+        )
         self.criterion = nn.MSELoss()
 
     def re_evaluation(self, X, p, num_clusters=20):
@@ -63,11 +63,9 @@ class DUADTrainer:
 
         clusters_vars = torch.stack(clusters_vars)
         qp = 100 - p
-        # q_ = np.percentile(clusters_vars, qp)
         q = torch.quantile(clusters_vars, qp / 100)
 
         selected_clusters = (clusters_vars <= q).nonzero().squeeze()
-        # pred_label_ = torch.from_numpy(pred_label).unsqueeze(dim=1)
 
         selection_mask = [pred in list(selected_clusters.cpu().numpy()) for pred in pred_label]
         indices_selection = torch.from_numpy(
@@ -83,7 +81,6 @@ class DUADTrainer:
         REEVAL_LIMIT = 5
 
         # run clustering, select instances from low variance clusters
-        # run clustering, select instances from low variance clusters
         X = []
         y = []
         indices = []
@@ -96,9 +93,6 @@ class DUADTrainer:
         y = torch.cat(y, axis=0)
 
         indices = torch.cat(indices, axis=0)
-
-        # selected_indices = indices[self.re_evaluation(X, self.p0, self.num_cluster)]
-
         sel_from_clustering = self.re_evaluation(X, self.p0, self.num_cluster)
         selected_indices = indices[sel_from_clustering]
 
@@ -116,7 +110,6 @@ class DUADTrainer:
 
         L = []
         L_old = [-1]
-        # print(set(L).difference(set(L_old)))
         reev_count = 0
         while len(set(L_old).difference(set(L))) <= 10 and reev_count < REEVAL_LIMIT:
             for epoch in range(n_epochs):
@@ -142,12 +135,9 @@ class DUADTrainer:
                             X.append(X_i)
                             y.append(X_i[1])
 
-                        # X = torch.cat(X, axis=0)
                         indices = torch.cat(indices, axis=0)
                         Z = torch.cat(Z, axis=0)
                         y = torch.cat(y, axis=0).cpu().numpy()
-
-                        # plot_2D_latent(Z.cpu(), y)
 
                         selection_mask = self.re_evaluation(Z.cpu(), self.p, self.num_cluster)
                         selected_indices = indices[selection_mask]
@@ -169,7 +159,6 @@ class DUADTrainer:
                         f"diff:{len(set(L_old).difference(set(L)))}\n")
 
                 else:
-                    # TODO
                     # Train with the current trainset
                     loss = 0
                     with trange(len(train_ldr)) as t:
@@ -181,8 +170,6 @@ class DUADTrainer:
                             t.update()
             print(f'Reeval  count:{reev_count}\n')
             reev_count += 1
-            # self.evaluate_on_test_set()
-            # break
         return mean_loss
 
     def train__(self, n_epochs: int):
@@ -216,7 +203,6 @@ class DUADTrainer:
 
         L = selected_indices.cpu().numpy()
         L_old = [-1]
-        # print(set(L).difference(set(L_old)))
         while len(set(L_old).difference(set(L))) != 0:
             for epoch in range(n_epochs):
                 print(f"\nEpoch: {epoch + 1} of {n_epochs}")
@@ -241,12 +227,9 @@ class DUADTrainer:
                             X.append(X_i)
                             y.append(X_i[1])
 
-                        # X = torch.cat(X, axis=0)
                         indices = torch.cat(indices, axis=0)
                         Z = torch.cat(Z, axis=0)
                         y = torch.cat(y, axis=0).cpu().numpy()
-
-                        # plot_2D_latent(Z.cpu(), y)
 
                         selection_mask = self.re_evaluation(Z.cpu(), self.p, self.num_cluster)
                         selected_indices = indices[selection_mask]
@@ -341,7 +324,5 @@ class DUADTrainer:
 
             # switch back to train mode
             self.model.train()
-
-            # res = dict(res, **res_max)
 
             return test_score, test_labels
