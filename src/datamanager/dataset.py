@@ -44,8 +44,6 @@ class AbstractDataset(Dataset):
     def _load_data(self, path: str):
         if path.endswith(".npz"):
             return np.load(path)[self.npz_key()]
-        elif path.endswith(".npy"):
-            return np.load(path)
         elif path.endswith(".mat"):
             data = scipy.io.loadmat(path)
             X = np.concatenate((data['X'], data['y']), axis=1)
