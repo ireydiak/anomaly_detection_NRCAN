@@ -8,6 +8,8 @@ from torch import optim
 from torch.nn import Parameter
 from torch.utils.data import DataLoader
 from sklearn import metrics
+from tqdm import trange
+
 from src.trainer.base import BaseTrainer
 
 
@@ -34,6 +36,38 @@ class DSEBMTrainer(BaseTrainer):
         dEn_dX = torch.autograd.grad(energy_noise, X_noise, retain_graph=True, create_graph=True)
         fx_noise = (X_noise - dEn_dX[0])
         return self.loss(X, fx_noise)
+
+    def train(self, dataset: DataLoader):
+        self.model.train()
+
+        print("Started training")
+        for epoch in range(self.n_epochs):
+            epoch_loss = 0.0
+            with trange(len(dataset)) as t:
+                for sample in dataset:
+                    X, _ = sample
+                    X = X.to(self.device).float()
+
+                    if len(X) < self.batch_size:
+                        t.update()
+                        break
+
+                    # Reset gradient
+                    self.optimizer.zero_grad()
+
+                    loss = self.train_iter(X)
+
+                    # Backpropagation
+                    loss.backward()
+                    self.optimizer.step()
+
+                    epoch_loss += loss.item()
+                    t.set_postfix(
+                        loss='{:05.3f}'.format(epoch_loss/(epoch + 1)),
+                        epoch=epoch + 1
+                    )
+                    t.update()
+        self.after_training()
 
     def score(self, sample: torch.Tensor):
         # Evaluation of the score based on the energy

@@ -116,7 +116,7 @@ Model specific parameters are:
   - `--memae-shrink_thres`: threshold for hard shrinking relu
     - default: `0.0025`
   - `--memae-latent-dim`: latent dimension of the AE network
-    - default: `1`
+    - default: `3`
   - `--memae-mem-dim`: number of memory units
     - default: `50`
   - `--mem-ae-alpha`: coefficient for the entropy loss
@@ -197,59 +197,64 @@ Model specific parameters are:
     - default: `20`
   
 ## Suggested parameters
+For most models, default parameters can be used to reproduce our results.
+Below we present specific parameters that must be set per dataset
+
 #### DAGMM
-| Dataset    | n_mixtures | latent_dim | lambda_1 | lambda_2 | reg_covar |
-|------------|------------|------------|----------|----------|-----------|
-| Arrhythmia | 2          | 1          | 0.1      | 0.005    | 1e-12     |
-| Thyroid    | 4          | 1          | 0.1      | 0.005    | 1e-12     |
-| Default    | 4          | 1          | 0.1      | 0.005    | 1e-12     |
+Parameters as suggested in the original paper
+
+| Dataset    | n_mixtures | latent_dim | 
+|------------|------------|------------|
+| Arrhythmia | 2          | 2          | 
+| KDD        | 120-60-tanh;60-30-tanh;30-10-tanh;10-1 | 3-10-tanh;drop(0.5);10-4-softmax|
+| Thyroid    | 2          | 1          |
+
+| Dataset    | n_mixtures | latent_dim | 
+|------------|------------|------------|
+| Arrhythmia | 2          | 2          | 
+| Thyroid    | 2          | 1          |
  
 #### AutoEncoder
-| Dataset    | latent_dim | compression_factor | n_layers | act_fn |
-|------------|------------|--------------------|----------|--------|
-| Arrhythmia | 10         | 1                  | 2        | tanh   |
-| Thyroid    | 1          | 2                  | 3        | tanh   |
-| Default    | 1          | 0.005              | 4        | relu   |
+| Dataset    | latent_dim | compression_factor | n_layers |
+|------------|------------|--------------------|----------|
+| Arrhythmia | 10         | 1                  | 2        |
+| Thyroid    | 1          | 2                  | 3        |
 
 #### MemAE
-| Dataset    | latent_dim | compression_factor | n_layers | alpha | act_fn |
-|------------|------------|--------------------|----------|-------|--------|
-| Arrhythmia | 10         | 2                  | 4        | 2e-4  | tanh   |
-| Thyroid    | 4          | 2                  | 3        | 2e-4  | tanh   |
-| Default    | 3          | 2                  | 4        | 2e-4  | relu   |
+| Dataset    | latent_dim | compression_factor | n_layers |
+|------------|------------|--------------------|----------|
+| Arrhythmia | 10         | 2                  | 4        |
+| Thyroid    | 4          | 2                  | 3        |
 
 #### SOM-DAGMM
-| Dataset    | latent_dim | compression_factor | n_layers | act_fn |
-|------------|------------|--------------------|----------|--------|
-| Arrhythmia | ?          | ?                  | ?        | ?      |
-| Thyroid    | ?          | ?                  | ?        | ?      |
-| Default    | ?          | ?                  | ?        | ?      |
-
+| Dataset    | latent_dim |
+|------------|------------|
+| Arrhythmia | 2          |
+| Thyroid    | 2          |
+ | NSL-KDD | 4          |
+ | IDS2018 | 4|
 #### ALAD
 | Dataset    | latent_dim | 
 |------------|------------|
 | Arrhythmia | 64         |
 | KDD10      | 1          |
-| Default    | -1         |
 
 #### DSEBM
 | Dataset    | fc_1_out | fc_2_out |
 |------------|----------|----------|
 | Arrhythmia | 10       | 2        |
 | Thyroid    | 10       | 2        |
-| Default    | 128      | 512      |
 
 #### NeuTraLAD
 | Dataset    | fc_1_out | n_layers | n_transforms | latent_dim | compression_unit | trans_fc_in | trans_fc_out |
 |------------|----------|----------|--------------|------------|------------------|-------------|--------------|
 | Arrhythmia | 10       | 4        | 11           | 32         | 0                | 200         | -1           |
 | Thyroid    | 10       | 4        | 11           | 24         | 0                | 24          | 6            |
-| Default    | 128      | 4        | 11           | 32         | 20               | 200         | -1           |
 
 ## Example
 To train a DAGMM on the KDD 10 percent dataset with the default parameters described in the original paper:
-```
-$ python  -m src.main -m DAGMM -d [/path/to/dataset.npz] --dataset KDD10 --batch-size 1024 --results-path ./results/KDD10 --models-path ./models/KDD10
+```bash
+$ python -m src.main -m DAGMM -d [/path/to/dataset.npz] --dataset KDD10 --batch-size 1024 --results-path ./results/KDD10 --models-path ./models/KDD10
 ```
 Replace `[/path/to/dataset.npz]` with the path to the dataset in a numpy-friendly format.
 

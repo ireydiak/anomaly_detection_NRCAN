@@ -60,7 +60,7 @@ class AutoEncoder(BaseModel):
     @staticmethod
     def get_args_desc():
         return [
-            ("latent_dim", int, 1, "Latent dimension of the AE network"),
+            ("latent_dim", int, 3, "Latent dimension of the AE network"),
             ("n_layers", int, 4, "Number of layers for the AE network"),
             ("compression_factor", int, 2, "Compression factor for the AE network"),
             ("act_fn", str, "relu", "Activation function of the AE network"),

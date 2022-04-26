@@ -22,7 +22,8 @@ class DataManager:
     class that yields dataloaders for train, test, and validation data
     """
 
-    def __init__(self, train_dataset: torch.utils.data.Dataset,
+    def __init__(self,
+                 train_dataset: torch.utils.data.Dataset,
                  test_dataset: torch.utils.data.Dataset,
                  batch_size: int,
                  num_classes: int = None,
@@ -66,8 +67,9 @@ class DataManager:
             len(self.train_set), self.validation, self.seed
         )
 
-        self.init_train_loader = DataLoader(self.current_train_set, self.batch_size, sampler=train_sampler,
-                                            **self.kwargs)
+        self.init_train_loader = DataLoader(
+            self.current_train_set, self.batch_size, sampler=train_sampler, **self.kwargs
+        )
         self.train_loader = DataLoader(self.current_train_set, self.batch_size, sampler=train_sampler, **self.kwargs)
         self.validation_loader = DataLoader(self.train_set, self.batch_size, sampler=val_sampler, **self.kwargs)
         self.test_loader = DataLoader(test_dataset, batch_size, shuffle=True, **kwargs)

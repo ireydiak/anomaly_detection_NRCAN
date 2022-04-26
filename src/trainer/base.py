@@ -62,10 +62,6 @@ class BaseTrainer(ABC):
                 for sample in dataset:
                     X, _ = sample
                     X = X.to(self.device).float()
-                    # TODO handle this just for trainer DBESM
-                    # if len(X) < self.batch_size:
-                    #     t.update()
-                    #     break
 
                     # Reset gradient
                     self.optimizer.zero_grad()
@@ -91,8 +87,7 @@ class BaseTrainer(ABC):
             for row in dataset:
                 X, y = row
                 X = X.to(self.device).float()
-                # if len(X) < self.batch_size:
-                #     break
+
                 score = self.score(X)
                 y_true.extend(y.cpu().tolist())
                 scores.extend(score.cpu().tolist())

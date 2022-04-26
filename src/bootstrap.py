@@ -265,11 +265,6 @@ def train(
         weight_decay=weight_decay,
         learning_rate=learning_rate,
         device=device,
-        # duad_r=duad_r,
-        # duad_p_s=duad_p_s,
-        # duad_p_0=duad_p_0,
-        # duad_num_cluster=duad_num_cluster,
-        # datamanager=dm,
     )
     res = train_model(
         model=model,

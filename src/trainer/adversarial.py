@@ -64,7 +64,7 @@ class ALADTrainer(BaseTrainer):
 
         return loss_ge
 
-    def train(self, dataset: DataLoader, nep = None):
+    def train(self, dataset: DataLoader):
         self.model.train()
 
         for epoch in range(self.n_epochs):
@@ -72,9 +72,6 @@ class ALADTrainer(BaseTrainer):
             with trange(len(dataset)) as t:
                 for sample in dataset:
                     X, _ = sample
-
-                    if len(X) < self.batch_size:
-                        break
 
                     X_dis, X_gen = X.to(self.device).float(), X.clone().to(self.device).float()
                     # Cleaning gradients
