@@ -169,10 +169,4 @@ if __name__ == "__main__":
         models_path=args.model_path,
         test_mode=args.test_mode,
         seed=args.seed,
-
-        # duad_r=args.duad_r,
-        # duad_p_s=args.duad_p_s,
-        # duad_p_0=args.duad_p_0,
-        # duad_num_cluster=args.duad_num_cluster,
-        #
     )
