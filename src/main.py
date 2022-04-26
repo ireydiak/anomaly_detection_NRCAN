@@ -78,11 +78,18 @@ def argument_parser():
         help="Percentage of original data to keep"
     )
     parser.add_argument(
+        "--hold_out",
+        type=float,
+        default=0.0,
+        help="Percentage of anomalous data to holdout for possible contamination of the training set"
+    )
+    parser.add_argument(
         "--rho",
         type=float,
         default=0.0,
         help="Anomaly ratio within training set"
     )
+
     parser.add_argument(
         "--model-path",
         type=str,
@@ -164,5 +171,8 @@ if __name__ == "__main__":
         duad_p_0=args.duad_p_0,
         duad_num_cluster=args.duad_num_cluster,
 
-        ae_latent_dim=args.latent_dim
+        ae_latent_dim=args.latent_dim,
+
+        holdout=args.hold_out,
+        contamination_r= args.rho
     )

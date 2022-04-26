@@ -75,12 +75,13 @@ class DUADTrainer:
 
         return indices_selection
 
-    def train(self, n_epochs: int):
+    def train(self):
+        n_epochs = self.n_epochs
         print(f'Training with {self.__class__.__name__}')
         mean_loss = np.inf
         self.dm.update_train_set(self.dm.get_selected_indices())
         train_ldr = self.dm.get_train_set()
-        REEVAL_LIMIT = 5
+        REEVAL_LIMIT = 10
 
         # run clustering, select instances from low variance clusters
         # run clustering, select instances from low variance clusters
@@ -291,10 +292,10 @@ class DUADTrainer:
         loss = ((X - X_prime) ** 2).sum(axis=-1).mean() + reg * l2_z  # self.criterion(X, X_prime)
 
         # Use autograd to compute the backward pass.
-        self.optim.zero_grad()
+        self.optimizer.zero_grad()
         loss.backward()
         # updates the weights using gradient descent
-        self.optim.step()
+        self.optimizer.step()
 
         return loss.item()
 

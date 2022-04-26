@@ -4,7 +4,7 @@ import torch.nn.functional as F
 from torch.nn.modules.activation import LeakyReLU
 from torch.autograd import Variable
 
-from .BaseModel import BaseModel
+from .base import BaseModel
 from .utils import weights_init_xavier
 
 

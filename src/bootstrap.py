@@ -233,7 +233,9 @@ def train(
         duad_p_s,
         duad_p_0,
         duad_num_cluster,
-        ae_latent_dim
+        ae_latent_dim,
+        holdout=0.0,
+        contamination_r=0.0
 ):
     # Dynamically load the Dataset instance
     clsname = globals()[f'{dataset_name}Dataset']
@@ -246,12 +248,17 @@ def train(
     # we train only on the majority class
     if model_name == "DUAD":
         # DataManager for DUAD only
-        train_set, test_set = dataset.split_train_test(test_pct=0.50)
+        train_set, test_set = dataset.split_train_test(test_pct=0.50,
+                                                       contamination_rate=contamination_r,
+                                                       holdout=holdout)
         dm = DataManager(train_set, test_set, batch_size=batch_size)
         train_ldr = None,
         test_ldr = None
     else:
-        train_ldr, test_ldr = dataset.loaders(batch_size=batch_size, seed=seed)
+        train_ldr, test_ldr = dataset.loaders(batch_size=batch_size,
+                                              seed=seed,
+                                              contamination_rate=contamination_r,
+                                              holdout=holdout)
         dm = None
 
     # check path

@@ -63,15 +63,76 @@ class AbstractDataset(Dataset):
     def loaders(self,
                 test_pct: float = 0.5,
                 label: int = 0,
+                holdout: float = 0.0,
+                contamination_rate: float = 0.0,
                 batch_size: int = 128,
                 num_workers: int = 0,
                 seed: int = None) -> (DataLoader, DataLoader):
-        train_set, test_set = self.split_train_test(test_pct, label, seed)
+
+        train_set, test_set = self.split_train_test(test_pct=test_pct,
+                                                    label=label,
+                                                    holdout=holdout,
+                                                    contamination_rate=contamination_rate,
+                                                    seed=seed)
+
         train_ldr = DataLoader(dataset=train_set, batch_size=batch_size, num_workers=num_workers)
         test_ldr = DataLoader(dataset=test_set, batch_size=batch_size, num_workers=num_workers)
         return train_ldr, test_ldr
 
-    def split_train_test(self, test_pct: float = .5, label: int = 0, seed=None) -> Tuple[Subset, Subset]:
+    def split_train_test(self, test_pct: float = .5,
+                         label: int = 0,
+                         holdout=0.05,
+                         contamination_rate=0.01,
+                         seed=None) -> Tuple[Subset, Subset]:
+        assert (label == 0 or label == 1)
+        assert 1 > holdout >= contamination_rate
+
+        if seed:
+            torch.manual_seed(seed)
+
+        # Fetch and shuffle indices of a single class
+        normal_data_idx = np.where(self.y == label)[0]
+        shuffled_norm_idx = torch.randperm(len(normal_data_idx)).long()
+
+        # Generate training set indices
+        num_norm_test_sample = int(len(normal_data_idx) * test_pct)
+        num_norm_train_sample = int(len(normal_data_idx) * (1. - test_pct))
+        normal_train_idx = normal_data_idx[shuffled_norm_idx[num_norm_train_sample:]]
+
+        #
+        abnormal_data_idx = np.where(self.y == int(not label))[0]
+        abnorm_test_idx = abnormal_data_idx
+
+        if holdout > 0:
+            # Generate test set by holding out a percentage [holdout] of abnormal
+            # sample for a possible contamination
+            shuffled_abnorm_idx = torch.randperm(len(abnormal_data_idx)).long()
+            num_abnorm_test_sample = int(len(abnormal_data_idx) * (1 - holdout))
+            abnorm_test_idx = abnormal_data_idx[shuffled_abnorm_idx[:num_abnorm_test_sample]]
+
+            if contamination_rate > 0:
+                num_abnorm_to_inject = int(len(abnormal_data_idx) * contamination_rate)
+
+                normal_train_idx = np.concatenate([
+                    abnormal_data_idx[shuffled_abnorm_idx[
+                                      num_abnorm_test_sample:
+                                      num_abnorm_test_sample + num_abnorm_to_inject]],
+                    normal_train_idx
+                ])
+
+        # Generate training set with contamination when applicable
+        train_set = Subset(self, normal_train_idx)
+
+        # Generate test set based on the remaining data and the previously filtered out labels
+        remaining_idx = np.concatenate([
+            normal_data_idx[shuffled_norm_idx[:num_norm_test_sample]],
+            abnorm_test_idx
+        ])
+        test_set = Subset(self, remaining_idx)
+
+        return train_set, test_set
+
+    def split_train_test_(self, test_pct: float = .5, label: int = 0, seed=None) -> Tuple[Subset, Subset]:
         assert (label == 0 or label == 1)
 
         if seed:
