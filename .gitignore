@@ -1,4 +1,7 @@
-data/*
+data/**/*.csv
+data/**/*.npz
+data/**/*.mat
+data/**/*.npy
 .idea/
 .vscode/
 __pycache__/
