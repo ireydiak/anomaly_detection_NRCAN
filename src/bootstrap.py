@@ -168,7 +168,9 @@ def train_model(
         batch_size,
         seed,
         contamination_rate,
-        holdout
+        holdout,
+        drop_lastbatch
+
 ):
     # Training and evaluation on different runs
     all_results = defaultdict(list)
@@ -176,7 +178,7 @@ def train_model(
     train_ldr, test_ldr = dataset.loaders(batch_size=batch_size,
                                           seed=seed,
                                           contamination_rate=contamination_rate,
-                                          holdout=holdout)
+                                          holdout=holdout, drop_last_batch=drop_lastbatch)
     if seed:
         torch.manual_seed(seed)
 
@@ -204,7 +206,7 @@ def train_model(
                 train_set, test_set = dataset.split_train_test(test_pct=0.50,
                                                                contamination_rate=contamination_rate,
                                                                holdout=holdout)
-                dm = DataManager(train_set, test_set, batch_size=batch_size)
+                dm = DataManager(train_set, test_set, batch_size=batch_size, drop_last=drop_lastbatch)
                 # we train only on the majority class
                 model_trainer.setDataManager(dm)
                 model_trainer.train()
@@ -259,7 +261,8 @@ def train(
         duad_num_cluster,
         ae_latent_dim,
         holdout=0.0,
-        contamination_r=0.0
+        contamination_r=0.0,
+        drop_lastbatch=False
 ):
     # Dynamically load the Dataset instance
     clsname = globals()[f'{dataset_name}Dataset']
@@ -300,7 +303,9 @@ def train(
         batch_size=batch_size,
         seed=seed,
         contamination_rate=contamination_r,
-        holdout=holdout
+        holdout=holdout,
+        drop_lastbatch=drop_lastbatch
+
     )
     print(res)
     params = dict(

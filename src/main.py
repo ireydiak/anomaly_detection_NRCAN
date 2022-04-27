@@ -144,6 +144,10 @@ def argument_parser():
         help='Number of clusters'
     )
 
+    parser.add_argument('--drop_lastbatch', dest='drop_lastbatch', action='store_true')
+    parser.add_argument('--no-drop_lastbatch', dest='drop_lastbatch', action='store_false')
+    parser.set_defaults(drop_lastbatch=False)
+
     return parser.parse_args()
 
 
@@ -174,5 +178,7 @@ if __name__ == "__main__":
         ae_latent_dim=args.latent_dim,
 
         holdout=args.hold_out,
-        contamination_r= args.rho
+        contamination_r= args.rho,
+        drop_lastbatch=args.drop_lastbatch
+
     )

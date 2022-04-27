@@ -67,7 +67,8 @@ class AbstractDataset(Dataset):
                 contamination_rate: float = 0.0,
                 batch_size: int = 128,
                 num_workers: int = 0,
-                seed: int = None) -> (DataLoader, DataLoader):
+                seed: int = None,
+                drop_last_batch: bool = False) -> (DataLoader, DataLoader):
 
         train_set, test_set = self.split_train_test(test_pct=test_pct,
                                                     label=label,
@@ -75,8 +76,10 @@ class AbstractDataset(Dataset):
                                                     contamination_rate=contamination_rate,
                                                     seed=seed)
 
-        train_ldr = DataLoader(dataset=train_set, batch_size=batch_size, num_workers=num_workers)
-        test_ldr = DataLoader(dataset=test_set, batch_size=batch_size, num_workers=num_workers)
+        train_ldr = DataLoader(dataset=train_set, batch_size=batch_size, num_workers=num_workers,
+                               drop_last=drop_last_batch)
+        test_ldr = DataLoader(dataset=test_set, batch_size=batch_size, num_workers=num_workers,
+                              drop_last=drop_last_batch)
         return train_ldr, test_ldr
 
     def split_train_test(self, test_pct: float = .5,
