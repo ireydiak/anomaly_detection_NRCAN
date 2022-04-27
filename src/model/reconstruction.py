@@ -4,9 +4,9 @@ import pickle
 import numpy as np
 import torch
 from minisom import MiniSom
-from src.model.base import BaseModel
-from src.model.GMM import GMM
-from src.model.memory_module import MemoryUnit
+from .base import BaseModel
+from .GMM import GMM
+from .memory_module import MemoryUnit
 from torch import nn
 from typing import Tuple, List
 

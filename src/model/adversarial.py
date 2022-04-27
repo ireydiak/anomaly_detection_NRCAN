@@ -25,8 +25,8 @@ class ALAD(BaseModel):
         super(ALAD, self).__init__(**kwargs)
 
     def resolve_params(self, dataset_name: str):
-        if dataset_name == "KDD10":
-            self.latent_dim = 1
+        if dataset_name in ("KDD10", "NSLKDD", "Thyroid"):
+            self.latent_dim = 32
         elif dataset_name == "Arrhythmia":
             self.latent_dim = 64
         else:

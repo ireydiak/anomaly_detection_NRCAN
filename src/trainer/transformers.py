@@ -1,7 +1,7 @@
 import torch
 from torch import nn, optim
 from torch.optim.lr_scheduler import StepLR
-from src.trainer.base import BaseTrainer
+from .base import BaseTrainer
 
 
 class NeuTraLADTrainer(BaseTrainer):

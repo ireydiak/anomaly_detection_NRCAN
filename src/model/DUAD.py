@@ -1,6 +1,6 @@
 import torch.nn as nn
-from src.model.reconstruction import AutoEncoder as AE
-from src.model.base import BaseModel
+from .reconstruction import AutoEncoder as AE
+from .base import BaseModel
 
 
 class DUAD(BaseModel):

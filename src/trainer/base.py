@@ -25,7 +25,7 @@ class BaseTrainer(ABC):
         self.n_epochs = n_epochs
         self.lr = lr
         self.weight_decay = kwargs.get('weight_decay', 0)
-        self.optimizer = self.set_optimizer(weight_decay=kwargs.get('weight_decay', 0))
+        self.optimizer = self.set_optimizer(self.weight_decay)
 
     @abstractmethod
     def train_iter(self, sample: torch.Tensor):

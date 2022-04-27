@@ -1,6 +1,6 @@
 import argparse
-import src.bootstrap as bootstrap
-from src.bootstrap import available_datasets, available_models
+import bootstrap as bootstrap
+from bootstrap import available_datasets, available_models
 
 
 def argument_parser():

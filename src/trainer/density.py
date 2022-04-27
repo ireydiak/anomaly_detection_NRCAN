@@ -8,7 +8,7 @@ from torch import optim
 from torch.nn import Parameter
 from torch.utils.data import DataLoader
 from sklearn import metrics
-from src.trainer.base import BaseTrainer
+from .base import BaseTrainer
 
 
 class DSEBMTrainer(BaseTrainer):

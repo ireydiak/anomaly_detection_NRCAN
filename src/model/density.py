@@ -4,7 +4,7 @@ import torch.nn.functional as F
 from torch.autograd import Variable
 from torch.nn import Parameter
 
-from src.model.base import BaseModel
+from .base import BaseModel
 
 
 class DSEBM(BaseModel):

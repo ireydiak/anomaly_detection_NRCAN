@@ -346,3 +346,6 @@ class DUADTrainer:
             # res = dict(res, **res_max)
 
             return test_score, test_labels
+
+    def setDataManager(self, dm):
+        self.dm = dm

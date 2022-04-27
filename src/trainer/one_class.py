@@ -3,7 +3,7 @@ import torch
 import numpy as np
 from tqdm import trange
 
-from src.trainer.base import BaseTrainer
+from .base import BaseTrainer
 import torch.nn.functional as F
 
 

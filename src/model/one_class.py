@@ -3,7 +3,7 @@ from collections import OrderedDict
 import torch
 import torch.nn as nn
 from torch import Tensor
-from src.model.base import BaseModel
+from .base import BaseModel
 
 
 class DeepSVDD(BaseModel):

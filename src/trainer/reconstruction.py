@@ -1,8 +1,8 @@
 import torch
 import numpy as np
 from torch.utils.data.dataloader import DataLoader
-from src.trainer.base import BaseTrainer
-from src.loss.EntropyLoss import EntropyLoss
+from .base import BaseTrainer
+from loss.EntropyLoss import EntropyLoss
 from torch import nn
 
 

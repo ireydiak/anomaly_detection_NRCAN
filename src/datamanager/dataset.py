@@ -87,8 +87,8 @@ class AbstractDataset(Dataset):
         assert (label == 0 or label == 1)
         assert 1 > holdout >= contamination_rate
 
-        if seed:
-            torch.manual_seed(seed)
+        # if seed:
+        #     torch.manual_seed(seed)
 
         # Fetch and shuffle indices of a single class
         normal_data_idx = np.where(self.y == label)[0]

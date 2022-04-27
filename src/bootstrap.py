@@ -5,26 +5,26 @@ from collections import defaultdict
 from datetime import datetime as dt
 
 from torch.utils.data import DataLoader
-from src.model.adversarial import ALAD
+from model.adversarial import ALAD
 
-from src.model.base import BaseModel
-from src.model.density import DSEBM
-from src.model.DUAD import DUAD
-from src.model.one_class import DeepSVDD, DROCC
-from src.model.transformers import NeuTraLAD
-from src.model.reconstruction import AutoEncoder as AE, DAGMM, MemAutoEncoder as MemAE, SOMDAGMM
-from src.model.shallow import RecForest, OCSVM, LOF
-from src.trainer.adversarial import ALADTrainer
-from src.trainer.density import DSEBMTrainer
-from src.trainer.one_class import DeepSVDDTrainer, EdgeMLDROCCTrainer
-from src.trainer.reconstruction import AutoEncoderTrainer as AETrainer, DAGMMTrainer, MemAETrainer, SOMDAGMMTrainer
-from src.trainer.shallow import OCSVMTrainer, RecForestTrainer, LOFTrainer
-from src.trainer.transformers import NeuTraLADTrainer
-from src.trainer.DUADTrainer import DUADTrainer
-from src.utils import metrics
-from src.utils.utils import average_results
-from src.datamanager.DataManager import DataManager
-from src.datamanager.dataset import *
+from model.base import BaseModel
+from model.density import DSEBM
+from model.DUAD import DUAD
+from model.one_class import DeepSVDD, DROCC
+from model.transformers import NeuTraLAD
+from model.reconstruction import AutoEncoder as AE, DAGMM, MemAutoEncoder as MemAE, SOMDAGMM
+from model.shallow import RecForest, OCSVM, LOF
+from trainer.adversarial import ALADTrainer
+from trainer.density import DSEBMTrainer
+from trainer.one_class import DeepSVDDTrainer, EdgeMLDROCCTrainer
+from trainer.reconstruction import AutoEncoderTrainer as AETrainer, DAGMMTrainer, MemAETrainer, SOMDAGMMTrainer
+from trainer.shallow import OCSVMTrainer, RecForestTrainer, LOFTrainer
+from trainer.transformers import NeuTraLADTrainer
+from trainer.DUADTrainer import DUADTrainer
+from utils import metrics
+from utils.utils import average_results
+from datamanager.DataManager import DataManager
+from datamanager.dataset import *
 
 available_models = [
     "AE",
@@ -158,17 +158,27 @@ def resolve_model_trainer(
 def train_model(
         model: BaseModel,
         model_trainer,
-        train_ldr: DataLoader,
-        test_ldr: DataLoader,
+
         dataset_name: str,
         n_runs: int,
-        thresh: float,
         device: str,
         model_path: str,
-        test_mode: bool
+        test_mode: bool,
+        dataset,
+        batch_size,
+        seed,
+        contamination_rate,
+        holdout
 ):
     # Training and evaluation on different runs
     all_results = defaultdict(list)
+
+    train_ldr, test_ldr = dataset.loaders(batch_size=batch_size,
+                                          seed=seed,
+                                          contamination_rate=contamination_rate,
+                                          holdout=holdout)
+    if seed:
+        torch.manual_seed(seed)
 
     if test_mode:
         for model_file_name in os.listdir(model_path):
@@ -189,6 +199,14 @@ def train_model(
         for i in range(n_runs):
             print(f"Run {i + 1} of {n_runs}")
             if model.name == "DUAD":
+                # DataManager for DUAD only
+                # split data in train and test sets
+                train_set, test_set = dataset.split_train_test(test_pct=0.50,
+                                                               contamination_rate=contamination_rate,
+                                                               holdout=holdout)
+                dm = DataManager(train_set, test_set, batch_size=batch_size)
+                # we train only on the majority class
+                model_trainer.setDataManager(dm)
                 model_trainer.train()
             else:
                 _ = model_trainer.train(train_ldr)
@@ -208,6 +226,12 @@ def train_model(
                 all_results[k].append(v)
             store_model(model, model.name, dataset_name, model_path)
             model.reset()
+
+            if i < n_runs - 1:
+                train_ldr, test_ldr = dataset.loaders(batch_size=batch_size,
+                                                      seed=seed,
+                                                      contamination_rate=contamination_rate,
+                                                      holdout=holdout)
 
     # Compute mean and standard deviation of the performance metrics
     print("Averaging results ...")
@@ -244,23 +268,6 @@ def train(
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
-    # split data in train and test sets
-    # we train only on the majority class
-    if model_name == "DUAD":
-        # DataManager for DUAD only
-        train_set, test_set = dataset.split_train_test(test_pct=0.50,
-                                                       contamination_rate=contamination_r,
-                                                       holdout=holdout)
-        dm = DataManager(train_set, test_set, batch_size=batch_size)
-        train_ldr = None,
-        test_ldr = None
-    else:
-        train_ldr, test_ldr = dataset.loaders(batch_size=batch_size,
-                                              seed=seed,
-                                              contamination_rate=contamination_r,
-                                              holdout=holdout)
-        dm = None
-
     # check path
     for p in [results_path, models_path]:
         if p:
@@ -278,20 +285,22 @@ def train(
         duad_p_s=duad_p_s,
         duad_p_0=duad_p_0,
         duad_num_cluster=duad_num_cluster,
-        datamanager=dm,
+        datamanager=None,
         ae_latent_dim=ae_latent_dim
     )
     res = train_model(
         model=model,
         model_trainer=model_trainer,
-        train_ldr=train_ldr,
-        test_ldr=test_ldr,
         dataset_name=dataset_name,
         n_runs=n_runs,
         device=device,
-        thresh=anomaly_thresh,
         model_path=models_path,
-        test_mode=test_mode
+        test_mode=test_mode,
+        dataset=dataset,
+        batch_size=batch_size,
+        seed=seed,
+        contamination_rate=contamination_r,
+        holdout=holdout
     )
     print(res)
     params = dict(
