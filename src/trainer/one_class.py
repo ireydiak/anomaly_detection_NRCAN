@@ -15,11 +15,13 @@ class DeepSVDDTrainer(BaseTrainer):
         self.R = R
 
     def train_iter(self, sample: torch.Tensor):
+        assert torch.allclose(self.c, torch.zeros_like(self.c)) is False, "center c not initialized"
         outputs = self.model(sample)
         dist = torch.sum((outputs - self.c) ** 2, dim=1)
         return torch.mean(dist)
 
     def score(self, sample: torch.Tensor):
+        assert torch.allclose(self.c, torch.zeros_like(self.c)) is False, "center c not initialized"
         outputs = self.model(sample)
         return torch.sum((outputs - self.c) ** 2, dim=1)
 
@@ -48,6 +50,9 @@ class DeepSVDDTrainer(BaseTrainer):
 
         if c.isnan().sum() > 0:
             raise Exception("NaN value encountered during init_center_c")
+
+        if torch.allclose(c, torch.zeros_like(c)):
+            raise Exception("Center c initialized at 0")
 
         c /= n_samples
 

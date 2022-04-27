@@ -108,6 +108,9 @@ class ArrhythmiaDataset(AbstractDataset):
 
 
 class IDS2017Dataset(AbstractDataset):
+    def __getitem__(self, index) -> T_co:
+        return self.X[index], self.y[index], self.labels[index]
+
     def _load_data(self, path: str):
         assert path.endswith(".csv"), "expected .csv; got {}".format(path)
         df = pd.read_csv(path)

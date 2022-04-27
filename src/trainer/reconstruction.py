@@ -30,6 +30,7 @@ class DAGMMTrainer(BaseTrainer):
         self.mu = None
         self.cov_mat = None
         self.covs = None
+        self.reg_covar = self.model.reg_covar
 
     def train_iter(self, sample: torch.Tensor):
         z_c, x_prime, _, z_r, gamma_hat = self.model(sample)
@@ -132,7 +133,7 @@ class DAGMMTrainer(BaseTrainer):
 
         return phi, mu, cov_mat
 
-    def estimate_sample_energy(self, z, phi=None, mu=None, cov_mat=None, average_energy=True, eps=1e-12):
+    def estimate_sample_energy(self, z, phi=None, mu=None, cov_mat=None, average_energy=True):
         if phi is None:
             phi = self.phi
         if mu is None:
@@ -140,9 +141,9 @@ class DAGMMTrainer(BaseTrainer):
         if cov_mat is None:
             cov_mat = self.cov_mat
 
-        # Avoid non-invertible covariance matrix by adding small values (eps)
+        # Avoid non-invertible covariance matrix by adding small values (self.reg_covar)
         d = z.shape[1]
-        cov_mat = cov_mat + (torch.eye(d)).to(self.device) * eps
+        cov_mat = cov_mat + (torch.eye(d)).to(self.device) * self.reg_covar
         # N x K x D
         mu_z = z.unsqueeze(1) - mu.unsqueeze(0)
 
@@ -169,7 +170,7 @@ class DAGMMTrainer(BaseTrainer):
         log_term = log_term.sum(axis=-1)
 
         # energy computation
-        energy_result = - max_val.squeeze() - torch.log(log_term + eps)
+        energy_result = - max_val.squeeze() - torch.log(log_term + self.reg_covar)
 
         if average_energy:
             energy_result = energy_result.mean()
