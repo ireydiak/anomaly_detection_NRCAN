@@ -22,10 +22,10 @@ class AutoEncoderTrainer(BaseTrainer):
 
 
 class DAGMMTrainer(BaseTrainer):
-    def __init__(self, lamb_1: float = 0.1, lamb_2: float = 0.005, **kwargs) -> None:
+    def __init__(self, **kwargs) -> None:
         super(DAGMMTrainer, self).__init__(**kwargs)
-        self.lamb_1 = lamb_1
-        self.lamb_2 = lamb_2
+        self.lamb_1 = self.model.lambda_1
+        self.lamb_2 = self.model.lambda_2
         self.phi = None
         self.mu = None
         self.cov_mat = None
