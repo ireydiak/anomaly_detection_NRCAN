@@ -113,10 +113,12 @@ class IDS2017Dataset(AbstractDataset):
         df = pd.read_csv(path)
         labels = df["Category"].to_numpy()
         y = df["Label"].astype(np.int8).to_numpy()
-        X = df[df.columns not in ["Label", "Category"]].astype(np.float32).to_numpy()
+        X = df.drop(["Label", "Category"], axis=1).astype(np.float32).to_numpy()
         self.labels = labels
+        assert np.isnan(X).sum() == 0, "detected nan values"
+        assert X[X < 0].sum() == 0, "detected negative values"
         return np.concatenate(
-            (X, y), axis=1
+            (X, np.expand_dims(y, 1)), axis=1
         )
 
 
