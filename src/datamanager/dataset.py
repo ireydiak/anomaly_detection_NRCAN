@@ -1,4 +1,5 @@
 import numpy as np
+import pandas as pd
 import scipy.io
 import torch
 from torch.utils.data import Dataset, Subset, DataLoader
@@ -104,6 +105,19 @@ class ArrhythmiaDataset(AbstractDataset):
 
     def npz_key(self):
         return "arrhythmia"
+
+
+class IDS2017Dataset(AbstractDataset):
+    def _load_data(self, path: str):
+        assert path.endswith(".csv"), "expected .csv; got {}".format(path)
+        df = pd.read_csv(path)
+        labels = df["Category"].to_numpy()
+        y = df["Label"].astype(np.int8).to_numpy()
+        X = df[df.columns not in ["Label", "Category"]].astype(np.float32).to_numpy()
+        self.labels = labels
+        return np.concatenate(
+            (X, y), axis=1
+        )
 
 
 class IDS2018Dataset(AbstractDataset):

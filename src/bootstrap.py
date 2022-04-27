@@ -47,6 +47,7 @@ available_datasets = [
     "MalMem2022",
     "NSLKDD",
     "IDS2018",
+    "IDS2017",
     "USBIDS",
     "Thyroid"
 ]
