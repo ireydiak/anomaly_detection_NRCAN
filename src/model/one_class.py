@@ -34,12 +34,12 @@ class DeepSVDD(BaseModel):
         for _ in range(self.n_layers - 1):
             layers.append([in_features, out_features, self.act_fn])
             in_features = out_features
-            compression_factor += self.compression_factor
             out_features = in_features // compression_factor
+            assert out_features > 0, "out_features {} <= 0".format(out_features)
         layers.append(
             [in_features, out_features, None]
         )
-        self.rep_dim = layers[-1][1]
+        self.rep_dim = out_features
         self.net = create_network(layers).to(self.device)
 
     def forward(self, X: Tensor):

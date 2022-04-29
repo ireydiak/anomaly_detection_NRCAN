@@ -44,7 +44,6 @@ class AutoEncoder(BaseModel):
                 [in_features, out_features, self.act_fn]
             )
             in_features = out_features
-            compression_factor += self.compression_factor
         enc_layers.append(
             [in_features, self.latent_dim, None]
         )
@@ -587,7 +586,6 @@ class MemAutoEncoder(BaseModel):
                 [in_features, out_features, self.act_fn]
             )
             in_features = out_features
-            compression_factor += self.compression_factor
         enc_layers.append(
             [in_features, self.latent_dim, None]
         )
