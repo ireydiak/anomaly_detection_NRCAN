@@ -12,3 +12,4 @@ models/**/*.pt
 rawdata/
 env
 venv
+notebooks/**/*.pt

@@ -34,9 +34,16 @@ class BaseModel(nn.Module):
         assert isinstance(model, BaseModel)
         return model
 
+    @staticmethod
+    def load_from_ckpt(ckpt, model):
+        model.load_state_dict(ckpt["model_state_dict"])
+        return model
+
     def save(self, filename):
         # Save model to file (.pt)
-        torch.save(self.state_dict(), filename)
+        torch.save(
+            self.state_dict(), filename
+        )
 
 
 class BaseShallowModel(ABC):

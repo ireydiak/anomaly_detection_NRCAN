@@ -3,6 +3,7 @@ import torch
 import numpy as np
 from tqdm import trange
 
+from src.model.base import BaseModel
 from src.trainer.base import BaseTrainer
 import torch.nn.functional as F
 
@@ -13,6 +14,26 @@ class DeepSVDDTrainer(BaseTrainer):
         super(DeepSVDDTrainer, self).__init__(**kwargs)
         self.c = c
         self.R = R
+
+    def save_ckpt(self, fname: str):
+        torch.save({
+            "model_state_dict": self.model.state_dict(),
+            "c": self.c,
+            "R": self.R,
+            "optimizer_state_dict": self.optimizer.state_dict(),
+        }, fname)
+
+    @staticmethod
+    def load_from_file(fname: str, trainer, model: BaseModel, device: str = None):
+        device = device or torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        ckpt = torch.load(fname, map_location=device)
+        model = model.load_from_ckpt(ckpt, model)
+        trainer.c = ckpt["c"]
+        trainer.R = ckpt["R"]
+        trainer.model = model
+        trainer.optimizer.load_state_dict(ckpt["optimizer_state_dict"])
+
+        return trainer, model
 
     def train_iter(self, sample: torch.Tensor):
         assert torch.allclose(self.c, torch.zeros_like(self.c)) is False, "center c not initialized"
