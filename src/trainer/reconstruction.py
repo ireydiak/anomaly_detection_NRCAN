@@ -1,6 +1,8 @@
 import torch
 import numpy as np
 from torch.utils.data.dataloader import DataLoader
+
+from src.model.base import BaseModel
 from src.trainer.base import BaseTrainer
 from src.loss.EntropyLoss import EntropyLoss
 from torch import nn
@@ -31,6 +33,30 @@ class DAGMMTrainer(BaseTrainer):
         self.cov_mat = None
         self.covs = None
         self.reg_covar = self.model.reg_covar
+
+    def save_ckpt(self, fname: str):
+        torch.save({
+            "epoch": self.cur_epoch,
+            "model_state_dict": self.model.state_dict(),
+            "phi": self.phi,
+            "mu": self.mu,
+            "cov_mat": self.cov_mat,
+            "covs": self.covs,
+            "optimizer_state_dict": self.optimizer.state_dict(),
+        }, fname)
+
+    @staticmethod
+    def load_from_file(fname: str, trainer, model: BaseModel, device: str = None):
+        device = device or torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        ckpt = torch.load(fname, map_location=device)
+        model = model.load_from_ckpt(ckpt, model)
+        trainer.model = model
+        trainer.phi = ckpt["phi"]
+        trainer.cov_mat = ckpt["cov_mat"]
+        trainer.covs = ckpt["covs"]
+        trainer.optimizer.load_state_dict(ckpt["optimizer_state_dict"])
+
+        return trainer, model
 
     def train_iter(self, sample: torch.Tensor):
         z_c, x_prime, _, z_r, gamma_hat = self.model(sample)

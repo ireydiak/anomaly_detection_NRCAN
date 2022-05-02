@@ -4,6 +4,7 @@ from collections import defaultdict
 import numpy as np
 import torch
 import torch.nn.functional as F
+import pandas as pd
 from typing import Type, Callable
 
 
@@ -90,3 +91,26 @@ def optimizer_setup(optimizer_class: Type[torch.optim.Optimizer], **hyperparamet
         return optimizer_class(model.parameters(), **hyperparameters)
 
     return f
+
+
+def ids_misclf_per_label(y_pred: np.array, y_test_true: np.array, test_labels: np.array):
+    # Misclassified rows
+    mask = y_pred != y_test_true
+    # Counts of unique rows in the test labels
+    labels, counts = np.unique(test_labels, return_counts=True)
+    # Counts of unique rows in the misclassified labels
+    misclf_labels, misclf_counts = np.unique(test_labels[mask], return_counts=True)
+
+    # Assemble the counts and their labels in a dictionary
+    gt = {lbl: [cnt, 0, 0] for lbl, cnt in zip(labels, counts)}
+    misclf = {lbl: cnt for lbl, cnt in zip(misclf_labels, misclf_counts)}
+    # Merge the two dictionaries
+    for k, v in misclf.items():
+        gt[k][1] = v
+        gt[k][2] = v / gt[k][0]
+    # Create a dataframe from the merged dictionary
+    return pd.DataFrame.from_dict(
+        gt,
+        orient="index",
+        columns=["# Instances test set", "Misclassified count", "Misclassified ratio"]
+    )
