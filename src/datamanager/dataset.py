@@ -114,6 +114,7 @@ class IDS2017Dataset(AbstractDataset):
     def _load_data(self, path: str):
         assert path.endswith(".csv"), "expected .csv; got {}".format(path)
         df = pd.read_csv(path)
+        self.columns = list(df.columns)
         labels = df["Category"].to_numpy()
         y = df["Label"].astype(np.int8).to_numpy()
         X = df.drop(["Label", "Category"], axis=1).astype(np.float32).to_numpy()
