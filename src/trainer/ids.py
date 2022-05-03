@@ -198,7 +198,7 @@ class DeepSVDDIDSTrainer(DeepSVDDTrainer):
 
 class DAGMMIDSTrainer(DAGMMTrainer):
 
-    def __init__(self, train_ldr, test_ldr, ckpt_fname=None, **kwargs):
+    def __init__(self, train_ldr, test_ldr, ckpt_fname=None, run_test_validation=False, **kwargs):
         super(DAGMMIDSTrainer, self).__init__(**kwargs)
         self.train_ldr = train_ldr
         self.test_ldr = test_ldr
@@ -206,6 +206,7 @@ class DAGMMIDSTrainer(DAGMMTrainer):
         self.ckpt_fname = ckpt_fname or self.model.name.lower()
         self.ckpt_file = None
         self.cur_epoch = None
+        self.run_test_validation = run_test_validation
 
     def test(self, dataset: DataLoader):
         """
@@ -295,7 +296,7 @@ class DAGMMIDSTrainer(DAGMMTrainer):
                         epoch=epoch + 1
                     )
                     t.update()
-            if epoch % 5 == 0 or epoch == 0:
+            if self.run_test_validation and (epoch % 5 == 0 or epoch == 0):
                 # y_true, scores, _ = self.test(self.test_ldr)
                 # test_res = metrics.estimate_optimal_threshold(scores, y_true)
                 # self.metric_values["test_precision"].append(test_res["Precision"])

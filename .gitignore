@@ -13,3 +13,4 @@ rawdata/
 env
 venv
 notebooks/**/*.pt
+notebooks/**/*.txt
