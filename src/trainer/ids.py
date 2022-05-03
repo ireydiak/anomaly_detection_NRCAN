@@ -14,7 +14,7 @@ from src.utils import metrics
 
 class DeepSVDDIDSTrainer(DeepSVDDTrainer):
 
-    def __init__(self, train_ldr, test_ldr, ckpt_fname: str = None, run_test_validation=False, **kwargs):
+    def __init__(self, train_ldr, test_ldr, ckpt_fname: str = None, run_test_validation=False, keep_ckpt=True, **kwargs):
         super(DeepSVDDIDSTrainer, self).__init__(**kwargs)
         self.train_ldr = train_ldr
         self.test_ldr = test_ldr
@@ -22,6 +22,7 @@ class DeepSVDDIDSTrainer(DeepSVDDTrainer):
         self.ckpt_fname = ckpt_fname or self.model.name.lower()
         self.ckpt_file = None
         self.run_test_validation = run_test_validation
+        self.keep_ckpt = keep_ckpt
 
     def save_ckpt(self, fname: str):
         torch.save({
@@ -114,11 +115,11 @@ class DeepSVDDIDSTrainer(DeepSVDDTrainer):
         self.model.train()
         return np.array(y_true), np.array(scores), np.array(labels)
 
-    def inspect_gradient_wrt_input(self, dataset: DataLoader, all_labels):
+    def inspect_gradient_wrt_input(self, all_labels):
         self.model.eval()
         y_true, scores, labels = [], [], []
         y_grad_wrt_X, label_grad_wrt_X, = {0: [], 1: []}, {label: [] for label in all_labels}
-        losses, input_mean = [], []
+        losses = []
         for row in self.test_ldr:
             X, y, label = row
             # TODO: put in dataloader
@@ -139,7 +140,6 @@ class DeepSVDDIDSTrainer(DeepSVDDTrainer):
                 if len(X.grad[label == y_c]) > 0:
                     label_grad_wrt_X[y_c].append(dsdx)
             losses.append(loss.item())
-            input_mean.append(X.detach().cpu().numpy())
             #score = self.score(X)
 
             y_true.extend(y.cpu().tolist())
@@ -147,7 +147,6 @@ class DeepSVDDIDSTrainer(DeepSVDDTrainer):
             labels.extend(list(label))
         self.model.train()
         y_grad_wrt_X[0], y_grad_wrt_X[1] = np.asarray(y_grad_wrt_X[0]), np.asarray(y_grad_wrt_X[1])
-        input_mean = np.concatenate(input_mean)
         for y_c in all_labels:
             label_grad_wrt_X[y_c] = np.concatenate(label_grad_wrt_X[y_c])
         return {
@@ -157,7 +156,6 @@ class DeepSVDDIDSTrainer(DeepSVDDTrainer):
           "y_grad_wrt_X": y_grad_wrt_X,
           "label_grad_wrt_X": label_grad_wrt_X,
           "losses": np.asarray(losses),
-          "input_mean": np.asarray(input_mean)
         }
 
     def train(self, dataset: DataLoader):
@@ -187,18 +185,19 @@ class DeepSVDDIDSTrainer(DeepSVDDTrainer):
                         epoch=epoch + 1
                     )
                     t.update()
-            if epoch % 5 == 0 or epoch == 0:
+            if self.keep_ckpt and epoch % 5 == 0:
                 self.save_ckpt(self.ckpt_fname + "_epoch={}.pt".format(epoch+1))
-                if self.run_test_validation:
-                    y_true, scores, _ = self.test(self.test_ldr)
-                    test_res = metrics.estimate_optimal_threshold(scores, y_true)
-                    self.metric_values["test_precision"].append(test_res["Precision"])
-                    self.metric_values["test_recall"].append(test_res["Recall"])
+
+            if self.run_test_validation and (epoch % 5 == 0 or epoch == 0):
+                y_true, scores, _ = self.test(self.test_ldr)
+                test_res = metrics.estimate_optimal_threshold(scores, y_true)
+                self.metric_values["test_precision"].append(test_res["Precision"])
+                self.metric_values["test_recall"].append(test_res["Recall"])
 
 
 class DAGMMIDSTrainer(DAGMMTrainer):
 
-    def __init__(self, train_ldr, test_ldr, ckpt_fname=None, run_test_validation=False, **kwargs):
+    def __init__(self, train_ldr, test_ldr, ckpt_fname=None, run_test_validation=False, keep_ckpt=True, **kwargs):
         super(DAGMMIDSTrainer, self).__init__(**kwargs)
         self.train_ldr = train_ldr
         self.test_ldr = test_ldr
@@ -207,6 +206,7 @@ class DAGMMIDSTrainer(DAGMMTrainer):
         self.ckpt_file = None
         self.cur_epoch = None
         self.run_test_validation = run_test_validation
+        self.keep_ckpt = keep_ckpt
 
     def test(self, dataset: DataLoader):
         """
@@ -296,9 +296,11 @@ class DAGMMIDSTrainer(DAGMMTrainer):
                         epoch=epoch + 1
                     )
                     t.update()
-            if self.run_test_validation and (epoch % 5 == 0 or epoch == 0):
-                # y_true, scores, _ = self.test(self.test_ldr)
-                # test_res = metrics.estimate_optimal_threshold(scores, y_true)
-                # self.metric_values["test_precision"].append(test_res["Precision"])
-                # self.metric_values["test_recall"].append(test_res["Recall"])
+            if self.keep_ckpt and epoch % 5 == 0:
                 self.save_ckpt(self.ckpt_fname + "_epoch={}.pt".format(epoch + 1))
+
+            if self.run_test_validation and (epoch % 5 == 0 or epoch == 0):
+                y_true, scores, _ = self.test(self.test_ldr)
+                test_res = metrics.estimate_optimal_threshold(scores, y_true)
+                self.metric_values["test_precision"].append(test_res["Precision"])
+                self.metric_values["test_recall"].append(test_res["Recall"])

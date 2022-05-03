@@ -108,12 +108,18 @@ class ArrhythmiaDataset(AbstractDataset):
 
 
 class IDS2017Dataset(AbstractDataset):
+    def __init__(self, features: list = None, **kwargs):
+        self.selected_features = features
+        super(IDS2017Dataset, self).__init__(**kwargs)
+
     def __getitem__(self, index) -> T_co:
         return self.X[index], self.y[index], self.labels[index]
 
     def _load_data(self, path: str):
         assert path.endswith(".csv"), "expected .csv; got {}".format(path)
         df = pd.read_csv(path)
+        if self.selected_features:
+            df = df[self.selected_features + ["Label", "Category"]]
         self.columns = list(df.columns)
         labels = df["Category"].to_numpy()
         y = df["Label"].astype(np.int8).to_numpy()
