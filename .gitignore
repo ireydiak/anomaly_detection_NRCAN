@@ -12,6 +12,6 @@ models/**/*.pt
 rawdata/
 env
 venv
-notebooks/**/*.pt
 notebooks/**/*.txt
 notebooks/catboost_info
+notebooks/**/checkpoints/**/*.pt
