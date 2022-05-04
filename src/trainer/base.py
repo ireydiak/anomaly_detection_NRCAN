@@ -40,7 +40,7 @@ class BaseTrainer(ABC):
         device = device or torch.device("cuda" if torch.cuda.is_available() else "cpu")
         ckpt = torch.load(fname, map_location=device)
         metric_values = ckpt["metric_values"]
-        model = model.load_state_dict(ckpt)
+        model = model.load_from_ckpt(ckpt, model)
         trainer.model = model
         trainer.optimizer.load_state_dict(ckpt["optimizer_state_dict"])
         trainer.metric_values = metric_values

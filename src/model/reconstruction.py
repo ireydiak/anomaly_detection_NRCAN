@@ -527,6 +527,7 @@ class MemAutoEncoder(BaseModel):
             shrink_thres: float,
             n_layers: int,
             compression_factor: int,
+            alpha: float,
             act_fn="relu",
             **kwargs
     ):
@@ -552,6 +553,7 @@ class MemAutoEncoder(BaseModel):
         in_features: Number of variables in the dataset
         """
         super(MemAutoEncoder, self).__init__(**kwargs)
+        self.alpha = alpha
         self.latent_dim = latent_dim
         self.act_fn = activation_mapper[act_fn]
         self.shrink_thres = shrink_thres
@@ -562,6 +564,13 @@ class MemAutoEncoder(BaseModel):
         self.decoder = None
         self.mem_rep = None
         self._build_network()
+
+    @staticmethod
+    def load_from_ckpt(ckpt, model):
+        model.load_state_dict(ckpt["model_state_dict"])
+        model.shrink_thres = ckpt["shrink_thres"]
+        model.mem_dim = ckpt["mem_dim"]
+        return model
 
     @staticmethod
     def get_args_desc():
