@@ -14,3 +14,4 @@ env
 venv
 notebooks/**/*.pt
 notebooks/**/*.txt
+notebooks/catboost_info
