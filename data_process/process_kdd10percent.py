@@ -78,7 +78,7 @@ def preprocess(df: pd.DataFrame):
 
 
 if __name__ == '__main__':
-    _, output_dir, _ = utils.parse_args()
+    _, output_dir, _, _ = utils.parse_args()
     df_0 = import_data()
     stats_0 = df_stats(df_0)
 

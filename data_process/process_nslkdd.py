@@ -3,7 +3,7 @@ import numpy as np
 import utils
 import argparse
 from sklearn.preprocessing import MinMaxScaler
-from src.utils import check_dir
+# from src.utils import check_dir
 
 parser = argparse.ArgumentParser()
 parser.add_argument('-d', '--dataset-path', type=str)
@@ -47,7 +47,7 @@ def import_data(base_path: str):
     df_train = pd.read_csv(base_path + '/' + TRAIN_FILENAME, names=colnames, index_col=False, dtype=dict(zip(colnames, coltypes)))
     df_test = pd.read_csv(base_path + '/' + TEST_FILENAME, names=colnames, index_col=False, dtype=dict(zip(colnames, coltypes)))
     # UBN added an extra `difficulty_level` columns which we ignore here
-    return pd.concat([df_train[:, :-1], df_test[:, :-1]], ignore_index=True, sort=False)
+    return pd.concat([df_train, df_test], ignore_index=True, sort=False)
 
 
 def preprocess(df: pd.DataFrame):
@@ -77,7 +77,7 @@ def preprocess(df: pd.DataFrame):
 
 
 if __name__ == '__main__':
-    dataset_path, output_directory = utils.parse_args()
+    dataset_path, output_directory, _, _ = utils.parse_args()
     
     df_0 = import_data(dataset_path)
     stats_0 = df_stats(df_0)
@@ -89,6 +89,10 @@ if __name__ == '__main__':
     stats_0['Anomaly Ratio'] = stats_0['Anormal Instances'] / len(df_1)
     stats_1 = {'N Prime': len(X), 'D Prime': X.shape[1] - 1}
     stats_1['Dropped Columns'] = n_cols_dropped
+
+    # prepare the output directory
+    utils.prepare(output_directory)
+
     export_stats(output_directory, stats_0, stats_1)
 
     path = '{}/{}/{}.csv'.format(output_directory, utils.folder_struct["normalize_step"], "NSL-KDD_normalized")

@@ -86,9 +86,10 @@ class AbstractDataset(Dataset):
                          label: int = 0,
                          holdout=0.05,
                          contamination_rate=0.01,
-                         seed=None) -> Tuple[Subset, Subset]:
+                         seed=None, debug=True) -> Tuple[Subset, Subset]:
         assert (label == 0 or label == 1)
-        assert 1 > holdout >= contamination_rate
+        assert 1 > holdout  # >=
+        assert 0 <= contamination_rate <= 1
 
         # if seed:
         #     torch.manual_seed(seed)
@@ -106,6 +107,10 @@ class AbstractDataset(Dataset):
         abnormal_data_idx = np.where(self.y == int(not label))[0]
         abnorm_test_idx = abnormal_data_idx
 
+        if debug:
+            print(f"Dataset size\nPositive class :{len(abnormal_data_idx)}"
+                  f"\nNegative class :{len(normal_data_idx)}\n")
+
         if holdout > 0:
             # Generate test set by holding out a percentage [holdout] of abnormal
             # sample for a possible contamination
@@ -114,7 +119,8 @@ class AbstractDataset(Dataset):
             abnorm_test_idx = abnormal_data_idx[shuffled_abnorm_idx[:num_abnorm_test_sample]]
 
             if contamination_rate > 0:
-                num_abnorm_to_inject = int(len(abnormal_data_idx) * contamination_rate)
+                num_abnorm_to_inject = int(len(shuffled_abnorm_idx[
+                                               num_abnorm_test_sample:]) * contamination_rate)
 
                 normal_train_idx = np.concatenate([
                     abnormal_data_idx[shuffled_abnorm_idx[
@@ -125,6 +131,11 @@ class AbstractDataset(Dataset):
 
         # Generate training set with contamination when applicable
         train_set = Subset(self, normal_train_idx)
+        if debug:
+            print(
+                f'Training set\n'
+                f'Contamination rate: '
+                f'{len(np.where(self.y[normal_train_idx] == int(not label))[0]) / len(normal_train_idx)}\n')
 
         # Generate test set based on the remaining data and the previously filtered out labels
         remaining_idx = np.concatenate([

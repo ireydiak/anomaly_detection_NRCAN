@@ -5,6 +5,7 @@ from sklearn import metrics as sk_metrics
 def estimate_optimal_threshold(test_score, y_test, pos_label=1, nq=100):
     # def score_recall_precision(combined_score, test_score, test_labels, pos_label=1, nq=100):
     ratio = 100 * sum(y_test == 0) / len(y_test)
+    print(f"Ratio of normal data:{ratio}")
     q = np.linspace(ratio - 5, min(ratio + 5, 100), nq)
     thresholds = np.percentile(test_score, q)
 
