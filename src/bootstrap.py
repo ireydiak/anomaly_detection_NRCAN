@@ -310,6 +310,7 @@ def train(
     print(res)
     params = dict(
         {"BatchSize": batch_size, "Epochs": n_epochs, "CorruptionRatio": corruption_ratio,
+         "HoldoutRatio": holdout,
          "Threshold": anomaly_thresh},
         **model.get_params()
     )
