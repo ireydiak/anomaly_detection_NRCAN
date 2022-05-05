@@ -89,6 +89,49 @@ class MemAEIDSTrainer(MemAETrainer):
                 self.metric_values["test_precision"].append(test_res["Precision"])
                 self.metric_values["test_recall"].append(test_res["Recall"])
 
+    def inspect_gradient_wrt_input(self, all_labels):
+        self.model.eval()
+        y_true, scores, labels = [], [], []
+        y_grad_wrt_X, label_grad_wrt_X, = {0: [], 1: []}, {label: [] for label in all_labels}
+        losses = []
+        for row in self.test_ldr:
+            X, y, label = row
+            # TODO: put in dataloader
+            label = np.array(label)
+            X = X.to(self.device).float()
+            X.requires_grad = True
+            self.optimizer.zero_grad()
+
+            loss = self.train_iter(X)
+            loss.backward()
+
+            for y_c in [0, 1]:
+                dsdx = X.grad[y == y_c].mean(dim=0).cpu().numpy()
+                if len(X.grad[y == y_c]) > 0:
+                    y_grad_wrt_X[y_c].append(dsdx)
+            for y_c in all_labels:
+                dsdx = X.grad[label == y_c].cpu().numpy()
+                if len(X.grad[label == y_c]) > 0:
+                    label_grad_wrt_X[y_c].append(dsdx)
+            losses.append(loss.item())
+            #score = self.score(X)
+
+            y_true.extend(y.cpu().tolist())
+            #scores.extend(score.cpu().tolist())
+            labels.extend(list(label))
+        self.model.train()
+        y_grad_wrt_X[0], y_grad_wrt_X[1] = np.asarray(y_grad_wrt_X[0]), np.asarray(y_grad_wrt_X[1])
+        for y_c in all_labels:
+            label_grad_wrt_X[y_c] = np.concatenate(label_grad_wrt_X[y_c])
+        return {
+          "y_true": np.array(y_true),
+          # "scores": np.array(scores),
+          "labels":  np.array(labels),
+          "y_grad_wrt_X": y_grad_wrt_X,
+          "label_grad_wrt_X": label_grad_wrt_X,
+          "losses": np.asarray(losses),
+        }
+
     def test(self, dataset: DataLoader):
         self.model.eval()
         y_true, scores, labels = [], [], []
