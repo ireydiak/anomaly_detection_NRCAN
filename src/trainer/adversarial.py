@@ -65,13 +65,13 @@ class ALADTrainer(BaseTrainer):
 
         return loss_ge
 
-    def train(self, dataset: DataLoader, nep = None):
+    def train(self, train_loader: DataLoader, nep = None):
         self.model.train()
 
         for epoch in range(self.n_epochs):
             ge_losses, d_losses = 0, 0
-            with trange(len(dataset)) as t:
-                for sample in dataset:
+            with trange(len(train_loader)) as t:
+                for sample in train_loader:
                     X, _ = sample
 
                     if len(X) < self.batch_size:

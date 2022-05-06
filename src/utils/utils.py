@@ -90,3 +90,13 @@ def optimizer_setup(optimizer_class: Type[torch.optim.Optimizer], **hyperparamet
         return optimizer_class(model.parameters(), **hyperparameters)
 
     return f
+
+
+def random_split_to_two(table, ratio=.2):
+    n1 = int(len(table) * (1 - ratio))
+    shuffle_idx = torch.randperm(len(table)).long()
+
+    t1 = table[shuffle_idx[:n1]]
+    t2 = table[shuffle_idx[n1:]]
+
+    return t1, t2

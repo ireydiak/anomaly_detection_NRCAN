@@ -50,16 +50,16 @@ class BaseTrainer(ABC):
     def set_optimizer(self, weight_decay):
         return optim.Adam(self.model.parameters(), lr=self.lr, weight_decay=weight_decay)
 
-    def train(self, dataset: DataLoader):
+    def train(self, train_loader: DataLoader, val_loader: DataLoader = None):
         self.model.train()
 
-        self.before_training(dataset)
+        self.before_training(train_loader)
 
         print("Started training")
         for epoch in range(self.n_epochs):
             epoch_loss = 0.0
-            with trange(len(dataset)) as t:
-                for sample in dataset:
+            with trange(len(train_loader)) as t:
+                for sample in train_loader:
                     X, _ = sample
                     X = X.to(self.device).float()
                     # TODO handle this just for trainer DBESM
@@ -78,7 +78,7 @@ class BaseTrainer(ABC):
 
                     epoch_loss += loss.item()
                     t.set_postfix(
-                        loss='{:05.3f}'.format(epoch_loss/(epoch + 1)),
+                        loss='{:.3f}'.format(epoch_loss/(epoch + 1)),
                         epoch=epoch + 1
                     )
                     t.update()
@@ -96,6 +96,7 @@ class BaseTrainer(ABC):
                 score = self.score(X)
                 y_true.extend(y.cpu().tolist())
                 scores.extend(score.cpu().tolist())
+        self.model.train()
 
         return np.array(y_true), np.array(scores)
 

@@ -5,6 +5,8 @@ from torch.utils.data import Dataset, Subset, DataLoader
 from torch.utils.data.dataset import T_co
 from typing import Tuple
 
+from ..utils.utils import random_split_to_two
+
 
 class AbstractDataset(Dataset):
     def __init__(self, path: str, pct: float = 1.0, **kwargs):
@@ -65,28 +67,35 @@ class AbstractDataset(Dataset):
                 label: int = 0,
                 holdout: float = 0.0,
                 contamination_rate: float = 0.0,
+                validation_ratio: float = .2,
                 batch_size: int = 128,
                 num_workers: int = 0,
                 seed: int = None,
-                drop_last_batch: bool = False) -> (DataLoader, DataLoader):
+                drop_last_batch: bool = False) -> (DataLoader, DataLoader, DataLoader):
 
-        train_set, test_set = self.split_train_test(test_pct=test_pct,
-                                                    label=label,
-                                                    holdout=holdout,
-                                                    contamination_rate=contamination_rate,
-                                                    seed=seed)
+        train_set, test_set, val_set = self.split_train_test(test_pct=test_pct,
+                                                             label=label,
+                                                             holdout=holdout,
+                                                             contamination_rate=contamination_rate,
+                                                             validation_ratio=validation_ratio,
+                                                             seed=seed)
 
         train_ldr = DataLoader(dataset=train_set, batch_size=batch_size, num_workers=num_workers,
                                drop_last=drop_last_batch)
+
+        val_ldr = DataLoader(dataset=val_set, batch_size=batch_size, num_workers=num_workers,
+                             drop_last=drop_last_batch)
+
         test_ldr = DataLoader(dataset=test_set, batch_size=batch_size, num_workers=num_workers,
                               drop_last=drop_last_batch)
-        return train_ldr, test_ldr
+        return train_ldr, test_ldr, val_ldr
 
     def split_train_test(self, test_pct: float = .5,
                          label: int = 0,
                          holdout=0.05,
                          contamination_rate=0.01,
-                         seed=None, debug=True) -> Tuple[Subset, Subset]:
+                         validation_ratio: float = .2,
+                         seed=None, debug=True) -> Tuple[Subset, Subset, Subset]:
         assert (label == 0 or label == 1)
         assert 1 > holdout  # >=
         assert 0 <= contamination_rate <= 1
@@ -130,7 +139,11 @@ class AbstractDataset(Dataset):
                 ])
 
         # Generate training set with contamination when applicable
+        # Split the training set to train and validation
+        normal_train_idx, normal_val_idx = random_split_to_two(normal_train_idx, ratio=validation_ratio)
+
         train_set = Subset(self, normal_train_idx)
+        val_set = Subset(self, normal_val_idx)
         if debug:
             print(
                 f'Training set\n'
@@ -144,7 +157,7 @@ class AbstractDataset(Dataset):
         ])
         test_set = Subset(self, remaining_idx)
 
-        return train_set, test_set
+        return train_set, test_set, val_set
 
     def split_train_test_(self, test_pct: float = .5, label: int = 0, seed=None) -> Tuple[Subset, Subset]:
         assert (label == 0 or label == 1)
