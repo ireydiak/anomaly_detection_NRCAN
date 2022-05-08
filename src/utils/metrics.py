@@ -52,7 +52,8 @@ def estimate_optimal_threshold(test_score, y_test, pos_label=1, nq=100):
     }
 
 
-def score_recall_precision_w_thresold(combined_score, test_score, test_labels, threshold, pos_label=1):
+def score_recall_precision_w_threshold(test_score, test_labels, threshold=None, pos_label=1):
+    threshold = threshold or (test_labels == pos_label).sum() / len(test_labels)
     thresh = np.percentile(test_score, threshold)
 
     # Prediction using the threshold value
@@ -68,5 +69,7 @@ def score_recall_precision_w_thresold(combined_score, test_score, test_labels, t
             "Recall": recall,
             "F1-Score": f_score,
             "AUROC": sk_metrics.roc_auc_score(y_true, test_score),
-            "AUPR": sk_metrics.average_precision_score(y_true, test_score)}
+            "AUPR": sk_metrics.average_precision_score(y_true, test_score),
+            "Thresh": thresh
+            }, y_pred
 

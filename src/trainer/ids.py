@@ -159,7 +159,15 @@ class MemAEIDSTrainer(MemAETrainer):
 
 class DeepSVDDIDSTrainer(DeepSVDDTrainer):
 
-    def __init__(self, train_ldr, test_ldr, ckpt_fname: str = None, run_test_validation=False, keep_ckpt=True, **kwargs):
+    def __init__(
+            self,
+            train_ldr,
+            test_ldr,
+            ckpt_fname: str = None,
+            run_test_validation=False,
+            keep_ckpt=True,
+            **kwargs
+    ):
         super(DeepSVDDIDSTrainer, self).__init__(**kwargs)
         self.train_ldr = train_ldr
         self.test_ldr = test_ldr
@@ -206,6 +214,7 @@ class DeepSVDDIDSTrainer(DeepSVDDTrainer):
         c[(abs(c) < eps) & (c < 0)] = -eps
         c[(abs(c) < eps) & (c > 0)] = eps
 
+        self.model.train(mode=True)
         return c
 
     def test(self, dataset: DataLoader):
@@ -219,7 +228,7 @@ class DeepSVDDIDSTrainer(DeepSVDDTrainer):
                 y_true.extend(y.cpu().tolist())
                 scores.extend(score.cpu().tolist())
                 labels.extend(list(label))
-        self.model.train()
+        self.model.train(mode=True)
         return np.array(y_true), np.array(scores), np.array(labels)
 
     def inspect_gradient_wrt_input(self, all_labels):
@@ -273,6 +282,7 @@ class DeepSVDDIDSTrainer(DeepSVDDTrainer):
         print("Started training")
         for epoch in range(self.n_epochs):
             epoch_loss = 0.0
+            assert self.model.training, "model not in training mode, aborting"
             with trange(len(self.train_ldr)) as t:
                 for sample in self.train_ldr:
                     X, _, _ = sample
@@ -297,7 +307,8 @@ class DeepSVDDIDSTrainer(DeepSVDDTrainer):
 
             if self.run_test_validation and (epoch % 5 == 0 or epoch == 0):
                 y_true, scores, _ = self.test(self.test_ldr)
-                test_res = metrics.estimate_optimal_threshold(scores, y_true)
+                test_res, _ = metrics.score_recall_precision_w_threshold(scores, y_true)
+                #test_res = metrics.estimate_optimal_threshold(scores, y_true)
                 self.metric_values["test_precision"].append(test_res["Precision"])
                 self.metric_values["test_recall"].append(test_res["Recall"])
 
@@ -369,6 +380,7 @@ class DAGMMIDSTrainer(DAGMMTrainer):
 
             if self.run_test_validation and (epoch % 5 == 0 or epoch == 0):
                 y_true, scores, _ = self.test(self.test_ldr)
-                test_res = metrics.estimate_optimal_threshold(scores, y_true)
+                #test_res = metrics.estimate_optimal_threshold(scores, y_true)
+                test_res, _ = metrics.score_recall_precision_w_threshold(scores, y_true)
                 self.metric_values["test_precision"].append(test_res["Precision"])
                 self.metric_values["test_recall"].append(test_res["Recall"])

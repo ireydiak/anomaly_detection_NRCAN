@@ -81,6 +81,7 @@ class DeepSVDDTrainer(BaseTrainer):
         c[(abs(c) < eps) & (c < 0)] = -eps
         c[(abs(c) < eps) & (c > 0)] = eps
 
+        self.model.train(mode=True)
         return c
 
     def get_params(self) -> dict:

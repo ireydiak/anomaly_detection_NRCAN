@@ -78,21 +78,21 @@ class AbstractDataset(Dataset):
         if seed:
             torch.manual_seed(seed)
 
-        # Fetch and shuffle indices of a single class
-        label_data_idx = np.where(self.y == label)[0]
-        shuffled_idx = torch.randperm(len(label_data_idx)).long()
+        # Fetch and shuffle indices of the majority class
+        maj_data_idx = np.where(self.y == label)[0]
+        shuffled_idx = torch.randperm(len(maj_data_idx)).long()
 
         # Generate training set
-        num_test_sample = int(len(label_data_idx) * test_pct)
-        num_train_sample = int(len(label_data_idx) * (1. - test_pct))
-        train_set = Subset(self, label_data_idx[shuffled_idx[num_train_sample:]])
+        num_test_sample = int(len(maj_data_idx) * test_pct)
+        num_train_sample = int(len(maj_data_idx) * (1. - test_pct))
+        train_set = Subset(self, maj_data_idx[shuffled_idx[num_train_sample:]])
 
         # Generate test set based on the remaining data and the previously filtered out labels
-        remaining_idx = np.concatenate([
-            label_data_idx[shuffled_idx[:num_test_sample]],
+        test_idx = np.concatenate([
+            maj_data_idx[shuffled_idx[:num_test_sample]],
             np.where(self.y == int(not label))[0]
         ])
-        test_set = Subset(self, remaining_idx)
+        test_set = Subset(self, test_idx)
 
         return train_set, test_set
 

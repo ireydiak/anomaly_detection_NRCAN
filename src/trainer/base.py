@@ -71,9 +71,9 @@ class BaseTrainer(ABC):
         return optim.Adam(self.model.parameters(), lr=self.lr, weight_decay=weight_decay)
 
     def train(self, dataset: DataLoader):
-        self.model.train()
-
+        self.model.train(mode=True)
         self.before_training(dataset)
+        assert self.model.training, "Model not in training mode. Aborting"
 
         print("Started training")
         for epoch in range(self.n_epochs):
