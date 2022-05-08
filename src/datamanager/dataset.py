@@ -5,7 +5,7 @@ from torch.utils.data import Dataset, Subset, DataLoader
 from torch.utils.data.dataset import T_co
 from typing import Tuple
 
-from ..utils.utils import random_split_to_two
+from utils.utils import random_split_to_two
 
 
 class AbstractDataset(Dataset):
@@ -156,6 +156,8 @@ class AbstractDataset(Dataset):
             abnorm_test_idx
         ])
         test_set = Subset(self, remaining_idx)
+
+        print(len(self.y) , (len(test_set) + len(train_set) + len(val_set)))
 
         return train_set, test_set, val_set
 

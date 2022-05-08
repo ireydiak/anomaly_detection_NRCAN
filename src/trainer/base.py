@@ -58,6 +58,9 @@ class BaseTrainer(ABC):
         print("Started training")
         for epoch in range(self.n_epochs):
             epoch_loss = 0.0
+            # if not val_loader is None:
+            #     loss = self.eval(train_loader)
+            #     print(f'validation score: loss:{loss:.3f}, score:{np.mean(self.test(val_loader)[1]):.3f}')
             with trange(len(train_loader)) as t:
                 for sample in train_loader:
                     X, _ = sample
@@ -78,11 +81,25 @@ class BaseTrainer(ABC):
 
                     epoch_loss += loss.item()
                     t.set_postfix(
-                        loss='{:.3f}'.format(epoch_loss/(epoch + 1)),
+                        loss='{:.3f}'.format(epoch_loss / (epoch + 1)),
                         epoch=epoch + 1
                     )
                     t.update()
+
         self.after_training()
+
+    def eval(self, dataset: DataLoader):
+        self.model.eval()
+        with torch.no_grad():
+            loss = 0
+            for row in dataset:
+                X, _ = row
+                X = X.to(self.device).float()
+                loss += self.train_iter(X)
+            loss /= len(dataset)
+        self.model.train()
+
+        return loss
 
     def test(self, dataset: DataLoader) -> Union[np.array, np.array]:
         self.model.eval()
@@ -111,7 +128,8 @@ class BaseTrainer(ABC):
     def predict(self, scores: np.array, thresh: float):
         return (scores >= thresh).astype(int)
 
-    def evaluate(self, combined_scores, y_test: np.array, test_scores: np.array, threshold: float, pos_label: int = 1) -> dict:
+    def evaluate(self, combined_scores, y_test: np.array, test_scores: np.array, threshold: float,
+                 pos_label: int = 1) -> dict:
         res = {"Precision": -1, "Recall": -1, "F1-Score": -1, "AUROC": -1, "AUPR": -1}
 
         thresh = np.percentile(combined_scores, threshold)

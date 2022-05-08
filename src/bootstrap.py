@@ -169,16 +169,18 @@ def train_model(
         seed,
         contamination_rate,
         holdout,
-        drop_lastbatch
+        drop_lastbatch,
+        validation_ratio
 
 ):
     # Training and evaluation on different runs
     all_results = defaultdict(list)
 
-    train_ldr, test_ldr = dataset.loaders(batch_size=batch_size,
-                                          seed=seed,
-                                          contamination_rate=contamination_rate,
-                                          holdout=holdout, drop_last_batch=drop_lastbatch)
+    train_ldr, test_ldr, val_ldr = dataset.loaders(batch_size=batch_size,
+                                                   seed=seed,
+                                                   contamination_rate=contamination_rate,
+                                                   validation_ratio=validation_ratio,
+                                                   holdout=holdout, drop_last_batch=drop_lastbatch)
     if seed:
         torch.manual_seed(seed)
 
@@ -203,7 +205,7 @@ def train_model(
             if model.name == "DUAD":
                 # DataManager for DUAD only
                 # split data in train and test sets
-                train_set, test_set = dataset.split_train_test(test_pct=0.50,
+                train_set, test_set, val_set = dataset.split_train_test(test_pct=0.50,
                                                                contamination_rate=contamination_rate,
                                                                holdout=holdout)
                 dm = DataManager(train_set, test_set, batch_size=batch_size, drop_last=drop_lastbatch)
@@ -211,7 +213,7 @@ def train_model(
                 model_trainer.setDataManager(dm)
                 model_trainer.train()
             else:
-                _ = model_trainer.train(train_ldr)
+                _ = model_trainer.train(train_ldr, val_ldr)
             print("Completed learning process")
             print("Evaluating model on test set")
             # We test with the minority samples as the positive class
@@ -230,10 +232,11 @@ def train_model(
             model.reset()
 
             if i < n_runs - 1:
-                train_ldr, test_ldr = dataset.loaders(batch_size=batch_size,
-                                                      seed=seed,
-                                                      contamination_rate=contamination_rate,
-                                                      holdout=holdout)
+                train_ldr, test_ldr, val_ldr = dataset.loaders(batch_size=batch_size,
+                                                               seed=seed,
+                                                               contamination_rate=contamination_rate,
+                                                               validation_ratio=validation_ratio,
+                                                               holdout=holdout, drop_last_batch=drop_lastbatch)
 
     # Compute mean and standard deviation of the performance metrics
     print("Averaging results ...")
@@ -262,7 +265,8 @@ def train(
         ae_latent_dim,
         holdout=0.0,
         contamination_r=0.0,
-        drop_lastbatch=False
+        drop_lastbatch=False,
+        validation_ratio=.2,
 ):
     # Dynamically load the Dataset instance
     clsname = globals()[f'{dataset_name}Dataset']
@@ -304,7 +308,8 @@ def train(
         seed=seed,
         contamination_rate=contamination_r,
         holdout=holdout,
-        drop_lastbatch=drop_lastbatch
+        drop_lastbatch=drop_lastbatch,
+        validation_ratio=validation_ratio,
 
     )
     print(res)

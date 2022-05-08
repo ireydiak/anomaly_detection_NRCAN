@@ -77,6 +77,14 @@ def argument_parser():
         default=1.0,
         help="Percentage of original data to keep"
     )
+
+    parser.add_argument(
+        "--val_ratio",
+        type=float,
+        default=0.0,
+        help="Ratio of validation set from the training set"
+    )
+
     parser.add_argument(
         "--hold_out",
         type=float,
@@ -179,6 +187,7 @@ if __name__ == "__main__":
 
         holdout=args.hold_out,
         contamination_r= args.rho,
-        drop_lastbatch=args.drop_lastbatch
+        drop_lastbatch=args.drop_lastbatch,
+        validation_ratio=args.val_ratio,
 
     )
