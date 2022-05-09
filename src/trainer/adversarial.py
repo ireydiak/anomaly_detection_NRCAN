@@ -93,6 +93,7 @@ class ALADTrainer(BaseTrainer):
                     d_losses += loss_d.item()
                     ge_losses += loss_ge.item()
                     t.set_postfix(
+                        ep=epoch + 1,
                         loss_d='{:05.4f}'.format(loss_d),
                         loss_ge='{:05.4f}'.format(loss_ge),
                     )

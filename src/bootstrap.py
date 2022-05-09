@@ -70,7 +70,7 @@ def store_results(results: dict, params: dict, model_name: str, dataset: str, da
 
 
 def store_model(model, model_name: str, dataset: str, models_path: str = None):
-    output_dir = models_path or f'../models/{dataset}/{model_name}/{dt.now().strftime("%d_%m_%Y_%H_%M_%S")}"'
+    output_dir = models_path or f'../models/{dataset}/{model_name}/{dt.now().strftime("%d_%m_%Y_%H_%M_%S")}'
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
     model.save(f"{output_dir}/{model_name}.pt")
