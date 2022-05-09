@@ -32,6 +32,7 @@ class AbstractDataset(Dataset):
             self.X = X[:, :-1]
             self.y = X[:, -1]
 
+        self.labels = self.y
         self.anomaly_ratio = (X[:, -1] == anomaly_label).sum() / len(X)
         self.n_instances = self.X.shape[0]
         self.in_features = self.X.shape[1]
@@ -40,11 +41,14 @@ class AbstractDataset(Dataset):
         return len(self.X)
 
     def __getitem__(self, index) -> T_co:
-        return self.X[index], self.y[index]
+        return self.X[index], self.y[index], self.labels[index]
 
     def _load_data(self, path: str):
         if path.endswith(".npz"):
             return np.load(path)[self.npz_key()]
+        elif path.endswith(".npy"):
+            data = np.load(path)
+            return data
         elif path.endswith(".mat"):
             data = scipy.io.loadmat(path)
             X = np.concatenate((data['X'], data['y']), axis=1)
@@ -111,9 +115,6 @@ class IDS2017Dataset(AbstractDataset):
     def __init__(self, features: list = None, **kwargs):
         self.selected_features = features
         super(IDS2017Dataset, self).__init__(**kwargs)
-
-    def __getitem__(self, index) -> T_co:
-        return self.X[index], self.y[index], self.labels[index]
 
     def _load_data(self, path: str):
         assert path.endswith(".csv"), "expected .csv; got {}".format(path)

@@ -3,7 +3,6 @@ from sklearn import metrics as sk_metrics
 
 
 def estimate_optimal_threshold(test_score, y_test, pos_label=1, nq=100):
-    # def score_recall_precision(combined_score, test_score, test_labels, pos_label=1, nq=100):
     ratio = 100 * sum(y_test == 0) / len(y_test)
     q = np.linspace(ratio - 5, min(ratio + 5, 100), nq)
     thresholds = np.percentile(test_score, q)
@@ -52,13 +51,15 @@ def estimate_optimal_threshold(test_score, y_test, pos_label=1, nq=100):
     }
 
 
-def score_recall_precision_w_threshold(test_score, test_labels, threshold=None, pos_label=1):
-    threshold = threshold or (test_labels == pos_label).sum() / len(test_labels)
-    thresh = np.percentile(test_score, threshold)
+def score_recall_precision_w_threshold(scores, y_true, threshold=None, pos_label=1):
+    anomaly_ratio = (y_true == pos_label).sum() / len(y_true)
+    threshold = threshold or int(np.ceil((1 - anomaly_ratio) * 100))
+
+    thresh = np.percentile(scores, threshold)
 
     # Prediction using the threshold value
-    y_pred = (test_score >= thresh).astype(int)
-    y_true = test_labels.astype(int)
+    y_pred = (scores >= thresh).astype(int)
+    y_true = y_true.astype(int)
 
     # accuracy = sk_metrics.accuracy_score(y_true, y_pred)
     precision, recall, f_score, _ = sk_metrics.precision_recall_fscore_support(
@@ -68,8 +69,8 @@ def score_recall_precision_w_threshold(test_score, test_labels, threshold=None, 
     return {"Precision": precision,
             "Recall": recall,
             "F1-Score": f_score,
-            "AUROC": sk_metrics.roc_auc_score(y_true, test_score),
-            "AUPR": sk_metrics.average_precision_score(y_true, test_score),
+            "AUROC": sk_metrics.roc_auc_score(y_true, scores),
+            "AUPR": sk_metrics.average_precision_score(y_true, scores),
             "Thresh": thresh
             }, y_pred
 

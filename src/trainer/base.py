@@ -79,9 +79,10 @@ class BaseTrainer(ABC):
         for epoch in range(self.n_epochs):
             epoch_loss = 0.0
             self.cur_epoch = epoch
+            assert self.model.training, "model not in training mode, aborting"
             with trange(len(dataset)) as t:
                 for sample in dataset:
-                    X, _ = sample
+                    X, _, _ = sample
                     X = X.to(self.device).float()
 
                     # Reset gradient
@@ -109,7 +110,7 @@ class BaseTrainer(ABC):
         y_true, scores = [], []
         with torch.no_grad():
             for row in dataset:
-                X, y = row
+                X, y, _ = row
                 X = X.to(self.device).float()
 
                 score = self.score(X)
