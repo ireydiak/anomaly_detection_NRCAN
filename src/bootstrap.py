@@ -228,7 +228,7 @@ def train_model(
             print(results)
             for k, v in results.items():
                 all_results[k].append(v)
-            store_model(model, model.name, dataset_name, model_path)
+            store_model(model, model.name, dataset_name, None)
             model.reset()
 
             if i < n_runs - 1:
