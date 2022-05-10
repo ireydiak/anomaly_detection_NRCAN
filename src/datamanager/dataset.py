@@ -8,31 +8,31 @@ from typing import Tuple
 
 
 class AbstractDataset(Dataset):
-    def __init__(self, path: str, pct: float = 1.0, **kwargs):
+    def __init__(self, path: str, pct: float = 1.0, seed=None, **kwargs):
         self.name = self.__class__.__name__
+        self.labels = np.array([])
         X = self._load_data(path)
         anomaly_label = kwargs.get('anomaly_label', 1)
         normal_label = kwargs.get('normal_label', 0)
 
         if pct < 1.0:
-            # Keeps `pct` percent of the original data while preserving
-            # the normal/anomaly ratio
-            anomaly_idx = np.where(X[:, -1] == anomaly_label)[0]
+            # Keeps `pct` percent of normal labels
             normal_idx = np.where(X[:, -1] == normal_label)[0]
-            np.random.shuffle(anomaly_idx)
+            anomaly_idx = np.where(X[:, -1] == anomaly_label)[0]
+
+            if seed:
+                np.random.seed(seed)
             np.random.shuffle(normal_idx)
 
             X = np.concatenate(
-                (X[anomaly_idx[:int(len(anomaly_idx) * pct)]],
-                 X[normal_idx[:int(len(normal_idx) * pct)]])
+                (X[anomaly_idx],
+                 X[normal_idx[int(len(normal_idx) * pct):]])
             )
-            self.X = X[:, :-1]
-            self.y = X[:, -1]
-        else:
-            self.X = X[:, :-1]
-            self.y = X[:, -1]
+        self.X = X[:, :-1]
+        self.y = X[:, -1]
+        if self.labels.size == 0:
+            self.labels = self.y
 
-        self.labels = self.y
         self.anomaly_ratio = (X[:, -1] == anomaly_label).sum() / len(X)
         self.n_instances = self.X.shape[0]
         self.in_features = self.X.shape[1]
@@ -45,16 +45,15 @@ class AbstractDataset(Dataset):
 
     def _load_data(self, path: str):
         if path.endswith(".npz"):
-            return np.load(path)[self.npz_key()]
+            data = np.load(path)[self.npz_key()]
         elif path.endswith(".npy"):
             data = np.load(path)
-            return data
         elif path.endswith(".mat"):
             data = scipy.io.loadmat(path)
-            X = np.concatenate((data['X'], data['y']), axis=1)
-            return X
+            data = np.concatenate((data['X'], data['y']), axis=1)
         else:
             raise RuntimeError(f"Could not open {path}. Dataset can only read .npz and .mat files.")
+        return data
 
     def D(self):
         return self.X.shape[1]
@@ -102,7 +101,6 @@ class AbstractDataset(Dataset):
 
 
 class ArrhythmiaDataset(AbstractDataset):
-
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.name = "Arrhythmia"
@@ -117,7 +115,6 @@ class IDS2017Dataset(AbstractDataset):
         super(IDS2017Dataset, self).__init__(**kwargs)
 
     def _load_data(self, path: str):
-        assert path.endswith(".csv"), "expected .csv; got {}".format(path)
         df = pd.read_csv(path)
         if self.selected_features:
             df = df[self.selected_features + ["Label", "Category"]]
@@ -135,9 +132,28 @@ class IDS2017Dataset(AbstractDataset):
 
 class IDS2018Dataset(AbstractDataset):
 
-    def __init__(self, **kwargs):
+    def __init__(self, features: list = None, **kwargs):
+        self.selected_features = features
         super().__init__(**kwargs)
         self.name = "IDS2018"
+
+    def _load_data(self, path: str):
+        if path.endswith(".npz"):
+            return np.load(path)[self.npz_key()]
+        else:
+            df = pd.read_csv(path)
+            if self.selected_features:
+                df = df[self.selected_features + ["Label", "Category"]]
+            self.columns = list(df.columns)
+            labels = df["Category"].to_numpy()
+            y = df["Label"].astype(np.int8).to_numpy()
+            X = df.drop(["Label", "Category"], axis=1).astype(np.float32).to_numpy()
+            self.labels = labels
+            assert np.isnan(X).sum() == 0, "detected nan values"
+            assert X[X < 0].sum() == 0, "detected negative values"
+            return np.concatenate(
+                (X, np.expand_dims(y, 1)), axis=1
+            )
 
     def npz_key(self):
         return "ids2018"

@@ -1,3 +1,4 @@
+import os
 import torch
 import numpy as np
 import matplotlib.pyplot as plt
@@ -11,54 +12,57 @@ from src.trainer.base import BaseTrainer
 from src.utils import metrics
 
 
-def plot_metrics(precision, recall, figname='fig1.png'):
-    """
-    Function that plots train and validation losses and accuracies after
-    training phase
-    """
-    epochs = range(1, len(precision) + 1)
-
-    f, ax1 = plt.subplots(figsize=(10, 5))
-
-    ax1.plot(
-        epochs, precision, '-o', label='Test precision', c="blue"
-    )
-    ax1.plot(
-        epochs, recall, '-o', label='Test recall', c="orange"
-    )
-    ax1.set_title('Test recall and precision')
-    ax1.set_xlabel('Epochs')
-    ax1.set_ylabel('Metrics')
-    ax1.legend()
-
-    f.savefig(figname)
-    plt.show()
-
-
 class IDSTrainer(BaseTrainer, ABC):
     def __init__(self,
-                 ckpt_fname: str = None,
+                 ckpt_root: str = None,
                  run_test_validation=False,
                  keep_ckpt=False,
                  thresh_mode="auto",
                  validation_ldr=None,
                  **kwargs):
         super().__init__(**kwargs)
-        self.ckpt_fname = ckpt_fname
-        self.metric_values = {"test_precision": [], "test_recall": []}
-        self.ckpt_fname = ckpt_fname or self.model.name.lower()
-        self.ckpt_file = None
+        self.metric_values = {"precision": [], "recall": [], "aupr": []}
+        if ckpt_root:
+            ckpt_root = ckpt_root[:-1] if ckpt_root.endswith("/") else ckpt_root
+            self.ckpt_root = ckpt_root
+        else:
+            self.ckpt_root = "checkpoint"
         self.run_test_validation = run_test_validation
         self.keep_ckpt = keep_ckpt
         assert thresh_mode in ("auto", "optim"), "unknown option {} for `thresh_mode`".format(thresh_mode)
         self.thresh_mode = thresh_mode
         self.validation_ldr = validation_ldr
 
-    def train(self, dataset: DataLoader):
+    def plot_metrics(self, figname="fig1.png"):
+        """
+        Function that plots train and validation losses and accuracies after
+        training phase
+        """
+        precision, recall, aupr = self.metric_values["precision"], self.metric_values["recall"], self.metric_values["aupr"]
+        epochs = range(1, len(precision) + 1)
 
+        f, ax1 = plt.subplots(figsize=(10, 5))
+
+        ax1.plot(
+            epochs, precision, '-o', label="Test precision", c="b"
+        )
+        ax1.plot(
+            epochs, recall, '-o', label="Test recall", c="g"
+        )
+        ax1.plot(
+            epochs, aupr, '-o', label="Test AUPR", c="c"
+        )
+        ax1.set_title("Test Recall, Precision and AUPR")
+        ax1.set_xlabel("Epochs")
+        ax1.set_ylabel("Metrics")
+        ax1.legend()
+
+        f.savefig(figname)
+        plt.show()
+
+    def train(self, dataset: DataLoader):
         self.before_training(dataset)
         self.model.train(mode=True)
-        assert self.model.training, "Model not in training mode. Aborting"
 
         print("Started training")
         for epoch in range(self.n_epochs):
@@ -85,8 +89,9 @@ class IDSTrainer(BaseTrainer, ABC):
                         epoch=epoch + 1
                     )
                     t.update()
-            if self.ckpt_fname and epoch % 5 == 0:
-                self.save_ckpt(self.ckpt_fname + "_epoch={}.pt".format(epoch + 1))
+
+            if self.ckpt_root and epoch % 5 == 0:
+                self.save_ckpt(os.path.join(self.ckpt_root, "deepsvdd_epoch={}.pt".format(epoch + 1)))
 
             if self.run_test_validation and (epoch % 5 == 0 or epoch == 0):
                 y_true, scores, _ = self.test(self.validation_ldr)
@@ -94,8 +99,10 @@ class IDSTrainer(BaseTrainer, ABC):
                     test_res = metrics.estimate_optimal_threshold(scores, y_true)
                 else:
                     test_res, _ = metrics.score_recall_precision_w_threshold(scores, y_true)
-                self.metric_values["test_precision"].append(test_res["Precision"])
-                self.metric_values["test_recall"].append(test_res["Recall"])
+                self.metric_values["precision"].append(test_res["Precision"])
+                self.metric_values["recall"].append(test_res["Recall"])
+                self.metric_values["aupr"].append(test_res["AUPR"])
+
         self.after_training()
 
     def test(self, dataset: DataLoader):

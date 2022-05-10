@@ -33,7 +33,7 @@ class BaseTrainer(ABC):
         self.optimizer = self.set_optimizer(weight_decay=kwargs.get('weight_decay', 0))
         self.cur_epoch = None
         self.use_cuda = "cuda" in device
-        self.ckpt_fname = ckpt_fname
+        self.ckpt_root = ckpt_fname
 
     @staticmethod
     def load_from_file(fname: str, trainer, model: BaseModel, device: str = None):
@@ -100,8 +100,8 @@ class BaseTrainer(ABC):
                         epoch=epoch + 1
                     )
                     t.update()
-            if self.ckpt_fname and epoch % 5 == 0:
-                self.save_ckpt(self.ckpt_fname + "_epoch={}.pt".format(epoch+1))
+            if self.ckpt_root and epoch % 5 == 0:
+                self.save_ckpt(self.ckpt_root + "_epoch={}.pt".format(epoch + 1))
 
         self.after_training()
 
