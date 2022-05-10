@@ -112,12 +112,14 @@ def resolve_model_trainer(
 ):
     if model_name == "DUAD":
         model = DUAD(
-            dataset.in_features,
-            10,
+            r=duad_r,
+            p0=duad_p_0,
+            ps=duad_p_s,
             dataset_name=dataset.name,
             in_features=dataset.in_features,
             n_instances=dataset.n_instances,
-            device=device
+            device=device,
+            ae_latent_dim=ae_latent_dim
         )
         trainer = DUADTrainer(
             model=model,

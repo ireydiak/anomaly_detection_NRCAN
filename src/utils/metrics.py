@@ -89,7 +89,7 @@ def _estimate_optimal_threshold(test_score, y_test, pos_label=1, nq=100):
 
         confusion_matrices.append(cm)
         result_search.append([accuracy, precision, recall, f_score])
-        print(f"qi:{qi:.3f} ==> p:{precision:.3f}  r:{recall:.3f}  f1:{f_score:.3f}")
+        # print(f"qi:{qi:.3f} ==> p:{precision:.3f}  r:{recall:.3f}  f1:{f_score:.3f}")
         f1[i] = f_score
         r[i] = recall
         p[i] = precision

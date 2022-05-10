@@ -8,7 +8,7 @@ class DUAD(BaseModel):
         self.p0 = p0
         self.p = p
         self.r = r
-        self.latent_dim = 1
+        self.latent_dim = kwargs.get('ae_latent_dim', 1)
         self.name = "DUAD"
         self.ae = None
         super(DUAD, self).__init__(**kwargs)
