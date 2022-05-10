@@ -157,7 +157,7 @@ class AbstractDataset(Dataset):
         ])
         test_set = Subset(self, remaining_idx)
 
-        print(len(self.y) , (len(test_set) + len(train_set) + len(val_set)))
+        print(len(self.y), (len(test_set) + len(train_set) + len(val_set)))
 
         return train_set, test_set, val_set
 
@@ -199,11 +199,19 @@ class ArrhythmiaDataset(AbstractDataset):
 class IDS2018Dataset(AbstractDataset):
 
     def __init__(self, **kwargs):
-        super().__init__(**kwargs)
+        super(IDS2018Dataset, self).__init__(**kwargs)
         self.name = "IDS2018"
+
+    def _load_data(self, path: str):
+        data = np.load(path)[self.npz_key()]
+        self.labels = data[:, -1]
+        return data[:, :-1]
 
     def npz_key(self):
         return "ids2018"
+
+    def __getitem__(self, index) -> T_co:
+        return self.X[index], self.y[index], self.labels[index]
 
 
 class KDD10Dataset(AbstractDataset):

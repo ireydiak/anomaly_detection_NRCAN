@@ -160,6 +160,7 @@ def clean_step(path_to_files: str, export_path: str) -> pd.DataFrame:
         deleted_rows += (before_drop - len(chunk))
 
         # Converting labels to binary values
+        chunk['Label_cat'] = chunk['Label']
         chunk['Label'] = chunk['Label'].apply(lambda x: NORMAL_LABEL if x == 'Benign' else ANORMAL_LABEL)
 
         # Adding chunk to chunks
@@ -224,7 +225,7 @@ def normalize_step(df: pd.DataFrame, cols: list, base_path: str, fname: str):
 
 if __name__ == '__main__':
     # Assumes `path` points to the location of the original CSV files.
-    # `path` must only contain CSV files and not other file types such as folders. 
+    # `path` must only contain CSV files and not other file types such as folders.
     path, export_path, backup, _ = utils.parse_args()
     # 0 - Prepare folder structure
     utils.prepare(export_path)
@@ -240,7 +241,7 @@ if __name__ == '__main__':
     
     # 2 - Normalize numerical values and treat categorical values
     to_process = [
-        (list(set(COLS) - set(COLS_TO_DROP) - {'Label'}), 'feature_group_5'),
+        (list(set(COLS) - set(COLS_TO_DROP) - {'Label', 'Label_cat'}), 'feature_group_5'),
         # (["Dst Port", *rank_7_otf_7], 'feature_group_4'),
         # (["Dst Port", *rank_6_otf_7], 'feature_group_3'),
         # (["Dst Port", *rank_5_otf_7], 'feature_group_2'),
@@ -251,6 +252,7 @@ if __name__ == '__main__':
         # (rank_5_otf_7, 'feature_group_2A'),
         # (rank_4_otf_7, 'feature_group_1A'),
     ]
+    df['Label_cat'] = df['Label_cat'].astype('category')
     df['Dst Port'] = df['Dst Port'].astype('category')
     for features, fname in to_process:
         normalize_step(df, features, export_path, fname)

@@ -44,7 +44,7 @@ class DUADTrainer:
         self.device = device
         self.model = model.to(self.device)
         self.optimizer = optim.Adam(self.model.parameters(), lr=self.lr,
-                                    weight_decay=kwargs.get('duad_num_cluster', 20))
+                                    weight_decay=kwargs.get('weight_decay', 0))
 
         self.criterion = nn.MSELoss()
 
