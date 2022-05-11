@@ -167,10 +167,10 @@ def clean_step(path_to_files: str, export_path: str) -> pd.DataFrame:
         chunks.append(chunk)
         
         # backup
-        chunk.to_csv(
-            f"{export_path}/{utils.folder_struct['clean_step']}/{f}",
-            sep=',', encoding='utf-8', index=False
-        )
+        # chunk.to_csv(
+        #     f"{export_path}/{utils.folder_struct['clean_step']}/{f}",
+        #     sep=',', encoding='utf-8', index=False
+        # )
 
 
     stats = {
@@ -199,6 +199,7 @@ def normalize_step(df: pd.DataFrame, cols: list, base_path: str, fname: str):
         df = enc.fit_transform(X, y_prime)
     # Keep labels aside
     y = df['Label'].to_numpy()
+    source_label = df['Label_cat'].to_numpy()
     # Keep only a subset of the features
     df = df[cols]
     # Normalize numerical data
@@ -207,19 +208,21 @@ def normalize_step(df: pd.DataFrame, cols: list, base_path: str, fname: str):
     # This way we avoid normalizing values that are already between 0 and 1.
     to_scale = df[num_cols][(df[num_cols] < 0.0).any(axis=1) & (df[num_cols] > 1.0).any(axis=1)].columns
     print(f'Scaling {len(to_scale)} columns')
-    df[to_scale] = scaler.fit_transform(df[to_scale].values.astype(np.float64))
+    df[to_scale] = scaler.fit_transform(df[to_scale].values.astype(np.float))
     # Merge normalized dataframe with labels
     X = np.concatenate(
         (df.values, y.reshape(-1, 1)),
         axis=1
     )
-    df.to_csv(
-        f'{base_path}/{utils.folder_struct["normalize_step"]}/{fname}.csv',
-        sep=',', encoding='utf-8', index=False
-    )
-    print(f'Saved {base_path}/{utils.folder_struct["normalize_step"]}/{fname}.csv')
+    # df.to_csv(
+    #     f'{base_path}/{utils.folder_struct["normalize_step"]}/{fname}.csv',
+    #     sep=',', encoding='utf-8', index=False
+    # )
+    # print(f'Saved {base_path}/{utils.folder_struct["normalize_step"]}/{fname}.csv')
     del df
-    np.savez(f'{base_path}/{utils.folder_struct["minify_step"]}/{fname}.npz', ids2018=X.astype(np.float64))
+
+    np.savez_compressed(f'{base_path}/{utils.folder_struct["minify_step"]}/{fname}.npz', ids2018=X, label=source_label)
+    # np.savez(f'{base_path}/{utils.folder_struct["minify_step"]}/{fname}_label.npz', ids2018=)
     print(f'Saved {base_path}/{fname}.npz')
 
 
