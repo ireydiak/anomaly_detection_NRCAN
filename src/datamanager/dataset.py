@@ -128,8 +128,12 @@ class AbstractDataset(Dataset):
             abnorm_test_idx = abnormal_data_idx[shuffled_abnorm_idx[:num_abnorm_test_sample]]
 
             if contamination_rate > 0:
-                num_abnorm_to_inject = int(len(shuffled_abnorm_idx[
-                                               num_abnorm_test_sample:]) * contamination_rate)
+                # num_abnorm_to_inject = int(len(shuffled_abnorm_idx[
+                #                                num_abnorm_test_sample:]) * contamination_rate)
+
+                num_abnorm_to_inject = int(normal_train_idx.shape[0] * contamination_rate/(1 - contamination_rate))
+
+                assert num_abnorm_to_inject <= len(shuffled_abnorm_idx[num_abnorm_test_sample:])
 
                 normal_train_idx = np.concatenate([
                     abnormal_data_idx[shuffled_abnorm_idx[
