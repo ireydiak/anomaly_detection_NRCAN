@@ -207,9 +207,10 @@ class IDS2018Dataset(AbstractDataset):
         self.name = "IDS2018"
 
     def _load_data(self, path: str):
-        data = np.load(path)[self.npz_key()]
-        # self.labels = data[:, -1]
-        return data
+        data = np.load(path, allow_pickle=True)
+        X = data[self.npz_key()]
+        self.labels = data['label']
+        return X
 
     def npz_key(self):
         return "ids2018"
