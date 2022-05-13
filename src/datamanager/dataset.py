@@ -196,7 +196,7 @@ class IDS2018Dataset(AbstractDataset):
                          holdout=0.05,
                          contamination_rate=0.01,
                          validation_ratio: float = .2,
-                         seed=None, debug=True, corruption_label="DDOS") -> Tuple[Subset, Subset, Subset]:
+                         seed=None, debug=True, corruption_label=None) -> Tuple[Subset, Subset, Subset]:
         assert (label == 0 or label == 1)
         assert 1 > holdout  # >=
         assert 0 <= contamination_rate <= 1
@@ -233,13 +233,16 @@ class IDS2018Dataset(AbstractDataset):
                 #                                num_abnorm_test_sample:]) * contamination_rate)
                 holdout_ano_idx = abnormal_data_idx[shuffled_abnorm_idx[num_abnorm_test_sample:]]
 
+                # Injection of only specified type of attacks
                 if corruption_label:
                     all_labels = np.char.lower(self.labels[holdout_ano_idx].astype('str'))
                     corruption_label = corruption_label.lower()
                     corruption_by_lbl_idx = np.char.startswith(all_labels,
-                                                               corruption_label)  # np.where(self.labels[holdout_ano_idx] == corruption_label)
+                                                               corruption_label)
                     holdout_ano_idx = holdout_ano_idx[corruption_by_lbl_idx]
 
+                # Colculate the number of abnormal samples to inject
+                # according to the contamination rate
                 num_abnorm_to_inject = int(normal_train_idx.shape[0] * contamination_rate / (1 - contamination_rate))
 
                 assert num_abnorm_to_inject <= len(holdout_ano_idx)
