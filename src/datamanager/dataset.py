@@ -216,7 +216,7 @@ class IDS2018Dataset(AbstractDataset):
         return "ids2018"
 
     def __getitem__(self, index) -> T_co:
-        return self.X[index], self.y[index], self.labels[index]
+        return self.X[index], self.y[index], index, self.labels[index]
 
 
 class KDD10Dataset(AbstractDataset):

@@ -63,7 +63,7 @@ class BaseTrainer(ABC):
             #     print(f'validation score: loss:{loss:.3f}, score:{np.mean(self.test(val_loader)[1]):.3f}')
             with trange(len(train_loader)) as t:
                 for sample in train_loader:
-                    X, _ = sample
+                    X = sample[0]
                     X = X.to(self.device).float()
                     # TODO handle this just for trainer DBESM
                     # if len(X) < self.batch_size:
@@ -93,7 +93,7 @@ class BaseTrainer(ABC):
         with torch.no_grad():
             loss = 0
             for row in dataset:
-                X, _ = row
+                X = row[0]
                 X = X.to(self.device).float()
                 loss += self.train_iter(X)
             loss /= len(dataset)
@@ -106,7 +106,7 @@ class BaseTrainer(ABC):
         y_true, scores = [], []
         with torch.no_grad():
             for row in dataset:
-                X, y = row
+                X, y = row[0], row[1]
                 X = X.to(self.device).float()
                 # if len(X) < self.batch_size:
                 #     break
@@ -179,7 +179,7 @@ class BaseShallowTrainer(ABC):
     def test(self, dataset: DataLoader) -> Union[np.array, np.array]:
         y_true, scores = [], []
         for row in dataset:
-            X, y = row
+            X, y = row[0], row[1]
             score = self.score(X)
             y_true.extend(y.cpu().tolist())
             scores.extend(score)

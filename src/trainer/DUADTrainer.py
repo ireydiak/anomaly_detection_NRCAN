@@ -18,6 +18,7 @@ from datamanager.DataManager import DataManager
 from model.DUAD import DUAD
 from sklearn.mixture import GaussianMixture
 
+
 # from utils.metrics import score_recall_precision, score_recall_precision_w_thresold
 # from viz.viz import plot_2D_latent, plot_energy_percentile
 
@@ -100,19 +101,19 @@ class DUADTrainer:
 
         # selected_indices = indices[self.re_evaluation(X, self.p0, self.num_cluster)]
 
-        sel_from_clustering = self.re_evaluation(X, self.p0, self.num_cluster)
-        selected_indices = indices[sel_from_clustering]
-
-        print(f"label 0 ratio:{(y == 0).sum() / len(y)}"
-              f"\n")
-        print(f"label 1 ratio:{(y == 1).sum() / len(y)}"
-              f"\n")
-        print(f"selected label 0 ratio:{(y[sel_from_clustering] == 0).sum() / len(y)}"
-              f"\n")
-        print(f"selected label 1 ratio:{(y[sel_from_clustering] == 1).sum() / len(y)}"
-              f"\n")
-
-        self.dm.update_train_set(selected_indices)
+        # sel_from_clustering = self.re_evaluation(X, self.p0, self.num_cluster)
+        # selected_indices = indices[sel_from_clustering]
+        #
+        # print(f"label 0 ratio:{(y == 0).sum() / len(y)}"
+        #       f"\n")
+        # print(f"label 1 ratio:{(y == 1).sum() / len(y)}"
+        #       f"\n")
+        # print(f"selected label 0 ratio:{(y[sel_from_clustering] == 0).sum() / len(y)}"
+        #       f"\n")
+        # print(f"selected label 1 ratio:{(y[sel_from_clustering] == 1).sum() / len(y)}"
+        #       f"\n")
+        #
+        # self.dm.update_train_set(selected_indices)
         train_ldr = self.dm.get_train_set()
 
         L = []
@@ -178,7 +179,7 @@ class DUADTrainer:
                             train_inputs = X_i[0].to(self.device).float()
                             loss += self.train_iter(train_inputs)
                             mean_loss = loss / (i + 1)
-                            t.set_postfix(loss='{:05.3f}'.format(mean_loss))
+                            t.set_postfix(loss='{:.3f}'.format(mean_loss))
                             t.update()
             print(f'Reeval  count:{reev_count}\n')
             reev_count += 1
@@ -186,108 +187,10 @@ class DUADTrainer:
             # break
         return mean_loss
 
-    def train__(self, n_epochs: int):
-        mean_loss = np.inf
-        self.dm.update_train_set(self.dm.get_selected_indices())
-        train_ldr = self.dm.get_train_set()
-
-        # run clustering, select instances from low variance clusters
-        X = []
-        y = []
-        indices = []
-        for i, X_i in enumerate(train_ldr, 0):
-            X.append(X_i[0])
-            indices.append(X_i[2])
-            y.append(X_i[1])
-
-        X = torch.cat(X, axis=0)
-
-        indices = torch.cat(indices, axis=0)
-        y = torch.cat(y, axis=0).cpu().numpy().astype(int)
-
-        sel_from_clustering = self.re_evaluation(X, self.p0, self.num_cluster)
-        selected_indices = indices[sel_from_clustering]
-        print(f"label 0 ratio:{(y[sel_from_clustering] == 0).sum() / len(y)}"
-              f"")
-        # TODO
-        # to uncomment
-        # self.dm.update_train_set(selected_indices)
-
-        train_ldr = self.dm.get_train_set()
-
-        L = selected_indices.cpu().numpy()
-        L_old = [-1]
-        # print(set(L).difference(set(L_old)))
-        while len(set(L_old).difference(set(L))) != 0:
-            for epoch in range(n_epochs):
-                print(f"\nEpoch: {epoch + 1} of {n_epochs}")
-                if False and (epoch + 1) % self.r == 0:
-                    self.model.eval()
-                    L_old = deepcopy(L)
-                    with torch.no_grad():
-                        # TODO
-                        # Re-evaluate normality every r epoch
-                        print("\nRe-evaluation")
-                        indices = []
-                        Z = []
-                        X = []
-                        y = []
-                        X_loader = self.dm.get_init_train_loader()
-                        for i, X_i in enumerate(X_loader, 0):
-                            indices.append(X_i[2])
-                            train_inputs = X_i[0].to(self.device).float()
-                            code, X_prime, Z_r = self.model(train_inputs)
-                            Z_i = torch.cat([code, Z_r.unsqueeze(-1)], axis=1)
-                            Z.append(Z_i)
-                            X.append(X_i)
-                            y.append(X_i[1])
-
-                        # X = torch.cat(X, axis=0)
-                        indices = torch.cat(indices, axis=0)
-                        Z = torch.cat(Z, axis=0)
-                        y = torch.cat(y, axis=0).cpu().numpy()
-
-                        # plot_2D_latent(Z.cpu(), y)
-
-                        selection_mask = self.re_evaluation(Z.cpu(), self.p, self.num_cluster)
-                        selected_indices = indices[selection_mask]
-                        y_s = y[selection_mask.cpu().numpy()]
-
-                        print(f"label 0 ratio:{(y_s == 0).sum() / len(y_s)}"
-                              f"")
-                        print(f"label 1 ratio:{(y_s == 1).sum() / len(y_s)}"
-                              f"")
-
-                        self.dm.update_train_set(selected_indices)
-                        train_ldr = self.dm.get_train_set()
-
-                    # switch back to train mode
-                    self.model.train()
-                    L = selected_indices.cpu().numpy()
-                    print(
-                        f"Back to training--size L_old:{len(L_old)}, L:{len(L)}, "
-                        f"diff:{len(set(L_old).difference(set(L)))}\n")
-
-                else:
-                    # TODO
-                    # Train with the current trainset
-                    loss = 0
-
-                    with trange(len(train_ldr)) as t:
-                        for i, X_i in enumerate(train_ldr, 0):
-                            train_inputs = X_i[0].to(self.device).float()
-                            loss += self.train_iter(train_inputs)
-                            mean_loss = loss / (i + 1)
-                            t.set_postfix(loss='{:05.3f}'.format(mean_loss))
-                            t.update()
-            self.evaluate_on_test_set()
-            break
-        return mean_loss
-
     def train_iter(self, X):
 
         code, X_prime, Z_r = self.model(X)
-        l2_z = (torch.cat([code, Z_r.unsqueeze(-1)], axis=1).norm(2, dim=1)).mean()
+        l2_z = (torch.cat([code, Z_r.unsqueeze(-1)], axis=1).norm(2, dim=1)).mean() # (code.norm(2, dim=1)).mean()  # (torch.cat([code, Z_r.unsqueeze(-1)], axis=1).norm(2, dim=1)).mean()
         reg = 0.5
         loss = ((X - X_prime) ** 2).sum(axis=-1).mean() + reg * l2_z  # self.criterion(X, X_prime)
 

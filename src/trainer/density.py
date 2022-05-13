@@ -55,7 +55,7 @@ class DSEBMTrainer(BaseTrainer):
         y_true, scores = [], []
         scores_e, scores_r = [], []
         for row in dataset:
-            X, y = row
+            X, y = row[0], row[1]
             X = X.to(self.device).float()
 
             if len(X) < self.batch_size:

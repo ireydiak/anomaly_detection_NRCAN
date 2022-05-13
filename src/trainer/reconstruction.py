@@ -56,7 +56,7 @@ class DAGMMTrainer(BaseTrainer):
         with torch.no_grad():
             scores, y_true = [], []
             for row in dataset:
-                X, y = row
+                X, y = row[0], row[1]
                 X = X.to(self.device).float()
                 # forward pass
                 code, x_prime, cosim, z, gamma = self.model(X)
@@ -230,7 +230,7 @@ class SOMDAGMMTrainer(BaseTrainer):
         with torch.no_grad():
             scores, y_true = [], []
             for row in dataset:
-                X, y = row
+                X, y = row[0], row[1]
                 X = X.to(self.device).float()
 
                 sample_energy, _ = self.score(X)
