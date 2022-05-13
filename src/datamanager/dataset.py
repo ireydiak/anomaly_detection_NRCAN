@@ -121,7 +121,7 @@ class AbstractDataset(Dataset):
                   f"\nNegative class :{len(normal_data_idx)}\n")
 
         if holdout > 0:
-            # Generate test set by holding out a percentage [holdout] of abnormal
+            # Generate test set by holding out a percentage [holdout] of abnormal data
             # sample for a possible contamination
             shuffled_abnorm_idx = torch.randperm(len(abnormal_data_idx)).long()
             num_abnorm_test_sample = int(len(abnormal_data_idx) * (1 - holdout))
@@ -131,7 +131,7 @@ class AbstractDataset(Dataset):
                 # num_abnorm_to_inject = int(len(shuffled_abnorm_idx[
                 #                                num_abnorm_test_sample:]) * contamination_rate)
 
-                num_abnorm_to_inject = int(normal_train_idx.shape[0] * contamination_rate/(1 - contamination_rate))
+                num_abnorm_to_inject = int(normal_train_idx.shape[0] * contamination_rate / (1 - contamination_rate))
 
                 assert num_abnorm_to_inject <= len(shuffled_abnorm_idx[num_abnorm_test_sample:])
 
@@ -165,30 +165,6 @@ class AbstractDataset(Dataset):
 
         return train_set, test_set, val_set
 
-    def split_train_test_(self, test_pct: float = .5, label: int = 0, seed=None) -> Tuple[Subset, Subset]:
-        assert (label == 0 or label == 1)
-
-        if seed:
-            torch.manual_seed(seed)
-
-        # Fetch and shuffle indices of a single class
-        label_data_idx = np.where(self.y == label)[0]
-        shuffled_idx = torch.randperm(len(label_data_idx)).long()
-
-        # Generate training set
-        num_test_sample = int(len(label_data_idx) * test_pct)
-        num_train_sample = int(len(label_data_idx) * (1. - test_pct))
-        train_set = Subset(self, label_data_idx[shuffled_idx[num_train_sample:]])
-
-        # Generate test set based on the remaining data and the previously filtered out labels
-        remaining_idx = np.concatenate([
-            label_data_idx[shuffled_idx[:num_test_sample]],
-            np.where(self.y == int(not label))[0]
-        ])
-        test_set = Subset(self, remaining_idx)
-
-        return train_set, test_set
-
 
 class ArrhythmiaDataset(AbstractDataset):
 
@@ -214,6 +190,87 @@ class IDS2018Dataset(AbstractDataset):
 
     def npz_key(self):
         return "ids2018"
+
+    def split_train_test(self, test_pct: float = .5,
+                         label: int = 0,
+                         holdout=0.05,
+                         contamination_rate=0.01,
+                         validation_ratio: float = .2,
+                         seed=None, debug=True, corruption_label="DDOS") -> Tuple[Subset, Subset, Subset]:
+        assert (label == 0 or label == 1)
+        assert 1 > holdout  # >=
+        assert 0 <= contamination_rate <= 1
+
+        # if seed:
+        #     torch.manual_seed(seed)
+
+        # Fetch and shuffle indices of a single class
+        normal_data_idx = np.where(self.y == label)[0]
+        shuffled_norm_idx = torch.randperm(len(normal_data_idx)).long()
+
+        # Generate training set indices
+        num_norm_test_sample = int(len(normal_data_idx) * test_pct)
+        num_norm_train_sample = int(len(normal_data_idx) * (1. - test_pct))
+        normal_train_idx = normal_data_idx[shuffled_norm_idx[num_norm_train_sample:]]
+
+        #
+        abnormal_data_idx = np.where(self.y == int(not label))[0]
+        abnorm_test_idx = abnormal_data_idx
+
+        if debug:
+            print(f"Dataset size\nPositive class :{len(abnormal_data_idx)}"
+                  f"\nNegative class :{len(normal_data_idx)}\n")
+
+        if holdout > 0:
+            # Generate test set by holding out a percentage [holdout] of abnormal data
+            # sample for a possible contamination
+            shuffled_abnorm_idx = torch.randperm(len(abnormal_data_idx)).long()
+            num_abnorm_test_sample = int(len(abnormal_data_idx) * (1 - holdout))
+            abnorm_test_idx = abnormal_data_idx[shuffled_abnorm_idx[:num_abnorm_test_sample]]
+
+            if contamination_rate > 0:
+                # num_abnorm_to_inject = int(len(shuffled_abnorm_idx[
+                #                                num_abnorm_test_sample:]) * contamination_rate)
+                holdout_ano_idx = abnormal_data_idx[shuffled_abnorm_idx[num_abnorm_test_sample:]]
+
+                if corruption_label:
+                    all_labels = np.char.lower(self.labels[holdout_ano_idx].astype('str'))
+                    corruption_label = corruption_label.lower()
+                    corruption_by_lbl_idx = np.char.startswith(all_labels,
+                                                               corruption_label)  # np.where(self.labels[holdout_ano_idx] == corruption_label)
+                    holdout_ano_idx = holdout_ano_idx[corruption_by_lbl_idx]
+
+                num_abnorm_to_inject = int(normal_train_idx.shape[0] * contamination_rate / (1 - contamination_rate))
+
+                assert num_abnorm_to_inject <= len(holdout_ano_idx)
+
+                normal_train_idx = np.concatenate([
+                    holdout_ano_idx[:num_abnorm_to_inject],
+                    normal_train_idx
+                ])
+
+        # Generate training set with contamination when applicable
+        # Split the training set to train and validation
+        normal_train_idx, normal_val_idx = random_split_to_two(normal_train_idx, ratio=validation_ratio)
+
+        train_set = Subset(self, normal_train_idx)
+        val_set = Subset(self, normal_val_idx)
+        if debug:
+            print(
+                f'Training set\n'
+                f'Contamination rate: '
+                f'{len(np.where(self.y[normal_train_idx] == int(not label))[0]) / len(normal_train_idx)}\n')
+
+        # Generate test set based on the remaining data and the previously filtered out labels
+        remaining_idx = np.concatenate([
+            normal_data_idx[shuffled_norm_idx[:num_norm_test_sample]],
+            abnorm_test_idx
+        ])
+        test_set = Subset(self, remaining_idx)
+
+        print(len(self.y), (len(test_set) + len(train_set) + len(val_set)))
+
+        return train_set, test_set, val_set
 
     def __getitem__(self, index) -> T_co:
         return self.X[index], self.y[index], index, self.labels[index]

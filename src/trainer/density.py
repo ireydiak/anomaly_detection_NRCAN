@@ -57,10 +57,6 @@ class DSEBMTrainer(BaseTrainer):
         for row in dataset:
             X, y = row[0], row[1]
             X = X.to(self.device).float()
-
-            if len(X) < self.batch_size:
-                break
-
             score_e, score_r = self.score(X)
 
             y_true.extend(y.cpu().tolist())
