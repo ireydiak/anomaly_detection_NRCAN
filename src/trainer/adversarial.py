@@ -82,7 +82,7 @@ class ALADTrainer(BaseTrainer):
             ge_losses, d_losses = 0, 0
             with trange(len(train_loader)) as t:
                 for sample in train_loader:
-                    X, _ = sample
+                    X = sample[0]
                     X_dis, X_gen = X.to(self.device).float(), X.clone().to(self.device).float()
                     # Forward pass
                     loss_d = self.train_iter_dis(X_dis)

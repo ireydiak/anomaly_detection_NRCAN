@@ -241,7 +241,7 @@ class IDS2018Dataset(AbstractDataset):
                                                                corruption_label)
                     holdout_ano_idx = holdout_ano_idx[corruption_by_lbl_idx]
 
-                # Colculate the number of abnormal samples to inject
+                # Calculate the number of abnormal samples to inject
                 # according to the contamination rate
                 num_abnorm_to_inject = int(normal_train_idx.shape[0] * contamination_rate / (1 - contamination_rate))
 
