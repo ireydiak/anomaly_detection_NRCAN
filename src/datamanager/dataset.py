@@ -11,10 +11,18 @@ from utils.utils import random_split_to_two
 class AbstractDataset(Dataset):
     def __init__(self, path: str, pct: float = 1.0, **kwargs):
         self.name = self.__class__.__name__
+
+        self.labels = None
         X = self._load_data(path)
+
+        self.X, self.y, self.anomaly_ratio = self.select_data_subset(pct, X, **kwargs)
+
+        self.n_instances = self.X.shape[0]
+        self.in_features = self.X.shape[1]
+
+    def select_data_subset(self, pct, X, **kwargs):
         anomaly_label = kwargs.get('anomaly_label', 1)
         normal_label = kwargs.get('normal_label', 0)
-
         if pct < 1.0:
             # Keeps `pct` percent of the original data while preserving
             # the normal/anomaly ratio
@@ -27,15 +35,14 @@ class AbstractDataset(Dataset):
                 (X[anomaly_idx[:int(len(anomaly_idx) * pct)]],
                  X[normal_idx[:int(len(normal_idx) * pct)]])
             )
-            self.X = X[:, :-1]
-            self.y = X[:, -1]
-        else:
-            self.X = X[:, :-1]
-            self.y = X[:, -1]
 
-        self.anomaly_ratio = (X[:, -1] == anomaly_label).sum() / len(X)
-        self.n_instances = self.X.shape[0]
-        self.in_features = self.X.shape[1]
+            if self.labels:
+                self.labels = np.concatenate(
+                    (self.labels[anomaly_idx[:int(len(anomaly_idx) * pct)]],
+                     self.labels[normal_idx[:int(len(normal_idx) * pct)]])
+                )
+
+        return X[:, :-1], X[:, -1], (X[:, -1] == anomaly_label).sum() / len(X)
 
     def __len__(self):
         return len(self.X)
