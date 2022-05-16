@@ -8,6 +8,7 @@ from torch import nn
 from tqdm import trange
 
 from src.loss.EntropyLoss import EntropyLoss
+from src.model.base import BaseModel
 from src.trainer.base import BaseTrainer
 from src.utils import metrics
 
@@ -21,7 +22,7 @@ class IDSTrainer(BaseTrainer, ABC):
                  validation_ldr=None,
                  **kwargs):
         super().__init__(**kwargs)
-        self.metric_values = {"precision": [], "recall": [], "aupr": []}
+        self.metric_values = {"precision": [], "recall": [], "aupr": [], "f1-score": []}
         if ckpt_root:
             ckpt_root = ckpt_root[:-1] if ckpt_root.endswith("/") else ckpt_root
             self.ckpt_root = ckpt_root
@@ -38,7 +39,8 @@ class IDSTrainer(BaseTrainer, ABC):
         Function that plots train and validation losses and accuracies after
         training phase
         """
-        precision, recall, aupr = self.metric_values["precision"], self.metric_values["recall"], self.metric_values["aupr"]
+        precision, recall = self.metric_values["precision"], self.metric_values["recall"]
+        f1, aupr = self.metric_values["f1-score"], self.metric_values["aupr"]
         epochs = range(1, len(precision) + 1)
 
         f, ax1 = plt.subplots(figsize=(10, 5))
@@ -52,7 +54,10 @@ class IDSTrainer(BaseTrainer, ABC):
         ax1.plot(
             epochs, aupr, '-o', label="Test AUPR", c="c"
         )
-        ax1.set_title("Test Recall, Precision and AUPR")
+        ax1.plot(
+            epochs, f1, '-o', label="Test F1-Score", c="r"
+        )
+        ax1.set_title("Test Recall, Precision, AUPR and F1-Score")
         ax1.set_xlabel("Epochs")
         ax1.set_ylabel("Metrics")
         ax1.legend()
@@ -64,34 +69,29 @@ class IDSTrainer(BaseTrainer, ABC):
         self.before_training(dataset)
         self.model.train(mode=True)
 
-        print("Started training")
         for epoch in range(self.n_epochs):
             epoch_loss = 0.0
             self.cur_epoch = epoch
             assert self.model.training, "model not in training mode, aborting"
-            with trange(len(dataset)) as t:
-                for sample in dataset:
-                    X, _, _ = sample
-                    X = X.to(self.device).float()
+            for sample in dataset:
+                X, _, _ = sample
+                X = X.to(self.device).float()
 
-                    # Reset gradient
-                    self.optimizer.zero_grad()
+                # Reset gradient
+                self.optimizer.zero_grad()
 
-                    loss = self.train_iter(X)
+                loss = self.train_iter(X)
 
-                    # Backpropagation
-                    loss.backward()
-                    self.optimizer.step()
+                # Backpropagation
+                loss.backward()
+                self.optimizer.step()
 
-                    epoch_loss += loss.item()
-                    t.set_postfix(
-                        loss='{:05.3f}'.format(epoch_loss / (epoch + 1)),
-                        epoch=epoch + 1
-                    )
-                    t.update()
+                epoch_loss += loss.item()
 
+            if epoch % 10 == 0:
+                print("Epoch={}\tLoss={:2.4f}".format(epoch, epoch_loss))
             if self.ckpt_root and epoch % 5 == 0:
-                self.save_ckpt(os.path.join(self.ckpt_root, "deepsvdd_epoch={}.pt".format(epoch + 1)))
+                self.save_ckpt(os.path.join(self.ckpt_root, "{}_epoch={}.pt".format(self.model.name.lower(), epoch + 1)))
 
             if self.run_test_validation and (epoch % 5 == 0 or epoch == 0):
                 y_true, scores, _ = self.test(self.validation_ldr)
@@ -102,6 +102,7 @@ class IDSTrainer(BaseTrainer, ABC):
                 self.metric_values["precision"].append(test_res["Precision"])
                 self.metric_values["recall"].append(test_res["Recall"])
                 self.metric_values["aupr"].append(test_res["AUPR"])
+                self.metric_values["f1-score"].append(test_res["F1-Score"])
 
         self.after_training()
 
@@ -222,6 +223,20 @@ class DeepSVDDIDSTrainer(IDSTrainer):
             "R": self.R,
             "metric_values": self.metric_values
         }, fname)
+
+    @staticmethod
+    def load_from_file(fname: str, trainer, model: BaseModel, device: str = None):
+        device = device or torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        ckpt = torch.load(fname, map_location=device)
+        metric_values = ckpt["metric_values"]
+        model = model.load_from_ckpt(ckpt, model)
+        trainer.model = model
+        trainer.c = ckpt["c"]
+        trainer.R = ckpt["R"]
+        trainer.optimizer.load_state_dict(ckpt["optimizer_state_dict"])
+        trainer.metric_values = metric_values
+
+        return trainer, model
 
     def init_center_c(self, train_loader, eps=0.1):
         """Initialize hypersphere center c as the mean from an initial forward pass on the data.

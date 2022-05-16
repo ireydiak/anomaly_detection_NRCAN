@@ -33,7 +33,8 @@ class AbstractDataset(Dataset):
         if self.labels.size == 0:
             self.labels = self.y
 
-        self.anomaly_ratio = (X[:, -1] == anomaly_label).sum() / len(X)
+        self.shape = X.shape
+        self.anomaly_ratio = (self.y == anomaly_label).sum() / len(X)
         self.n_instances = self.X.shape[0]
         self.in_features = self.X.shape[1]
 
@@ -57,9 +58,6 @@ class AbstractDataset(Dataset):
 
     def D(self):
         return self.X.shape[1]
-
-    def shape(self):
-        return self.X.shape
 
     def get_data_index_by_label(self, label):
         return np.where(self.y == label)[0]
@@ -147,7 +145,7 @@ class IDS2018Dataset(AbstractDataset):
             self.columns = list(df.columns)
             labels = df["Category"].to_numpy()
             y = df["Label"].astype(np.int8).to_numpy()
-            X = df.drop(["Label", "Category"], axis=1).astype(np.float32).to_numpy()
+            X = df.drop(["Label", "Category"], axis=1).astype(np.float64).to_numpy()
             self.labels = labels
             assert np.isnan(X).sum() == 0, "detected nan values"
             assert X[X < 0].sum() == 0, "detected negative values"
