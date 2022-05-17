@@ -63,7 +63,7 @@ class DeepSVDDTrainer(BaseTrainer):
         with torch.no_grad():
             for sample in train_loader:
                 # get the inputs of the batch
-                X, _ = sample
+                X, _, _ = sample
                 X = X.to(self.device).float()
                 outputs = self.model(X)
                 n_samples += outputs.shape[0]

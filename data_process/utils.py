@@ -9,7 +9,7 @@ folder_struct = {
 }
 
 
-def parse_args() -> Tuple[str, str]:
+def parse_args() -> Tuple[str, str, str, bool]:
     parser = argparse.ArgumentParser()
     parser.add_argument(
         '-d', '--path', type=str,
