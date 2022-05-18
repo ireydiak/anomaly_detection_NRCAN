@@ -303,6 +303,7 @@ class DAGMMIDSTrainer(IDSTrainer):
         trainer.cov_mat = ckpt["cov_mat"]
         trainer.covs = ckpt["covs"]
         trainer.mu = ckpt["mu"]
+        trainer.metric_values = ckpt["metric_values"]
         trainer.optimizer.load_state_dict(ckpt["optimizer_state_dict"])
 
         return trainer, model
