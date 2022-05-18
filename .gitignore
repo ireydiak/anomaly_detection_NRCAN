@@ -16,3 +16,4 @@ notebooks/**/*.txt
 notebooks/catboost_info
 notebooks/**/checkpoints/**/*.pt
 notebooks/**/checkpoint/**/*.pt
+notebooks/**/train/**/*.pt
