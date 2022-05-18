@@ -289,6 +289,7 @@ class DAGMMIDSTrainer(IDSTrainer):
             "mu": self.mu,
             "cov_mat": self.cov_mat,
             "covs": self.covs,
+            "metric_values": self.metric_values,
             "optimizer_state_dict": self.optimizer.state_dict(),
         }, fname)
 
@@ -301,6 +302,7 @@ class DAGMMIDSTrainer(IDSTrainer):
         trainer.phi = ckpt["phi"]
         trainer.cov_mat = ckpt["cov_mat"]
         trainer.covs = ckpt["covs"]
+        trainer.mu = ckpt["mu"]
         trainer.optimizer.load_state_dict(ckpt["optimizer_state_dict"])
 
         return trainer, model

@@ -15,6 +15,11 @@ class AbstractDataset(Dataset):
         anomaly_label = kwargs.get('anomaly_label', 1)
         normal_label = kwargs.get('normal_label', 0)
 
+        self.X = X[:, :-1]
+        self.y = X[:, -1]
+        if self.labels.size == 0:
+            self.labels = self.y
+
         if pct < 1.0:
             # Keeps `pct` percent of normal labels
             normal_idx = np.where(X[:, -1] == normal_label)[0]
@@ -24,17 +29,14 @@ class AbstractDataset(Dataset):
                 np.random.seed(seed)
             np.random.shuffle(normal_idx)
 
-            X = np.concatenate(
-                (X[anomaly_idx],
-                 X[normal_idx[int(len(normal_idx) * pct):]])
-            )
-        self.X = X[:, :-1]
-        self.y = X[:, -1]
-        if self.labels.size == 0:
-            self.labels = self.y
+            subsampled_normal_idx = normal_idx[int(len(normal_idx) * pct):]
+            idx_to_keep = list(subsampled_normal_idx) + list(anomaly_idx)
+            self.X = X[idx_to_keep]
+            self.y = self.y[idx_to_keep]
+            self.labels = self.labels[idx_to_keep]
 
-        self.shape = X.shape
-        self.anomaly_ratio = (self.y == anomaly_label).sum() / len(X)
+        self.shape = self.X.shape
+        self.anomaly_ratio = (self.y == anomaly_label).sum() / len(self.X)
         self.n_instances = self.X.shape[0]
         self.in_features = self.X.shape[1]
 
@@ -55,9 +57,6 @@ class AbstractDataset(Dataset):
         else:
             raise RuntimeError(f"Could not open {path}. Dataset can only read .npz and .mat files.")
         return data
-
-    def D(self):
-        return self.X.shape[1]
 
     def get_data_index_by_label(self, label):
         return np.where(self.y == label)[0]
