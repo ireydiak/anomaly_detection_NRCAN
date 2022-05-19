@@ -8,9 +8,11 @@ from torch.utils.data.dataloader import DataLoader
 from torch import optim
 from tqdm import trange
 from src.model.base import BaseModel
+from src.utils import metrics
 
 
 class BaseTrainer(ABC):
+    name = "BaseTrainer"
 
     def __init__(self,
                  model,
@@ -20,7 +22,8 @@ class BaseTrainer(ABC):
                  n_jobs_dataloader: int = 0,
                  device: str = "cuda",
                  anomaly_label=1,
-                 ckpt_fname: str = None,
+                 ckpt_root: str = None,
+                 validation_ldr=None,
                  **kwargs):
         self.device = device
         self.model = model.to(device)
@@ -31,21 +34,32 @@ class BaseTrainer(ABC):
         self.anomaly_label = anomaly_label
         self.weight_decay = kwargs.get('weight_decay', 0)
         self.optimizer = self.set_optimizer(weight_decay=kwargs.get('weight_decay', 0))
-        self.cur_epoch = None
-        self.use_cuda = "cuda" in device
-        self.ckpt_root = ckpt_fname
+        self.ckpt_root = ckpt_root
+        self.validation_ldr = validation_ldr
+        self.metric_values = {"precision": [], "recall": [], "f1-score": [], "aupr": []}
+        self.epoch = -1
 
     @staticmethod
-    def load_from_file(fname: str, trainer, model: BaseModel, device: str = None):
+    def load_from_file(fname: str, device: str = None):
         device = device or torch.device("cuda" if torch.cuda.is_available() else "cpu")
         ckpt = torch.load(fname, map_location=device)
         metric_values = ckpt["metric_values"]
-        model = model.load_from_ckpt(ckpt, model)
-        trainer.model = model
+        model = BaseModel.load_from_ckpt(ckpt)
+        trainer = BaseTrainer(model=model, batch_size=ckpt["batch_size"], device=device)
         trainer.optimizer.load_state_dict(ckpt["optimizer_state_dict"])
         trainer.metric_values = metric_values
 
         return trainer, model
+
+    def save_ckpt(self, fname: str):
+        general_params = {
+            "model_state_dict": self.model.state_dict(),
+            "optimizer_state_dict": self.optimizer.state_dict(),
+            "metric_values": self.metric_values
+        }
+        trainer_params = self.get_params()
+        model_params = self.model.get_params()
+        torch.save(dict(**general_params, **model_params, **trainer_params), fname)
 
     @abstractmethod
     def train_iter(self, sample: torch.Tensor):
@@ -78,7 +92,7 @@ class BaseTrainer(ABC):
         print("Started training")
         for epoch in range(self.n_epochs):
             epoch_loss = 0.0
-            self.cur_epoch = epoch
+            self.epoch = epoch
             assert self.model.training, "model not in training mode, aborting"
             with trange(len(dataset)) as t:
                 for sample in dataset:
@@ -100,31 +114,41 @@ class BaseTrainer(ABC):
                         epoch=epoch + 1
                     )
                     t.update()
+
             if self.ckpt_root and epoch % 5 == 0:
-                self.save_ckpt(self.ckpt_root + "_epoch={}.pt".format(epoch + 1))
+                self.save_ckpt(self.ckpt_root + "{}_epoch={}.pt".format(self.name, epoch + 1))
+
+            if self.validation_ldr is not None and epoch % 5 == 0:
+                y_true, scores, _ = self.test(self.validation_ldr)
+                res = metrics.score_recall_precision_w_threshold(scores, y_true)
+                self.metric_values["precision"] = res["Precision"]
+                self.metric_values["recall"] = res["Recall"]
+                self.metric_values["f1-score"] = res["F1-Score"]
+                self.metric_values["aupr"] = res["AUPR"]
 
         self.after_training()
 
     def test(self, dataset: DataLoader) -> Union[np.array, np.array]:
         self.model.eval()
-        y_true, scores = [], []
+        y_true, scores, labels = [], [], []
         with torch.no_grad():
             for row in dataset:
-                X, y, _ = row
+                X, y, label = row
                 X = X.to(self.device).float()
 
                 score = self.score(X)
                 y_true.extend(y.cpu().tolist())
+                labels.extend(list(label))
                 scores.extend(score.cpu().tolist())
 
-        return np.array(y_true), np.array(scores)
+        return np.array(y_true), np.array(scores), np.array(labels)
 
     def get_params(self) -> dict:
         return {
-            "learning_rate": self.lr,
-            "epochs": self.n_epochs,
+            "lr": self.lr,
+            "n_epochs": self.n_epochs,
             "batch_size": self.batch_size,
-            **self.model.get_params()
+            "epoch": self.epoch,
         }
 
     def predict(self, scores: np.array, thresh: float):
@@ -148,13 +172,6 @@ class BaseTrainer(ABC):
         res["AUROC"] = sk_metrics.roc_auc_score(y_true, scores)
         res["AUPR"] = sk_metrics.average_precision_score(y_true, scores)
         return res
-
-    def save_ckpt(self, fname: str):
-        torch.save({
-            "cur_epoch": self.cur_epoch,
-            "model_state_dict": self.model.state_dict(),
-            "optimizer_state_dict": self.optimizer.state_dict(),
-        }, fname)
 
 
 class BaseShallowTrainer(ABC):
@@ -191,18 +208,21 @@ class BaseShallowTrainer(ABC):
         return self.model.predict(sample.numpy())
 
     def test(self, dataset: DataLoader) -> Union[np.array, np.array]:
-        y_true, scores = [], []
+        y_true, scores, labels = [], [], []
         for row in dataset:
-            X, y = row
+            X, y, label = row
             score = self.score(X)
             y_true.extend(y.cpu().tolist())
             scores.extend(score)
+            labels.extend(list(label))
 
         return np.array(y_true), np.array(scores)
 
     def get_params(self) -> dict:
         return {
-            **self.model.get_params()
+            "batch_size": self.batch_size,
+            "lr": self.lr,
+            "n_epochs": self.n_epochs
         }
 
     def predict(self, scores: np.array, thresh: float):

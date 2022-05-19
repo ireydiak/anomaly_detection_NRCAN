@@ -2,13 +2,25 @@ import torch
 import numpy as np
 from torch.utils.data.dataloader import DataLoader
 
-from src.model.base import BaseModel
+from src.model.reconstruction import AutoEncoder, DAGMM, MemAutoEncoder
 from src.trainer.base import BaseTrainer
 from src.loss.EntropyLoss import EntropyLoss
 from torch import nn
 
 
 class AutoEncoderTrainer(BaseTrainer):
+
+    @staticmethod
+    def load_from_file(fname: str, device: str = None):
+        device = device or torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        ckpt = torch.load(fname, map_location=device)
+        metric_values = ckpt["metric_values"]
+        model = AutoEncoder.load_from_ckpt(ckpt)
+        trainer = AutoEncoderTrainer(model=model, batch_size=ckpt["batch_size"], device=device)
+        trainer.optimizer.load_state_dict(ckpt["optimizer_state_dict"])
+        trainer.metric_values = metric_values
+
+        return trainer, model
 
     def score(self, sample: torch.Tensor):
         _, X_prime = self.model(sample)
@@ -34,27 +46,32 @@ class DAGMMTrainer(BaseTrainer):
         self.covs = None
         self.reg_covar = self.model.reg_covar
 
-    def save_ckpt(self, fname: str):
-        torch.save({
-            "epoch": self.cur_epoch,
-            "model_state_dict": self.model.state_dict(),
+    def get_params(self) -> dict:
+        params = {
             "phi": self.phi,
             "mu": self.mu,
             "cov_mat": self.cov_mat,
             "covs": self.covs,
-            "optimizer_state_dict": self.optimizer.state_dict(),
-        }, fname)
+        }
+        return dict(
+            **super(DAGMMTrainer, self).get_params(),
+            **params
+        )
 
     @staticmethod
-    def load_from_file(fname: str, trainer, model: BaseModel, device: str = None):
+    def load_from_file(fname: str, device: str = None):
         device = device or torch.device("cuda" if torch.cuda.is_available() else "cpu")
         ckpt = torch.load(fname, map_location=device)
-        model = model.load_from_ckpt(ckpt, model)
+        metric_values = ckpt["metric_values"]
+        model = DAGMM.load_from_ckpt(ckpt)
+        trainer = DAGMMTrainer(model=model, batch_size=1, device=device)
         trainer.model = model
         trainer.phi = ckpt["phi"]
         trainer.cov_mat = ckpt["cov_mat"]
         trainer.covs = ckpt["covs"]
+        trainer.mu = ckpt["mu"]
         trainer.optimizer.load_state_dict(ckpt["optimizer_state_dict"])
+        trainer.metric_values = metric_values
 
         return trainer, model
 
@@ -81,9 +98,9 @@ class DAGMMTrainer(BaseTrainer):
         self.model.eval()
 
         with torch.no_grad():
-            scores, y_true = [], []
+            scores, y_true, labels = [], [], []
             for row in dataset:
-                X, y, _ = row
+                X, y, label = row
                 X = X.to(self.device).float()
                 # forward pass
                 code, x_prime, cosim, z, gamma = self.model(X)
@@ -91,9 +108,10 @@ class DAGMMTrainer(BaseTrainer):
                     z, self.phi, self.mu, self.cov_mat, average_energy=False
                 )
                 y_true.extend(y)
+                labels.extend(list(label))
                 scores.extend(sample_energy.cpu().numpy())
         self.model.train(mode=True)
-        return np.array(y_true), np.array(scores)
+        return np.array(y_true), np.array(scores), np.array(labels)
 
     def weighted_log_sum_exp(self, x, weights, dim):
         """
@@ -219,6 +237,18 @@ class MemAETrainer(BaseTrainer):
         self.recon_loss_fn = nn.MSELoss().to(self.device)
         self.entropy_loss_fn = EntropyLoss().to(self.device)
 
+    @staticmethod
+    def load_from_file(fname: str, device: str = None):
+        device = device or torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        ckpt = torch.load(fname, map_location=device)
+        metric_values = ckpt["metric_values"]
+        model = MemAutoEncoder.load_from_ckpt(ckpt)
+        trainer = MemAETrainer(model=model, batch_size=1, device=device)
+        trainer.optimizer.load_state_dict(ckpt["optimizer_state_dict"])
+        trainer.metric_values = metric_values
+
+        return trainer, model
+
     def train_iter(self, sample: torch.Tensor):
         x_hat, w_hat = self.model(sample)
         R = self.recon_loss_fn(sample, x_hat)
@@ -255,17 +285,18 @@ class SOMDAGMMTrainer(BaseTrainer):
         self.model.eval()
 
         with torch.no_grad():
-            scores, y_true = [], []
+            scores, y_true, labels = [], [], []
             for row in dataset:
-                X, y = row
+                X, y, label = row
                 X = X.to(self.device).float()
 
                 sample_energy, _ = self.score(X)
 
                 y_true.extend(y)
+                labels.extend(list(label))
                 scores.extend(sample_energy.cpu().numpy())
 
-            return np.array(y_true), np.array(scores)
+            return np.array(y_true), np.array(scores), np.array(labels)
 
     def score(self, sample: torch.Tensor):
         code, x_prime, cosim, z, gamma = self.model(sample)

@@ -24,6 +24,7 @@ class AutoEncoder(BaseModel):
             act_fn: str,
             n_layers: int,
             compression_factor: int,
+            reg: float = 0.5,
             **kwargs):
         super(AutoEncoder, self).__init__(**kwargs)
         self.latent_dim = latent_dim
@@ -31,7 +32,22 @@ class AutoEncoder(BaseModel):
         self.n_layers = n_layers
         self.compression_factor = compression_factor
         self.encoder, self.decoder = None, None
+        self.reg = reg
         self._build_network()
+
+    @staticmethod
+    def load_from_ckpt(ckpt):
+        model = AutoEncoder(
+            in_features=ckpt["in_features"],
+            n_instances=ckpt["n_instances"],
+            latent_dim=ckpt["latent_dim"],
+            act_fn=str(ckpt["act_fn"]).lower().replace("()", ""),
+            n_layers=ckpt["n_layers"],
+            compression_factor=ckpt["compression_factor"],
+            reg=ckpt["reg"],
+        )
+        model.load_state_dict(ckpt["model_state_dict"])
+        return model
 
     def _build_network(self):
         # Create the ENCODER layers
@@ -63,6 +79,7 @@ class AutoEncoder(BaseModel):
             ("n_layers", int, 4, "Number of layers for the AE network"),
             ("compression_factor", int, 2, "Compression factor for the AE network"),
             ("act_fn", str, "relu", "Activation function of the AE network"),
+            ("reg", float, 0.5, "Regularization term during training")
         ]
 
     def encode(self, x):
@@ -82,34 +99,18 @@ class AutoEncoder(BaseModel):
         return x, output
 
     def get_params(self) -> dict:
-        return {
+        params = {
             "latent_dim": self.latent_dim,
-            "act_fn": self.act_fn.__str__,
+            "act_fn": str(self.act_fn).lower().replace("()", ""),
             "n_layers": self.n_layers,
-            "compression_factor": self.compression_factor
+            "compression_factor": self.compression_factor,
+            "reg": self.reg
         }
 
-    def reset(self):
-        self.apply(self.weight_reset)
-
-    def weight_reset(self, m):
-        reset_parameters = getattr(m, "reset_parameters", None)
-        if callable(reset_parameters):
-            m.reset_parameters()
-
-    @staticmethod
-    def load(filename):
-        # Load model from file (.pklz)
-        with gzip.open(filename, 'rb') as f:
-            model = pickle.load(f)
-        assert isinstance(model, BaseModel)
-        return model
-
-    def save(self, filename):
-        torch.save(self.state_dict(), filename)
-
-
-# TODO: Move elsewhere (bootstrap maybe?)
+        return dict(
+            super().get_params(),
+            **params
+        )
 
 
 class DAGMM(BaseModel):
@@ -128,7 +129,7 @@ class DAGMM(BaseModel):
             lambda_2: float,
             reg_covar: float,
             n_layers: int,
-            compression_factor:int,
+            compression_factor: int,
             ae_act_fn="relu",
             gmm_act_fn="tanh",
             **kwargs
@@ -182,6 +183,24 @@ class DAGMM(BaseModel):
             n_instances=self.n_instances
         )
         self.gmm = GMM(layers=gmm_layers)
+
+    @staticmethod
+    def load_from_ckpt(ckpt):
+        model = DAGMM(
+            in_features=ckpt["in_features"],
+            n_instances=ckpt["n_instances"],
+            n_mixtures=ckpt["n_mixtures"],
+            latent_dim=ckpt["latent_dim"],
+            lambda_1=ckpt["lambda_1"],
+            lambda_2=ckpt["lambda_2"],
+            reg_covar=ckpt["reg_covar"],
+            n_layers=ckpt["n_layers"],
+            compression_factor=ckpt["compression_factor"],
+            ae_act_fn=ckpt["ae_act_fn"],
+            gmm_act_fn=ckpt["gmm_act_fn"]
+        )
+        model.load_state_dict(ckpt["model_state_dict"])
+        return model
 
     def forward(self, x: torch.Tensor):
         """
@@ -366,12 +385,21 @@ class DAGMM(BaseModel):
         return loss
 
     def get_params(self) -> dict:
-        return {
-            "lambda_1": self.lambda_1,
-            "lambda_2": self.lambda_2,
-            "latent_dim": self.ae.latent_dim,
-            "n_mixtures": self.gmm.K
-        }
+        params = dict(
+            n_mixtures=self.n_mixtures,
+            latent_dim=self.latent_dim,
+            lambda_1=self.lambda_1,
+            lambda_2=self.lambda_2,
+            reg_covar=self.reg_covar,
+            n_layers=self.ae_n_layers,
+            compression_factor=self.ae_compression_factor,
+            ae_act_fn=str(self.ae_act_fn).lower().replace("()", ""),
+            gmm_act_fn=str(self.gmm_act_fn).lower().replace("()", ""),
+        )
+        return dict(
+            **super(DAGMM, self).get_params(),
+            **params
+        )
 
 
 default_som_args = {
@@ -512,9 +540,13 @@ class SOMDAGMM(BaseModel):
 
     def get_params(self) -> dict:
         params = self.dagmm.get_params()
+        parent_params = super(SOMDAGMM, self).get_params()
         for k, v in self.som_args.items():
             params[f'SOM-{k}'] = v
-        return params
+        return dict(
+            **params,
+            **parent_params
+        )
 
 
 class MemAutoEncoder(BaseModel):
@@ -566,10 +598,19 @@ class MemAutoEncoder(BaseModel):
         self._build_network()
 
     @staticmethod
-    def load_from_ckpt(ckpt, model):
+    def load_from_ckpt(ckpt):
+        model = MemAutoEncoder(
+            in_features=ckpt["in_features"],
+            n_instances=ckpt["n_instances"],
+            mem_dim=ckpt["mem_dim"],
+            latent_dim=ckpt["latent_dim"],
+            shrink_thres=ckpt["shrink_thres"],
+            n_layers=ckpt["n_layers"],
+            compression_factor=ckpt["compression_factor"],
+            alpha=ckpt["alpha"],
+            act_fn=ckpt["act_fn"],
+        )
         model.load_state_dict(ckpt["model_state_dict"])
-        model.shrink_thres = ckpt["shrink_thres"]
-        model.mem_dim = ckpt["mem_dim"]
         return model
 
     @staticmethod
@@ -615,9 +656,16 @@ class MemAutoEncoder(BaseModel):
         return f_d, att
 
     def get_params(self):
-        return {
+        params = {
             "latent_dim": self.latent_dim,
-            "in_features": self.in_features,
             "shrink_thres": self.shrink_thres,
-            "mem_dim": self.mem_dim
+            "compression_factor": self.compression_factor,
+            "n_layers": self.n_layers,
+            "mem_dim": self.mem_dim,
+            "alpha": self.alpha,
+            "act_fn": str(self.act_fn).lower().replace("()", "")
         }
+        return dict(
+            **super(MemAutoEncoder, self).get_params(),
+            **params
+        )

@@ -1,5 +1,3 @@
-import gzip
-import pickle
 import torch
 from abc import ABC
 from torch import nn
@@ -7,14 +5,15 @@ from torch import nn
 
 class BaseModel(nn.Module):
 
-    def __init__(self, in_features: int, n_instances: int, device: str, **kwargs):
+    def __init__(self, in_features: int, n_instances: int, device: str = None, **kwargs):
         super(BaseModel, self).__init__()
-        self.device = device
+        self.device = device or ("cuda" if torch.cuda.is_available() else "cpu")
         self.n_instances = n_instances
         self.in_features = in_features
 
     def get_params(self) -> dict:
         return {
+            "n_instances": self.n_instances,
             "in_features": self.in_features,
         }
 
@@ -27,16 +26,11 @@ class BaseModel(nn.Module):
             m.reset_parameters()
 
     @staticmethod
-    def load(filename):
-        # Load model from file (.pklz)
-        with gzip.open(filename, 'rb') as f:
-            model = pickle.load(f)
-        assert isinstance(model, BaseModel)
-        return model
-
-    @staticmethod
-    def load_from_ckpt(ckpt, model):
-        model.load_state_dict(ckpt["model_state_dict"])
+    def load_from_ckpt(ckpt):
+        model = BaseModel(
+            in_features=ckpt["in_features"],
+            n_instances=ckpt["n_instances"],
+        )
         return model
 
     def save(self, filename):

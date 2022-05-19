@@ -10,21 +10,49 @@ from torch.utils.data import DataLoader
 from sklearn import metrics
 from tqdm import trange
 
+from src.model.density import DSEBM
 from src.trainer.base import BaseTrainer
 
 
 class DSEBMTrainer(BaseTrainer):
-    def __init__(self, score_metric="reconstruction", **kwargs):
+    def __init__(self, score_metric="reconstruction", b_prime: torch.Tensor = None, **kwargs):
         assert score_metric == "reconstruction" or score_metric == "energy"
         super(DSEBMTrainer, self).__init__(**kwargs)
         self.score_metric = score_metric
         self.criterion = nn.BCEWithLogitsLoss()
-        self.b_prime = Parameter(torch.Tensor(self.batch_size, self.model.in_features).to(self.device))
+        if b_prime is not None:
+            self.b_prime = b_prime
+        else:
+            self.b_prime = Parameter(torch.Tensor(self.batch_size, self.model.in_features).to(self.device))
         torch.nn.init.xavier_normal_(self.b_prime)
         self.optim = optim.Adam(
             list(self.model.parameters()) + [self.b_prime],
             lr=self.lr, betas=(0.5, 0.999)
         )
+
+    def save_ckpt(self, fname: str):
+        general_params = {
+            "epoch": self.epoch,
+            "batch_size": self.batch_size,
+            "model_state_dict": self.model.state_dict(),
+            "b_prime": self.b_prime,
+            "optimizer_state_dict": self.optimizer.state_dict(),
+            "metric_values": self.metric_values
+        }
+        model_params = self.model.get_params()
+        torch.save(dict(**general_params, **model_params), fname)
+
+    @staticmethod
+    def load_from_file(fname: str, device: str = None):
+        device = device or torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        ckpt = torch.load(fname, map_location=device)
+        metric_values = ckpt["metric_values"]
+        model = DSEBM.load_from_ckpt(ckpt)
+        trainer = DSEBMTrainer(model=model, batch_size=ckpt["batch_size"], device=device, b_prime=ckpt["b_prime"])
+        trainer.optimizer.load_state_dict(ckpt["optimizer_state_dict"])
+        trainer.metric_values = metric_values
+
+        return trainer, model
 
     def train_iter(self, X):
         noise = self.model.random_noise_like(X).to(self.device)
@@ -43,9 +71,10 @@ class DSEBMTrainer(BaseTrainer):
         print("Started training")
         for epoch in range(self.n_epochs):
             epoch_loss = 0.0
+            self.epoch = epoch
             with trange(len(dataset)) as t:
                 for sample in dataset:
-                    X, _ = sample
+                    X, _, _ = sample
                     X = X.to(self.device).float()
 
                     if len(X) < self.batch_size:
@@ -86,10 +115,10 @@ class DSEBMTrainer(BaseTrainer):
 
     def test(self, dataset: DataLoader) -> Union[np.array, np.array]:
         self.model.eval()
-        y_true, scores = [], []
+        y_true, scores, labels = [], [], []
         scores_e, scores_r = [], []
         for row in dataset:
-            X, y = row
+            X, y, label = row
             X = X.to(self.device).float()
 
             if len(X) < self.batch_size:
@@ -100,30 +129,10 @@ class DSEBMTrainer(BaseTrainer):
             y_true.extend(y.cpu().tolist())
             scores_e.extend(score_e)
             scores_r.extend(score_r)
+            labels.extend(list(label))
 
         scores = scores_r if self.score_metric == "reconstruction" else scores_e
-        return np.array(y_true), np.array(scores)
-
-    def evaluate(self, y_true: np.array, scores: np.array, threshold, pos_label: int = 1) -> dict:
-        res = defaultdict()
-        for score, name in zip(scores, ["score_e", "score_r"]):
-            res[name] = {"Precision": -1, "Recall": -1, "F1-Score": -1, "AUROC": -1, "AUPR": -1}
-            thresh = np.percentile(scores, threshold)
-            y_pred = self.predict(scores, thresh)
-            precision, recall, f1, _ = metrics.precision_recall_fscore_support(
-                y_true, y_pred, average='binary', pos_label=pos_label
-            )
-            res[name]["Precision"], res[name]["Recall"], res[name]["F1-Score"] = precision, recall, f1
-            res[name]["AUROC"] = metrics.roc_auc_score(y_true, scores)
-            res[name]["AUPR"] = metrics.average_precision_score(y_true, scores)
-        return res
-
-    def ren_dict_keys(self, d: dict, prefix=''):
-        d_ = {}
-        for k in d.keys():
-            d_[f"{prefix}_{k}"] = d[k]
-
-        return d_
+        return np.array(y_true), np.array(scores), np.array(labels)
 
     def loss(self, X, fx_noise):
         out = torch.square(X - fx_noise)

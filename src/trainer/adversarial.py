@@ -4,6 +4,8 @@ from tqdm import trange
 from torch import optim
 from torch.autograd import Variable
 from torch.utils.data import DataLoader
+
+from src.model.adversarial import ALAD
 from src.trainer.base import BaseTrainer
 
 torch.autograd.set_detect_anomaly(True)
@@ -14,6 +16,31 @@ class ALADTrainer(BaseTrainer):
         self.optim_ge, self.optim_d = None, None
         super(ALADTrainer, self).__init__(**kwargs)
         self.criterion = nn.BCEWithLogitsLoss()
+
+    @staticmethod
+    def load_from_file(fname: str, device: str = None):
+        device = device or torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        ckpt = torch.load(fname, map_location=device)
+        metric_values = ckpt["metric_values"]
+        model = ALAD.load_from_ckpt(ckpt)
+        trainer = ALADTrainer(model=model, batch_size=ckpt["batch_size"], device=device)
+        trainer.optim_ge.load_state_dict(ckpt["optim_ge"])
+        trainer.optim_d.load_state_dict(ckpt["optim_d"])
+        trainer.metric_values = metric_values
+
+        return trainer, model
+
+    def save_ckpt(self, fname: str):
+        general_params = {
+            "epoch": self.epoch,
+            "batch_size": self.batch_size,
+            "model_state_dict": self.model.state_dict(),
+            "optim_ge": self.optim_ge.state_dict(),
+            "optim_d": self.optim_d.state_dict(),
+            "metric_values": self.metric_values
+        }
+        model_params = self.model.get_params()
+        torch.save(dict(**general_params, **model_params), fname)
 
     def train_iter(self, sample: torch.Tensor):
         pass
@@ -69,10 +96,13 @@ class ALADTrainer(BaseTrainer):
 
         for epoch in range(self.n_epochs):
             ge_losses, d_losses = 0, 0
+            self.epoch = epoch
             with trange(len(dataset)) as t:
                 for sample in dataset:
-                    X, _ = sample
+                    X, _, _ = sample
 
+                    if len(X) < self.batch_size:
+                        break
                     X_dis, X_gen = X.to(self.device).float(), X.clone().to(self.device).float()
                     # Cleaning gradients
                     self.optim_ge.zero_grad()

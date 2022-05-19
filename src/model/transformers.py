@@ -84,19 +84,39 @@ class NeuTraLAD(BaseModel):
         # Masks / Transformations
         self.masks = self._create_masks()
 
+    @staticmethod
+    def load_from_ckpt(ckpt):
+        model = NeuTraLAD(
+            in_features=ckpt["in_features"],
+            n_instances=ckpt["n_instances"],
+            fc_1_out=ckpt["fc_1_out"],
+            fc_last_out=ckpt["fc_last_out"],
+            compression_unit=ckpt["compression_unit"],
+            n_transforms=ckpt["n_transforms"],
+            n_layers=ckpt["n_layers"],
+            trans_type=ckpt["trans_type"],
+            temperature=ckpt["temperature"],
+            trans_fc_in=ckpt["trans_fc_in"],
+            trans_fc_out=ckpt["trans_fc_out"]
+        )
+        return model
+
     def get_params(self) -> dict:
-        return {
-            "in_features": self.in_features,
-            "n_transforms": self.n_transforms,
-            "temperature": self.temperature,
-            "fc_1_out": self.fc_1_out,
-            "fc_last_out": self.fc_last_out,
-            "compression_unit": self.compression_unit,
-            "trans_type": self.trans_type,
-            "n_layers": self.n_layers,
-            "trans_fc_in": self.trans_fc_in,
-            "trans_fc_out": self.trans_fc_out
-        }
+        params = dict(
+            fc_1_out=self.fc_1_out,
+            fc_last_out=self.fc_last_out,
+            compression_unit=self.compression_unit,
+            n_transforms=self.n_transforms,
+            n_layers=self.n_layers,
+            trans_type=self.trans_type,
+            temperature=self.temperature,
+            trans_fc_in=self.trans_fc_in,
+            trans_fc_out=self.trans_fc_out,
+        )
+        return dict(
+            **super(NeuTraLAD, self).get_params(),
+            **params
+        )
 
     def score(self, X: torch.Tensor):
         Xk = self._computeX_k(X)
@@ -108,7 +128,7 @@ class NeuTraLAD(BaseModel):
         Hij = self._computeBatchH_ij(Zk)
         Hx_xk = self._computeBatchH_x_xk(Z, Zk)
 
-        mask_not_k = (~torch.eye(self.K, dtype=torch.bool, device=self.device)).float()
+        mask_not_k = (~torch.eye(self.n_transforms, dtype=torch.bool, device=self.device)).float()
         numerator = Hx_xk
         denominator = Hx_xk + (mask_not_k * Hij).sum(dim=2)
         scores_V = numerator / denominator
@@ -156,7 +176,7 @@ class NeuTraLAD(BaseModel):
                 return lambda mask, X: mask(X) * X
 
         t_function = transform(self.trans_type)
-        for k in range(self.K):
+        for k in range(self.n_transforms):
             X_t_k = t_function(self.masks[k], X)
             X_t_s.append(X_t_k)
         X_t_s = torch.stack(X_t_s, dim=0)

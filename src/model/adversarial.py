@@ -19,6 +19,15 @@ class ALAD(BaseModel):
         self._build_network()
 
     @staticmethod
+    def load_from_ckpt(ckpt):
+        model = ALAD(
+            in_features=ckpt["in_features"],
+            n_instances=ckpt["n_instances"],
+            latent_dim=ckpt["latent_dim"]
+        )
+        return model
+
+    @staticmethod
     def get_args_desc():
         return [
             ("latent_dim", int, -1, "Latent dimension")
@@ -62,10 +71,13 @@ class ALAD(BaseModel):
         return out_truexz, out_fakexz, out_truezz, out_fakezz, out_truexx, out_fakexx
 
     def get_params(self):
-        return {
-            'latent_dim': self.latent_dim,
-            'in_features': self.in_features
+        params = {
+            "latent_dim": self.latent_dim,
         }
+        return dict(
+            **super().get_params(),
+            **params
+        )
 
 
 class Encoder(nn.Module):

@@ -2,8 +2,7 @@ from torch.utils.data.dataloader import DataLoader
 import torch
 import numpy as np
 from tqdm import trange
-
-from src.model.base import BaseModel
+from src.model.one_class import DeepSVDD, DROCC
 from src.trainer.base import BaseTrainer
 import torch.nn.functional as F
 
@@ -15,23 +14,15 @@ class DeepSVDDTrainer(BaseTrainer):
         self.c = c
         self.R = R
 
-    def save_ckpt(self, fname: str):
-        torch.save({
-            "model_state_dict": self.model.state_dict(),
-            "c": self.c,
-            "R": self.R,
-            "optimizer_state_dict": self.optimizer.state_dict(),
-        }, fname)
-
     @staticmethod
-    def load_from_file(fname: str, trainer, model: BaseModel, device: str = None):
+    def load_from_file(fname: str, device: str = None):
         device = device or torch.device("cuda" if torch.cuda.is_available() else "cpu")
         ckpt = torch.load(fname, map_location=device)
-        model = model.load_from_ckpt(ckpt, model)
-        trainer.c = ckpt["c"]
-        trainer.R = ckpt["R"]
-        trainer.model = model
+        metric_values = ckpt["metric_values"]
+        model = DeepSVDD.load_from_ckpt(ckpt)
+        trainer = DeepSVDDTrainer(model=model, c=ckpt["c"], batch_size=1, device=device)
         trainer.optimizer.load_state_dict(ckpt["optimizer_state_dict"])
+        trainer.metric_values = metric_values
 
         return trainer, model
 
@@ -85,7 +76,10 @@ class DeepSVDDTrainer(BaseTrainer):
         return c
 
     def get_params(self) -> dict:
-        return {'c': self.c, 'R': self.R, **self.model.get_params()}
+        return {
+            "c": self.c,
+            "R": self.R
+        }
 
 
 def get_radius(dist: torch.Tensor, nu: float):
@@ -167,6 +161,18 @@ class EdgeMLDROCCTrainer(BaseTrainer):
         self.ascent_step_size = 0.01
         self.ascent_num_steps = 50
 
+    @staticmethod
+    def load_from_file(fname: str, device: str = None):
+        device = device or torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        ckpt = torch.load(fname, map_location=device)
+        metric_values = ckpt["metric_values"]
+        model = DROCC.load_from_ckpt(ckpt)
+        trainer = EdgeMLDROCCTrainer(model=model, batch_size=1, device=device)
+        trainer.optimizer.load_state_dict(ckpt["optimizer_state_dict"])
+        trainer.metric_values = metric_values
+
+        return trainer, model
+
     def score(self, sample: torch.Tensor):
         logits = self.model(sample)
         logits = torch.squeeze(logits, dim=1)
@@ -181,6 +187,7 @@ class EdgeMLDROCCTrainer(BaseTrainer):
         print("Started training")
         for epoch in range(self.n_epochs):
             epoch_loss = 0.0
+            self.epoch = epoch
             # Placeholder for the respective 2 loss values
             epoch_adv_loss = torch.tensor([0]).type(torch.float32).to(self.device)  # AdvLoss
             epoch_ce_loss = 0  # Cross entropy Loss
@@ -188,7 +195,7 @@ class EdgeMLDROCCTrainer(BaseTrainer):
             with trange(len(dataset)) as t:
                 for sample in dataset:
                     # Data processing
-                    X, y = sample
+                    X, y, _ = sample
                     X = X.to(self.device).float()
                     y = y.to(self.device).float()
 

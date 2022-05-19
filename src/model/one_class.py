@@ -42,14 +42,30 @@ class DeepSVDD(BaseModel):
         self.rep_dim = out_features
         self.net = create_network(layers).to(self.device)
 
+    @staticmethod
+    def load_from_ckpt(ckpt):
+        model = DeepSVDD(
+            in_features=ckpt["in_features"],
+            n_instances=ckpt["n_instances"],
+            n_layers=ckpt["n_layers"],
+            compression_factor=ckpt["compression_factor"],
+            act_fn=str(ckpt["act_fn"]).lower().replace("()", "")
+        )
+        return model
+
     def forward(self, X: Tensor):
         return self.net(X)
 
     def get_params(self) -> dict:
-        return {
-            "in_features": self.in_features,
-            "rep_dim": self.rep_dim
+        params = {
+            "n_layers": self.n_layers,
+            "compression_factor": self.compression_factor,
+            "act_fn": str(self.act_fn).lower().replace("()", "")
         }
+        return dict(
+            **super().get_params(),
+            **params
+        )
 
 
 class DROCC(BaseModel):
@@ -88,17 +104,37 @@ class DROCC(BaseModel):
         return [
             ("lamb", float, 1., "Weight given to the adversarial loss"),
             ("radius", float, 3., "Radius of hypersphere to sample points from"),
-            ("gamma", float, 2., "Parameter to vary projection")
+            ("gamma", float, 2., "Parameter to vary projection"),
+            ("num_classes", int, 1, ""),
+            ("num_hidden_nodes", int, 20, "")
         ]
 
+    @staticmethod
+    def load_from_ckpt(ckpt):
+        model = DROCC(
+            in_features=ckpt["in_features"],
+            n_instances=ckpt["n_instances"],
+            lamb=ckpt["lamb"],
+            radius=ckpt["radius"],
+            gamma=ckpt["gamma"],
+            num_classes=ckpt["num_classes"],
+            num_hidden_nodes=ckpt["num_hidden_nodes"]
+        )
+        return model
+
     def get_params(self) -> dict:
-        return {
+
+        params = {
             "lamb": self.lamb,
             "radius": self.radius,
             "gamma": self.gamma,
             "num_classes": self.num_classes,
             "num_hidden_nodes": self.num_hidden_nodes
         }
+        return dict(
+            **super(DROCC, self).get_params(),
+            **params
+        )
 
     def forward(self, X: torch.Tensor):
         features = self.feature_extractor(X)

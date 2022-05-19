@@ -3,12 +3,17 @@ import torch
 import numpy as np
 import matplotlib.pyplot as plt
 from abc import ABC
+
+from torch.nn import Parameter
+from torch.optim.lr_scheduler import StepLR
 from torch.utils.data import DataLoader
 from torch import nn
-from tqdm import trange
-
+from torch import optim
 from src.loss.EntropyLoss import EntropyLoss
-from src.model.base import BaseModel
+from src.model.density import DSEBM
+from src.model.one_class import DeepSVDD
+from src.model.reconstruction import AutoEncoder, MemAutoEncoder
+from src.model.transformers import NeuTraLAD
 from src.trainer.base import BaseTrainer
 from src.utils import metrics
 
@@ -71,7 +76,7 @@ class IDSTrainer(BaseTrainer, ABC):
 
         for epoch in range(self.n_epochs):
             epoch_loss = 0.0
-            self.cur_epoch = epoch
+            self.epoch = epoch
             assert self.model.training, "model not in training mode, aborting"
             for sample in dataset:
                 X, _, _ = sample
@@ -91,7 +96,8 @@ class IDSTrainer(BaseTrainer, ABC):
             if epoch % 10 == 0:
                 print("Epoch={}\tLoss={:2.4f}".format(epoch, epoch_loss))
             if self.ckpt_root and epoch % 5 == 0:
-                self.save_ckpt(os.path.join(self.ckpt_root, "{}_epoch={}.pt".format(self.model.name.lower(), epoch + 1)))
+                self.save_ckpt(
+                    os.path.join(self.ckpt_root, "{}_epoch={}.pt".format(self.model.name.lower(), epoch + 1)))
 
             if self.run_test_validation and (epoch % 5 == 0 or epoch == 0):
                 y_true, scores, _ = self.test(self.validation_ldr)
@@ -145,7 +151,6 @@ class IDSTrainer(BaseTrainer, ABC):
                 if len(X.grad[label == y_c]) > 0:
                     label_grad_wrt_X[y_c].append(dsdx)
             losses.append(loss.item())
-
             y_true.extend(y.cpu().tolist())
             labels.extend(list(label))
         self.model.train()
@@ -154,12 +159,137 @@ class IDSTrainer(BaseTrainer, ABC):
             label_grad_wrt_X[y_c] = np.concatenate(label_grad_wrt_X[y_c])
 
         return {
-          "y_true": np.array(y_true),
-          "labels":  np.array(labels),
-          "y_grad_wrt_X": y_grad_wrt_X,
-          "label_grad_wrt_X": label_grad_wrt_X,
-          "losses": np.asarray(losses),
+            "y_true": np.array(y_true),
+            "labels": np.array(labels),
+            "y_grad_wrt_X": y_grad_wrt_X,
+            "label_grad_wrt_X": label_grad_wrt_X,
+            "losses": np.asarray(losses),
         }
+
+
+class DSEBMIDSTrainer(IDSTrainer):
+    def __init__(self, score_metric="reconstruction", **kwargs):
+        assert score_metric == "reconstruction" or score_metric == "energy"
+        super(DSEBMIDSTrainer, self).__init__(**kwargs)
+        self.score_metric = score_metric
+        self.criterion = nn.BCEWithLogitsLoss()
+        self.b_prime = Parameter(torch.Tensor(self.batch_size, self.model.in_features).to(self.device))
+        torch.nn.init.xavier_normal_(self.b_prime)
+        self.optim = optim.Adam(
+            list(self.model.parameters()) + [self.b_prime],
+            lr=self.lr, betas=(0.5, 0.999)
+        )
+
+    @staticmethod
+    def load_from_file(fname: str, device: str = None):
+        device = device or torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        ckpt = torch.load(fname, map_location=device)
+        metric_values = ckpt["metric_values"]
+        model = DSEBM.load_from_ckpt(ckpt)
+        trainer = DSEBMIDSTrainer(model=model, batch_size=ckpt["batch_size"], device=device)
+        trainer.optimizer.load_state_dict(ckpt["optimizer_state_dict"])
+        trainer.metric_values = metric_values
+
+        return trainer, model
+
+    def train_iter(self, X):
+        noise = self.model.random_noise_like(X).to(self.device)
+        X_noise = X + noise
+        X.requires_grad_()
+        X_noise.requires_grad_()
+        out_noise = self.model(X_noise)
+        energy_noise = self.energy(X_noise, out_noise)
+        dEn_dX = torch.autograd.grad(energy_noise, X_noise, retain_graph=True, create_graph=True)
+        fx_noise = (X_noise - dEn_dX[0])
+        return self.loss(X, fx_noise)
+
+    def score(self, sample: torch.Tensor):
+        # Evaluation of the score based on the energy
+        with torch.no_grad():
+            flat = sample - self.b_prime
+            out = self.model(sample)
+            energies = 0.5 * torch.sum(torch.square(flat), dim=1) - torch.sum(out, dim=1)
+
+        # Evaluation of the score based on the reconstruction error
+        sample.requires_grad_()
+        out = self.model(sample)
+        energy = self.energy(sample, out)
+        dEn_dX = torch.autograd.grad(energy, sample)[0]
+        rec_errs = torch.linalg.norm(dEn_dX, 2, keepdim=False, dim=1)
+        return energies.cpu().numpy(), rec_errs.cpu().numpy()
+
+    def loss(self, X, fx_noise):
+        out = torch.square(X - fx_noise)
+        out = torch.sum(out, dim=-1)
+        out = torch.mean(out)
+        return out
+
+    def energy(self, X, X_hat):
+        return 0.5 * torch.sum(torch.square(X - self.b_prime)) - torch.sum(X_hat)
+
+
+class NeuTraLADIDSTrainer(IDSTrainer):
+    def __init__(self, **kwargs):
+        super(NeuTraLADIDSTrainer, self).__init__(**kwargs)
+        self.metric_hist = []
+
+        mask_params = list()
+        for mask in self.model.masks:
+            mask_params += list(mask.parameters())
+        self.optimizer = optim.Adam(
+            list(self.model.enc.parameters()) + mask_params, lr=self.lr,
+        )
+
+        self.scheduler = StepLR(self.optimizer, step_size=20, gamma=0.9)
+        self.criterion = nn.MSELoss()
+
+    @staticmethod
+    def load_from_file(fname: str, device: str = None):
+        device = device or torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        ckpt = torch.load(fname, map_location=device)
+        metric_values = ckpt["metric_values"]
+        model = NeuTraLAD.load_from_ckpt(ckpt)
+        trainer = NeuTraLADIDSTrainer(model=model, batch_size=ckpt["batch_size"], device=device)
+        trainer.optimizer.load_state_dict(ckpt["optimizer_state_dict"])
+        trainer.metric_values = metric_values
+
+        return trainer, model
+
+    def score(self, sample: torch.Tensor):
+        return self.model(sample)
+
+    def train_iter(self, X):
+        scores = self.model(X)
+        return scores.mean()
+
+
+class AEIDSTrainer(IDSTrainer):
+    def __init__(self, reg: float = 0.5, **kwargs):
+        super(AEIDSTrainer, self).__init__(**kwargs)
+        self.reg = reg
+
+    @staticmethod
+    def load_from_file(fname: str, device: str = None):
+        device = device or torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        ckpt = torch.load(fname, map_location=device)
+        metric_values = ckpt["metric_values"]
+        model = AutoEncoder.load_from_ckpt(ckpt)
+        trainer = AEIDSTrainer(model=model, batch_size=ckpt["batch_size"], device=device)
+        trainer.optimizer.load_state_dict(ckpt["optimizer_state_dict"])
+        trainer.metric_values = metric_values
+
+        return trainer, model
+
+    def score(self, sample: torch.Tensor):
+        _, X_prime = self.model(sample)
+        return ((sample - X_prime) ** 2).sum(axis=1)
+
+    def train_iter(self, X):
+        code, X_prime = self.model(X)
+        l2_z = code.norm(2, dim=1).mean()
+        loss = ((X - X_prime) ** 2).sum(axis=-1).mean() + self.reg * l2_z
+
+        return loss
 
 
 class MemAEIDSTrainer(IDSTrainer):
@@ -168,6 +298,18 @@ class MemAEIDSTrainer(IDSTrainer):
         self.alpha = self.model.alpha
         self.recon_loss_fn = nn.MSELoss().to(self.device)
         self.entropy_loss_fn = EntropyLoss().to(self.device)
+
+    @staticmethod
+    def load_from_file(fname: str, device: str = None):
+        device = device or torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        ckpt = torch.load(fname, map_location=device)
+        metric_values = ckpt["metric_values"]
+        model = MemAutoEncoder.load_from_ckpt(ckpt)
+        trainer = MemAEIDSTrainer(model=model, batch_size=ckpt["batch_size"], device=device)
+        trainer.optimizer.load_state_dict(ckpt["optimizer_state_dict"])
+        trainer.metric_values = metric_values
+
+        return trainer, model
 
     def train_iter(self, sample: torch.Tensor):
         x_hat, w_hat = self.model(sample)
@@ -225,14 +367,14 @@ class DeepSVDDIDSTrainer(IDSTrainer):
         }, fname)
 
     @staticmethod
-    def load_from_file(fname: str, trainer, model: BaseModel, device: str = None):
+    def load_from_file(fname: str, device: str = None):
         device = device or torch.device("cuda" if torch.cuda.is_available() else "cpu")
         ckpt = torch.load(fname, map_location=device)
         metric_values = ckpt["metric_values"]
-        model = model.load_from_ckpt(ckpt, model)
-        trainer.model = model
+        model = DeepSVDD.load_from_ckpt(ckpt)
+        trainer = DeepSVDDIDSTrainer(model=model, batch_size=ckpt["batch_size"], device=device)
         trainer.c = ckpt["c"]
-        trainer.R = ckpt["R"]
+        trainer.R = ckpt.get("R", None)
         trainer.optimizer.load_state_dict(ckpt["optimizer_state_dict"])
         trainer.metric_values = metric_values
 
@@ -283,7 +425,7 @@ class DAGMMIDSTrainer(IDSTrainer):
 
     def save_ckpt(self, fname: str):
         torch.save({
-            "epoch": self.cur_epoch,
+            "epoch": self.epoch,
             "model_state_dict": self.model.state_dict(),
             "phi": self.phi,
             "mu": self.mu,

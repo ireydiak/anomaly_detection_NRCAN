@@ -14,6 +14,16 @@ class DSEBM(BaseModel):
         self._build_network()
 
     @staticmethod
+    def load_from_ckpt(ckpt):
+        model = DSEBM(
+            in_features=ckpt["in_features"],
+            n_instances=ckpt["n_instances"],
+            fc_1_out=ckpt["fc_1_out"],
+            fc_2_out=ckpt["fc_2_out"]
+        )
+        return model
+
+    @staticmethod
     def get_args_desc():
         return [
             ("fc_1_out", int, 128, "Output dimension of the first layer"),
@@ -47,9 +57,13 @@ class DSEBM(BaseModel):
 
         return output
 
-    def get_params(self):
-        return {
-            "in_features": self.in_features,
+    def get_params(self) -> dict:
+        params = {
             "fc_1_out": self.fc_1_out,
             "fc_2_out": self.fc_2_out
         }
+
+        return dict(
+            **super().get_params(),
+            **params
+        )
