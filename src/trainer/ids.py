@@ -39,37 +39,6 @@ class IDSTrainer(BaseTrainer, ABC):
         self.thresh_mode = thresh_mode
         self.validation_ldr = validation_ldr
 
-    def plot_metrics(self, figname="fig1.png"):
-        """
-        Function that plots train and validation losses and accuracies after
-        training phase
-        """
-        precision, recall = self.metric_values["precision"], self.metric_values["recall"]
-        f1, aupr = self.metric_values["f1-score"], self.metric_values["aupr"]
-        epochs = range(1, len(precision) + 1)
-
-        f, ax1 = plt.subplots(figsize=(10, 5))
-
-        ax1.plot(
-            epochs, precision, '-o', label="Test precision", c="b"
-        )
-        ax1.plot(
-            epochs, recall, '-o', label="Test recall", c="g"
-        )
-        ax1.plot(
-            epochs, aupr, '-o', label="Test AUPR", c="c"
-        )
-        ax1.plot(
-            epochs, f1, '-o', label="Test F1-Score", c="r"
-        )
-        ax1.set_title("Test Recall, Precision, AUPR and F1-Score")
-        ax1.set_xlabel("Epochs")
-        ax1.set_ylabel("Metrics")
-        ax1.legend()
-
-        f.savefig(figname)
-        plt.show()
-
     def train(self, dataset: DataLoader):
         self.before_training(dataset)
         self.model.train(mode=True)
@@ -95,6 +64,7 @@ class IDSTrainer(BaseTrainer, ABC):
 
             if epoch % 10 == 0:
                 print("Epoch={}\tLoss={:2.4f}".format(epoch, epoch_loss))
+
             if self.ckpt_root and epoch % 5 == 0:
                 self.save_ckpt(
                     os.path.join(self.ckpt_root, "{}_epoch={}.pt".format(self.model.name.lower(), epoch + 1)))

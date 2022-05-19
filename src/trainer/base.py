@@ -9,6 +9,7 @@ from torch import optim
 from tqdm import trange
 from src.model.base import BaseModel
 from src.utils import metrics
+import matplotlib.pyplot as plt
 
 
 class BaseTrainer(ABC):
@@ -110,7 +111,7 @@ class BaseTrainer(ABC):
 
                     epoch_loss += loss.item()
                     t.set_postfix(
-                        loss='{:05.3f}'.format(epoch_loss/(epoch + 1)),
+                        loss='{:05.3f}'.format(epoch_loss / (epoch + 1)),
                         epoch=epoch + 1
                     )
                     t.update()
@@ -118,13 +119,8 @@ class BaseTrainer(ABC):
             if self.ckpt_root and epoch % 5 == 0:
                 self.save_ckpt(self.ckpt_root + "{}_epoch={}.pt".format(self.name, epoch + 1))
 
-            if self.validation_ldr is not None and epoch % 5 == 0:
-                y_true, scores, _ = self.test(self.validation_ldr)
-                res = metrics.score_recall_precision_w_threshold(scores, y_true)
-                self.metric_values["precision"] = res["Precision"]
-                self.metric_values["recall"] = res["Recall"]
-                self.metric_values["f1-score"] = res["F1-Score"]
-                self.metric_values["aupr"] = res["AUPR"]
+            if self.validation_ldr is not None and (epoch % 5 == 0 or epoch == 0):
+               self.validate()
 
         self.after_training()
 
@@ -172,6 +168,46 @@ class BaseTrainer(ABC):
         res["AUROC"] = sk_metrics.roc_auc_score(y_true, scores)
         res["AUPR"] = sk_metrics.average_precision_score(y_true, scores)
         return res
+
+    def plot_metrics(self, figname="fig1.png"):
+        """
+        Function that plots train and validation losses and accuracies after
+        training phase
+        """
+        precision, recall = self.metric_values["precision"], self.metric_values["recall"]
+        f1, aupr = self.metric_values["f1-score"], self.metric_values["aupr"]
+        epochs = range(1, len(precision) + 1)
+
+        f, ax1 = plt.subplots(figsize=(10, 5))
+
+        ax1.plot(
+            epochs, precision, '-o', label="Test precision", c="b"
+        )
+        ax1.plot(
+            epochs, recall, '-o', label="Test recall", c="g"
+        )
+        ax1.plot(
+            epochs, aupr, '-o', label="Test AUPR", c="c"
+        )
+        ax1.plot(
+            epochs, f1, '-o', label="Test F1-Score", c="r"
+        )
+        ax1.set_title("Test Recall, Precision, AUPR and F1-Score")
+        ax1.set_xlabel("Epochs")
+        ax1.set_ylabel("Metrics")
+        ax1.legend()
+
+        f.savefig(figname)
+        plt.show()
+
+    def validate(self):
+        y_true, scores, _ = self.test(self.validation_ldr)
+        self.model.train(mode=True)
+        res, _ = metrics.score_recall_precision_w_threshold(scores, y_true)
+        self.metric_values["precision"].append(res["Precision"])
+        self.metric_values["recall"].append(res["Recall"])
+        self.metric_values["f1-score"].append(res["F1-Score"])
+        self.metric_values["aupr"].append(res["AUPR"])
 
 
 class BaseShallowTrainer(ABC):

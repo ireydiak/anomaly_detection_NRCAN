@@ -97,6 +97,7 @@ class ALADTrainer(BaseTrainer):
         for epoch in range(self.n_epochs):
             ge_losses, d_losses = 0, 0
             self.epoch = epoch
+            assert self.model.training, "model not in training mode, aborting"
             with trange(len(dataset)) as t:
                 for sample in dataset:
                     X, _, _ = sample
@@ -123,3 +124,6 @@ class ALADTrainer(BaseTrainer):
                         loss_ge='{:05.4f}'.format(loss_ge),
                     )
                     t.update()
+
+            if self.validation_ldr is not None and (epoch % 5 == 0 or epoch == 0):
+                self.validate()

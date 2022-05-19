@@ -2,12 +2,10 @@ import numpy as np
 import torch
 import torch.nn as nn
 
-from collections import defaultdict
 from typing import Union
 from torch import optim
 from torch.nn import Parameter
 from torch.utils.data import DataLoader
-from sklearn import metrics
 from tqdm import trange
 
 from src.model.density import DSEBM
@@ -70,6 +68,7 @@ class DSEBMTrainer(BaseTrainer):
 
         print("Started training")
         for epoch in range(self.n_epochs):
+            assert self.model.training, "model not in training mode, aborting"
             epoch_loss = 0.0
             self.epoch = epoch
             with trange(len(dataset)) as t:
@@ -96,6 +95,9 @@ class DSEBMTrainer(BaseTrainer):
                         epoch=epoch + 1
                     )
                     t.update()
+            if self.validation_ldr is not None and (epoch % 5 == 0 or epoch == 0):
+                self.validate()
+
         self.after_training()
 
     def score(self, sample: torch.Tensor):

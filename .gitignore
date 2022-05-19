@@ -18,3 +18,6 @@ notebooks/**/checkpoints/**/*.pt
 notebooks/**/checkpoint/**/*.pt
 notebooks/**/train/**/*.pt
 notebooks/sandbox/*
+tests/**/*.pt
+tests/**/*.png
+tests/**/*.pdf

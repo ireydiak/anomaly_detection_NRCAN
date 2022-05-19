@@ -186,6 +186,7 @@ class EdgeMLDROCCTrainer(BaseTrainer):
 
         print("Started training")
         for epoch in range(self.n_epochs):
+            assert self.model.training, "model not in training mode, aborting"
             epoch_loss = 0.0
             self.epoch = epoch
             # Placeholder for the respective 2 loss values
@@ -232,6 +233,9 @@ class EdgeMLDROCCTrainer(BaseTrainer):
                         epoch=epoch + 1
                     )
                     t.update()
+
+            if self.validation_ldr is not None and (epoch % 5 == 0 or epoch == 0):
+                self.validate()
 
     def one_class_adv_loss(self, x_train_data):
         """Computes the adversarial loss:
