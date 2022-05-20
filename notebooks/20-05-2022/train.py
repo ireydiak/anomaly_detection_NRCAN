@@ -1,11 +1,7 @@
 import argparse
-<<<<<<< HEAD
-
-from src.datamanager.dataset import ArrhythmiaDataset, ThyroidDataset, IDS2017Dataset, IDS2018Dataset
-=======
 import os
 import numpy as np
-from src.datamanager.dataset import ArrhythmiaDataset, ThyroidDataset, IDS2017Dataset
+from src.datamanager.dataset import ArrhythmiaDataset, ThyroidDataset, IDS2017Dataset, IDS2018Dataset
 from src.trainer.adversarial import ALADTrainer
 from src.trainer.density import DSEBMTrainer
 from src.trainer.one_class import DeepSVDDTrainer, EdgeMLDROCCTrainer
