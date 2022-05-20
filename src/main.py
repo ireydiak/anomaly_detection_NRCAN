@@ -71,10 +71,10 @@ def argument_parser():
         default=0,
         help='weight decay for regularization')
     parser.add_argument(
-        "--pct",
+        "--normal_size",
         type=float,
         default=1.0,
-        help="Percentage of original data to keep"
+        help="Percentage of original normal samples to keep"
     )
     parser.add_argument(
         "--rho",
@@ -159,7 +159,7 @@ if __name__ == "__main__":
         dataset_name=args.dataset,
         dataset_path=args.dataset_path,
         batch_size=args.batch_size,
-        pct=args.pct,
+        normal_size=args.normal_size,
         corruption_ratio=args.rho,
         n_runs=args.n_runs,
         n_epochs=args.n_epochs,

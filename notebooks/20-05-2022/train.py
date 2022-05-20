@@ -1,6 +1,6 @@
 import argparse
 
-from src.datamanager.dataset import ArrhythmiaDataset, ThyroidDataset, IDS2017Dataset
+from src.datamanager.dataset import ArrhythmiaDataset, ThyroidDataset, IDS2017Dataset, IDS2018Dataset
 from src.trainer.adversarial import ALADTrainer
 from src.trainer.density import DSEBMTrainer
 from src.trainer.one_class import DeepSVDDTrainer, EdgeMLDROCCTrainer
@@ -33,7 +33,6 @@ def argument_parser():
         help='Name of the dataset',
         required=True
     )
-
     parser.add_argument(
         '-p',
         '--dataset-path',
@@ -125,6 +124,8 @@ def resolve_dataset(name, path):
         return ArrhythmiaDataset(path=path)
     elif name == "ids2017":
         return IDS2017Dataset(path=path)
+    elif name == "ids2018":
+        return IDS2018Dataset(path=path, pct=0.5)
     elif name == "thyroid":
         return ThyroidDataset(path=path)
     else:

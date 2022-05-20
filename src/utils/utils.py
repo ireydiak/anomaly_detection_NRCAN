@@ -102,15 +102,16 @@ def ids_misclf_per_label(y_pred: np.array, y_test_true: np.array, test_labels: n
     misclf_labels, misclf_counts = np.unique(test_labels[mask], return_counts=True)
 
     # Assemble the counts and their labels in a dictionary
-    gt = {lbl: [cnt, 0, 0] for lbl, cnt in zip(labels, counts)}
+    gt = {lbl: [cnt, 0, 0, 0] for lbl, cnt in zip(labels, counts)}
     misclf = {lbl: cnt for lbl, cnt in zip(misclf_labels, misclf_counts)}
     # Merge the two dictionaries
     for k, v in misclf.items():
         gt[k][1] = v
         gt[k][2] = v / gt[k][0]
+        gt[k][3] = 1 - gt[k][2]
     # Create a dataframe from the merged dictionary
     return pd.DataFrame.from_dict(
         gt,
         orient="index",
-        columns=["# Instances test set", "Misclassified count", "Misclassified ratio"]
+        columns=["# Instances test set", "Misclassified count", "Misclassified ratio", "Accuracy"]
     )

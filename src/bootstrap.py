@@ -222,7 +222,7 @@ def train(
         dataset_name: str,
         dataset_path: str,
         batch_size: int,
-        pct: float,
+        normal_size: float,
         corruption_ratio: float,
         n_runs: int,
         n_epochs: int,
@@ -235,7 +235,7 @@ def train(
 ):
     # Dynamically load the Dataset instance
     clsname = globals()[f'{dataset_name}Dataset']
-    dataset = clsname(path=dataset_path, pct=pct)
+    dataset = clsname(path=dataset_path, normal_size=normal_size)
     anomaly_thresh = 1 - dataset.anomaly_ratio
 
     device = "cuda" if torch.cuda.is_available() else "cpu"

@@ -8,7 +8,7 @@ from typing import Tuple
 
 
 class AbstractDataset(Dataset):
-    def __init__(self, path: str, pct: float = 1.0, seed=None, **kwargs):
+    def __init__(self, path: str, normal_size: float = 1.0, seed=None, **kwargs):
         self.name = self.__class__.__name__
         self.labels = np.array([])
         X = self._load_data(path)
@@ -20,8 +20,8 @@ class AbstractDataset(Dataset):
         if self.labels.size == 0:
             self.labels = self.y
 
-        if pct < 1.0:
-            # Keeps `pct` percent of normal labels
+        if normal_size < 1.0:
+            # Keeps `normal_size` percent of normal labels
             normal_idx = np.where(X[:, -1] == normal_label)[0]
             anomaly_idx = np.where(X[:, -1] == anomaly_label)[0]
 
@@ -29,7 +29,7 @@ class AbstractDataset(Dataset):
                 np.random.seed(seed)
             np.random.shuffle(normal_idx)
 
-            subsampled_normal_idx = normal_idx[int(len(normal_idx) * pct):]
+            subsampled_normal_idx = normal_idx[int(len(normal_idx) * normal_size):]
             idx_to_keep = list(subsampled_normal_idx) + list(anomaly_idx)
             self.X = X[idx_to_keep]
             self.y = self.y[idx_to_keep]
