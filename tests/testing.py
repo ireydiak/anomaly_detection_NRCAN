@@ -1,4 +1,5 @@
 import argparse
+import os
 
 from src.datamanager.dataset import ArrhythmiaDataset, ThyroidDataset, IDS2017Dataset
 from src.trainer.adversarial import ALADTrainer
@@ -12,6 +13,7 @@ from src.model.one_class import DeepSVDD, DROCC
 from src.model.reconstruction import AutoEncoder, DAGMM, MemAutoEncoder
 from src.model.transformers import NeuTraLAD
 from src.utils import metrics
+from pathlib import Path
 
 
 def argument_parser():
@@ -33,13 +35,24 @@ def argument_parser():
         help='Name of the dataset',
         required=True
     )
-
     parser.add_argument(
         '-p',
         '--dataset-path',
         type=str,
         help='Path to the dataset',
         required=True
+    )
+    parser.add_argument(
+        '--n-runs',
+        help="Number times the experiment is repeated with different subsamples",
+        type=int,
+        default=1
+    )
+    parser.add_argument(
+        '--use-ckpt',
+        help="Save checkpoints during training",
+        action="store_true"
+
     )
     return parser.parse_args()
 
@@ -136,10 +149,13 @@ def main():
     batch_size = args.batch_size
     lr = 1e-4
     n_epochs = 200
+    use_ckpt = args.use_ckpt
     dataset = resolve_dataset(args.dataset, args.dataset_path)
     train_ldr, test_ldr = dataset.loaders(batch_size=batch_size, seed=42)
     print("data loaded with shape {}".format(dataset.shape))
     for model_name, params in settings.items():
+        ckpt_path = Path(os.path.join(model_name, "checkpoints"))
+        ckpt_path.mkdir(parents=True, exist_ok=True)
         print("Training model %s on %s" % (model_name, dataset.name))
         # Initialize model and trainer
         model_params = dict(
@@ -153,7 +169,8 @@ def main():
             lr=lr,
             n_epochs=n_epochs,
             device="cuda",
-            validation_ldr=test_ldr
+            validation_ldr=test_ldr,
+            ckpt_root=str(ckpt_path.absolute()) if use_ckpt else None
         )
         # Train model and save checkpoint at the end
         trainer.train(train_ldr)
