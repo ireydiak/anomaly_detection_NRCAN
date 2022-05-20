@@ -1,6 +1,6 @@
 import argparse
 
-from src.datamanager.dataset import ArrhythmiaDataset
+from src.datamanager.dataset import ArrhythmiaDataset, ThyroidDataset, IDS2017Dataset
 from src.trainer.adversarial import ALADTrainer
 from src.trainer.density import DSEBMTrainer
 from src.trainer.one_class import DeepSVDDTrainer, EdgeMLDROCCTrainer
@@ -20,7 +20,22 @@ def argument_parser():
               "-d [dataset-path]"
     )
     parser.add_argument(
+        '--batch-size',
+        type=int,
+        help="Batch size",
+        required=False,
+        default=1024
+    )
+    parser.add_argument(
         '-d',
+        '--dataset',
+        type=str,
+        help='Name of the dataset',
+        required=True
+    )
+
+    parser.add_argument(
+        '-p',
         '--dataset-path',
         type=str,
         help='Path to the dataset',
@@ -28,6 +43,9 @@ def argument_parser():
     )
     return parser.parse_args()
 
+
+n_layers = 4
+compression_factor = 2
 
 settings = {
     "ALAD": {
@@ -44,8 +62,8 @@ settings = {
     "DeepSVDD": {
         "model_cls": DeepSVDD,
         "trainer_cls": DeepSVDDTrainer,
-        "n_layers": 4,
-        "compression_factor": 4,
+        "n_layers": n_layers,
+        "compression_factor": compression_factor,
         "act_fn": "relu"
     },
     "DROCC": {
@@ -57,8 +75,8 @@ settings = {
         "trainer_cls": AutoEncoderTrainer,
         "latent_dim": 1,
         "act_fn": "relu",
-        "n_layers": 4,
-        "compression_factor": 2,
+        "n_layers": n_layers,
+        "compression_factor": compression_factor,
         "reg": 0.5,
     },
     "DAGMM": {
@@ -69,8 +87,8 @@ settings = {
         "lambda_1": 0.1,
         "lambda_2": 0.005,
         "reg_covar": 1e-12,
-        "n_layers": 4,
-        "compression_factor": 2,
+        "n_layers": n_layers,
+        "compression_factor": compression_factor,
         "ae_act_fn": "relu",
         "gmm_act_fn": "tanh",
     },
@@ -80,8 +98,8 @@ settings = {
         "mem_dim": 50,
         "latent_dim": 1,
         "shrink_thres": 0.0025,
-        "n_layers": 4,
-        "compression_factor": 2,
+        "n_layers": n_layers,
+        "compression_factor": compression_factor,
         "alpha": 2e-5,
         "act_fn": "relu",
     },
@@ -93,7 +111,7 @@ settings = {
         "compression_unit": 20,
         "temperature": 0.07,
         "trans_type": "mul",
-        "n_layers": 4,
+        "n_layers": n_layers,
         "n_transforms": 11,
         "trans_fc_in": 200,
         "trans_fc_out": -1,
@@ -101,16 +119,28 @@ settings = {
 }
 
 
+def resolve_dataset(name, path):
+    name = name.lower()
+    if name == "arrhythmia":
+        return ArrhythmiaDataset(path=path)
+    elif name == "ids2017":
+        return IDS2017Dataset(path=path)
+    elif name == "thyroid":
+        return ThyroidDataset(path=path)
+    else:
+        raise Exception("unsupported dataset %s, aborting" % name)
+
+
 def main():
     args = argument_parser()
-    batch_size = 8
+    batch_size = args.batch_size
     lr = 1e-4
-    n_epochs = 6
-    dataset = ArrhythmiaDataset(path=args.dataset_path)
+    n_epochs = 200
+    dataset = resolve_dataset(args.dataset, args.dataset_path)
     train_ldr, test_ldr = dataset.loaders(batch_size=batch_size, seed=42)
     print("data loaded with shape {}".format(dataset.shape))
     for model_name, params in settings.items():
-        print("Training model %s" % model_name)
+        print("Training model %s on %s" % (model_name, dataset.name))
         # Initialize model and trainer
         model_params = dict(
             **{"in_features": dataset.in_features, "n_instances": dataset.n_instances},
@@ -135,7 +165,7 @@ def main():
         trainer, model = params["trainer_cls"].load_from_file(ckpt_fname)
         # Test loaded model
         y_true, scores, _ = trainer.test(test_ldr)
-        res = metrics.estimate_optimal_threshold(scores, y_true)
+        res = metrics.score_recall_precision_w_threshold(scores, y_true)
         print(res)
         # Display and save learning curves
         trainer.plot_metrics(figname=model_name + "_learning_curves.png")
