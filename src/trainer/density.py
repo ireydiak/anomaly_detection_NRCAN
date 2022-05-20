@@ -1,3 +1,5 @@
+import os
+
 import numpy as np
 import torch
 import torch.nn as nn
@@ -95,6 +97,12 @@ class DSEBMTrainer(BaseTrainer):
                         epoch=epoch + 1
                     )
                     t.update()
+
+            if self.ckpt_root and epoch % 5 == 0:
+                self.save_ckpt(
+                    os.path.join(self.ckpt_root + "{}_epoch={}.pt".format(self.name, epoch + 1))
+                )
+
             if self.validation_ldr is not None and (epoch % 5 == 0 or epoch == 0):
                 self.validate()
 
