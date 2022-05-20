@@ -10,6 +10,7 @@ from tqdm import trange
 from src.model.base import BaseModel
 from src.utils import metrics
 import matplotlib.pyplot as plt
+import os
 
 
 class BaseTrainer(ABC):
@@ -117,10 +118,12 @@ class BaseTrainer(ABC):
                     t.update()
 
             if self.ckpt_root and epoch % 5 == 0:
-                self.save_ckpt(self.ckpt_root + "{}_epoch={}.pt".format(self.name, epoch + 1))
+                self.save_ckpt(
+                    os.path.join(self.ckpt_root + "{}_epoch={}.pt".format(self.name, epoch + 1))
+                )
 
             if self.validation_ldr is not None and (epoch % 5 == 0 or epoch == 0):
-               self.validate()
+                self.validate()
 
         self.after_training()
 
