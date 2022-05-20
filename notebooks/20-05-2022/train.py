@@ -1,6 +1,11 @@
 import argparse
+<<<<<<< HEAD
 
 from src.datamanager.dataset import ArrhythmiaDataset, ThyroidDataset, IDS2017Dataset, IDS2018Dataset
+=======
+import os
+import numpy as np
+from src.datamanager.dataset import ArrhythmiaDataset, ThyroidDataset, IDS2017Dataset
 from src.trainer.adversarial import ALADTrainer
 from src.trainer.density import DSEBMTrainer
 from src.trainer.one_class import DeepSVDDTrainer, EdgeMLDROCCTrainer
@@ -11,7 +16,7 @@ from src.model.density import DSEBM
 from src.model.one_class import DeepSVDD, DROCC
 from src.model.reconstruction import AutoEncoder, DAGMM, MemAutoEncoder
 from src.model.transformers import NeuTraLAD
-from src.utils import metrics
+from pathlib import Path
 
 
 def argument_parser():
@@ -39,6 +44,18 @@ def argument_parser():
         type=str,
         help='Path to the dataset',
         required=True
+    )
+    parser.add_argument(
+        '--n-runs',
+        help="Number times the experiment is repeated with different subsamples",
+        type=int,
+        default=1
+    )
+    parser.add_argument(
+        '--use-ckpt',
+        help="Save checkpoints during training",
+        action="store_true"
+
     )
     return parser.parse_args()
 
@@ -136,11 +153,14 @@ def main():
     args = argument_parser()
     batch_size = args.batch_size
     lr = 1e-4
-    n_epochs = 200
+    n_epochs = 201
+    use_ckpt = args.use_ckpt
     dataset = resolve_dataset(args.dataset, args.dataset_path)
     train_ldr, test_ldr = dataset.loaders(batch_size=batch_size, seed=42)
     print("data loaded with shape {}".format(dataset.shape))
     for model_name, params in settings.items():
+        ckpt_path = Path(os.path.join(model_name, "checkpoints"))
+        ckpt_path.mkdir(parents=True, exist_ok=True)
         print("Training model %s on %s" % (model_name, dataset.name))
         # Initialize model and trainer
         model_params = dict(
@@ -154,20 +174,18 @@ def main():
             lr=lr,
             n_epochs=n_epochs,
             device="cuda",
-            validation_ldr=test_ldr
+            validation_ldr=test_ldr,
+            ckpt_root=str(ckpt_path.absolute()) if use_ckpt else None
         )
-        # Train model and save checkpoint at the end
+        # Train model
         trainer.train(train_ldr)
-        ckpt_fname = model_name.lower() + ".pt"
-        trainer.save_ckpt(ckpt_fname)
-        del trainer
-        del model
-        # Load the saved checkpoint
-        trainer, model = params["trainer_cls"].load_from_file(ckpt_fname)
-        # Test loaded model
-        y_true, scores, _ = trainer.test(test_ldr)
-        res = metrics.score_recall_precision_w_threshold(scores, y_true)
-        print(res)
+        # Load best results
+        best_idx = np.argmax(trainer.metric_values["f1-score"])
+        best_epoch = best_idx * 5 + 1
+        precision, recall, f1 = trainer.metric_values["precision"][best_idx], trainer.metric_values["recall"][best_idx], \
+                                trainer.metric_values["f1-score"][best_idx],
+        print("Precision={:2.4f}, Recall={:2.4f}, F1-Score={:2.4f} obtained at epoch {}".format(precision, recall, f1,
+                                                                                                best_epoch))
         # Display and save learning curves
         trainer.plot_metrics(figname=model_name + "_learning_curves.png")
 

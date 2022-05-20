@@ -1,3 +1,5 @@
+import os
+
 import torch
 import torch.nn as nn
 from tqdm import trange
@@ -124,6 +126,11 @@ class ALADTrainer(BaseTrainer):
                         loss_ge='{:05.4f}'.format(loss_ge),
                     )
                     t.update()
+
+            if self.ckpt_root and epoch % 5 == 0:
+                self.save_ckpt(
+                    os.path.join(self.ckpt_root + "{}_epoch={}.pt".format(self.name, epoch + 1))
+                )
 
             if self.validation_ldr is not None and (epoch % 5 == 0 or epoch == 0):
                 self.validate()
