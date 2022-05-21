@@ -21,7 +21,7 @@ import pandas as pd
 def argument_parser():
     parser = argparse.ArgumentParser(
         usage="\n python testing.py"
-              "-d [dataset-path]"
+              "--dataset [dataset name] --dataset-path [path to dataset]"
     )
     parser.add_argument(
         "--batch-size",
@@ -72,13 +72,13 @@ def test():
         model_root = os.path.join(ckpt_root, model_name.lower())
         print("Testing model %s on %s" % (model_name, dataset.name))
         # Load final model
-        ckpt_f = os.path.join(model_root, model_name.lower() + ".pt")
+        ckpt_f = os.path.join(model_root, "checkpoints", model_name.lower() + "_epoch=201.pt")
         trainer, model = params["trainer_cls"].load_from_file(ckpt_f)
         best_epoch = np.argmax(trainer.metric_values["f1-score"]) * 5 + 1
         # Load best model
-        # best_ckpt_f = os.path.join(model_root, model_name.lower() + "_epoch={}".format(best_epoch))
-        # print("loading checkpoint {}".format(best_ckpt_f))
-        # trainer, model = trainer.load_from_file(best_ckpt_f)
+        best_ckpt_f = os.path.join(model_root, "checkpoints", model_name.lower() + "_epoch={}.pt".format(best_epoch))
+        print("loading checkpoint {}".format(best_ckpt_f))
+        trainer, model = trainer.load_from_file(best_ckpt_f)
         # Predict anomalies on test set
         y_test_true, test_scores, test_labels = trainer.test(test_ldr)
         results, y_pred = metrics.score_recall_precision_w_threshold(test_scores, y_test_true)
@@ -106,8 +106,8 @@ def test():
     summary_df = pd.DataFrame(
         summary, index=list(attack_types) + measures, columns=settings.keys()
     )
-    summary_df.to_csv("{}/_export/ids2017_1_run_summary.csv".format(dataset.name.lower()))
-    summary_df.to_latex("{}/_export/ids2017_1_run_summary.tex".format(dataset.name.lower()))
+    summary_df.to_csv("{}/_export/ids2017_1_run_summary.csv".format(args.dataset.lower()))
+    summary_df.to_latex("{}/_export/ids2017_1_run_summary.tex".format(args.dataset.lower()))
 
 
 if __name__ == "__main__":
