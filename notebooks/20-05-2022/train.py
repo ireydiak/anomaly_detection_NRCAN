@@ -48,6 +48,12 @@ def argument_parser():
         default=1
     )
     parser.add_argument(
+        "--n-epochs",
+        help="Number of training epochs",
+        type=int,
+        default=200
+    )
+    parser.add_argument(
         '--use-ckpt',
         help="Save checkpoints during training",
         action="store_true"
@@ -60,17 +66,17 @@ n_layers = 4
 compression_factor = 2
 
 settings = {
-    # "ALAD": {
-    #     "model_cls": ALAD,
-    #     "trainer_cls": ALADTrainer,
-    #     "latent_dim": -1
-    # },
-    # "DSEBM": {
-    #     "model_cls": DSEBM,
-    #     "trainer_cls": DSEBMTrainer,
-    #     "fc_1_out": 128,
-    #     "fc_2_out": 512
-    # },
+    "ALAD": {
+        "model_cls": ALAD,
+        "trainer_cls": ALADTrainer,
+        "latent_dim": -1
+    },
+    "DSEBM": {
+        "model_cls": DSEBM,
+        "trainer_cls": DSEBMTrainer,
+        "fc_1_out": 128,
+        "fc_2_out": 512
+    },
     "DeepSVDD": {
         "model_cls": DeepSVDD,
         "trainer_cls": DeepSVDDTrainer,
@@ -78,56 +84,56 @@ settings = {
         "compression_factor": compression_factor,
         "act_fn": "relu"
     },
-    # "DROCC": {
-    #     "model_cls": DROCC,
-    #     "trainer_cls": EdgeMLDROCCTrainer
-    # },
-    # "AutoEncoder": {
-    #     "model_cls": AutoEncoder,
-    #     "trainer_cls": AutoEncoderTrainer,
-    #     "latent_dim": 1,
-    #     "act_fn": "relu",
-    #     "n_layers": n_layers,
-    #     "compression_factor": compression_factor,
-    #     "reg": 0.5,
-    # },
-    # "DAGMM": {
-    #     "model_cls": DAGMM,
-    #     "trainer_cls": DAGMMTrainer,
-    #     "n_mixtures": 4,
-    #     "latent_dim": 1,
-    #     "lambda_1": 0.1,
-    #     "lambda_2": 0.005,
-    #     "reg_covar": 1e-12,
-    #     "n_layers": n_layers,
-    #     "compression_factor": compression_factor,
-    #     "ae_act_fn": "relu",
-    #     "gmm_act_fn": "tanh",
-    # },
-    # "MemAE": {
-    #     "model_cls": MemAutoEncoder,
-    #     "trainer_cls": MemAETrainer,
-    #     "mem_dim": 50,
-    #     "latent_dim": 1,
-    #     "shrink_thres": 0.0025,
-    #     "n_layers": n_layers,
-    #     "compression_factor": compression_factor,
-    #     "alpha": 2e-5,
-    #     "act_fn": "relu",
-    # },
-    # "NeuTraLAD": {
-    #     "model_cls": NeuTraLAD,
-    #     "trainer_cls": NeuTraLADTrainer,
-    #     "fc_1_out": 90,
-    #     "fc_last_out": 32,
-    #     "compression_unit": 20,
-    #     "temperature": 0.07,
-    #     "trans_type": "mul",
-    #     "n_layers": n_layers,
-    #     "n_transforms": 11,
-    #     "trans_fc_in": 200,
-    #     "trans_fc_out": -1,
-    # }
+    "DROCC": {
+        "model_cls": DROCC,
+        "trainer_cls": EdgeMLDROCCTrainer
+    },
+    "AutoEncoder": {
+        "model_cls": AutoEncoder,
+        "trainer_cls": AutoEncoderTrainer,
+        "latent_dim": 1,
+        "act_fn": "relu",
+        "n_layers": n_layers,
+        "compression_factor": compression_factor,
+        "reg": 0.5,
+    },
+    "DAGMM": {
+        "model_cls": DAGMM,
+        "trainer_cls": DAGMMTrainer,
+        "n_mixtures": 4,
+        "latent_dim": 1,
+        "lambda_1": 0.1,
+        "lambda_2": 0.005,
+        "reg_covar": 1e-12,
+        "n_layers": n_layers,
+        "compression_factor": compression_factor,
+        "ae_act_fn": "relu",
+        "gmm_act_fn": "tanh",
+    },
+    "MemAE": {
+        "model_cls": MemAutoEncoder,
+        "trainer_cls": MemAETrainer,
+        "mem_dim": 50,
+        "latent_dim": 1,
+        "shrink_thres": 0.0025,
+        "n_layers": n_layers,
+        "compression_factor": compression_factor,
+        "alpha": 2e-5,
+        "act_fn": "relu",
+    },
+    "NeuTraLAD": {
+        "model_cls": NeuTraLAD,
+        "trainer_cls": NeuTraLADTrainer,
+        "fc_1_out": 90,
+        "fc_last_out": 32,
+        "compression_unit": 20,
+        "temperature": 0.07,
+        "trans_type": "mul",
+        "n_layers": n_layers,
+        "n_transforms": 11,
+        "trans_fc_in": 200,
+        "trans_fc_out": -1,
+    }
 }
 
 
@@ -149,7 +155,7 @@ def train():
     args = argument_parser()
     batch_size = args.batch_size
     lr = 1e-4
-    n_epochs = 10
+    n_epochs = args.n_epochs
     use_ckpt = args.use_ckpt
     dataset = resolve_dataset(args.dataset, args.dataset_path)
     train_ldr, test_ldr = dataset.loaders(batch_size=batch_size, seed=42)

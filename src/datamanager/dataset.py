@@ -11,6 +11,7 @@ class AbstractDataset(Dataset):
     def __init__(self, path: str, normal_size: float = 1.0, seed=None, **kwargs):
         self.name = self.__class__.__name__
         self.labels = np.array([])
+        self.seed = seed
         X = self._load_data(path)
         anomaly_label = kwargs.get('anomaly_label', 1)
         normal_label = kwargs.get('normal_label', 0)
@@ -142,6 +143,11 @@ class IDS2018Dataset(AbstractDataset):
             if self.selected_features:
                 df = df[self.selected_features + ["Label", "Category"]]
             self.columns = list(df.columns)
+            # Select 50% of normal samples
+            normal_df = df[df.Label == 0].sample(frac=.5, random_state=self.seed)
+            df = pd.concat((
+                normal_df, df[df.Label == 1]
+            ))
             labels = df["Category"].to_numpy()
             y = df["Label"].astype(np.int8).to_numpy()
             X = df.drop(["Label", "Category"], axis=1).astype(np.float64).to_numpy()

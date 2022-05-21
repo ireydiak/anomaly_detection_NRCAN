@@ -66,7 +66,7 @@ def test():
     train_ldr, test_ldr = dataset.loaders(batch_size=batch_size, seed=42)
     attack_types = np.unique(dataset.labels)
     summary, measures = [], ["Precision", "Recall", "F1-Score", "AUPR"]
-    ckpt_root = "ids2017"
+    ckpt_root = args.dataset.lower()
     print("data loaded with shape {}".format(dataset.shape))
     for model_name, params in settings.items():
         model_root = os.path.join(ckpt_root, model_name.lower())
@@ -106,8 +106,8 @@ def test():
     summary_df = pd.DataFrame(
         summary, index=list(attack_types) + measures, columns=settings.keys()
     )
-    summary_df.to_csv("ids2017/_export/ids2017_1_run_summary.csv")
-    summary_df.to_latex("ids2017/_export/ids2017_1_run_summary.tex")
+    summary_df.to_csv("{}/_export/ids2017_1_run_summary.csv".format(dataset.name.lower()))
+    summary_df.to_latex("{}/_export/ids2017_1_run_summary.tex".format(dataset.name.lower()))
 
 
 if __name__ == "__main__":
