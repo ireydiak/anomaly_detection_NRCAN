@@ -119,7 +119,7 @@ class BaseTrainer(ABC):
 
             if self.ckpt_root and epoch % 5 == 0:
                 self.save_ckpt(
-                    os.path.join(self.ckpt_root, "{}_epoch={}.pt".format(self.name, epoch + 1))
+                    os.path.join(self.ckpt_root, "{}_epoch={}.pt".format(self.model.name.lower(), epoch + 1))
                 )
 
             if self.validation_ldr is not None and (epoch % 5 == 0 or epoch == 0):
