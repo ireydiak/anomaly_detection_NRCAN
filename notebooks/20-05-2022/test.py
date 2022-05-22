@@ -1,7 +1,11 @@
 import argparse
 import os
+import re
+
 import numpy as np
-from src.datamanager.dataset import ArrhythmiaDataset, ThyroidDataset, IDS2017Dataset
+
+from src.bootstrap import store_results
+from src.datamanager.dataset import ArrhythmiaDataset, ThyroidDataset, IDS2017Dataset, IDS2018Dataset
 from src.trainer.adversarial import ALADTrainer
 from src.trainer.density import DSEBMTrainer
 from src.trainer.one_class import DeepSVDDTrainer, EdgeMLDROCCTrainer
@@ -53,6 +57,8 @@ def resolve_dataset(name, path):
         return ArrhythmiaDataset(path=path)
     elif name == "ids2017":
         return IDS2017Dataset(path=path)
+    elif name == "ids2018":
+        return IDS2018Dataset(path=path)
     elif name == "thyroid":
         return ThyroidDataset(path=path)
     else:
@@ -70,9 +76,13 @@ def test():
     print("data loaded with shape {}".format(dataset.shape))
     for model_name, params in settings.items():
         model_root = os.path.join(ckpt_root, model_name.lower())
-        print("Testing model %s on %s" % (model_name, dataset.name))
+        print("Testing model %s on %s" % (model_name, args.dataset))
         # Load final model
-        ckpt_f = os.path.join(model_root, "checkpoints", model_name.lower() + "_epoch=201.pt")
+        ckpt_files = [
+            int(re.findall(r'\d+', p)[0]) for p in os.listdir(os.path.join(model_root, "checkpoints"))
+        ]
+        ckpt_files.sort()
+        ckpt_f = os.path.join(model_root, "checkpoints", model_name.lower() + "_epoch={}.pt".format(ckpt_files[-1]))
         trainer, model = params["trainer_cls"].load_from_file(ckpt_f)
         best_epoch = np.argmax(trainer.metric_values["f1-score"]) * 5 + 1
         # Load best model
@@ -82,6 +92,14 @@ def test():
         # Predict anomalies on test set
         y_test_true, test_scores, test_labels = trainer.test(test_ldr)
         results, y_pred = metrics.score_recall_precision_w_threshold(test_scores, y_test_true)
+        store_results(
+            results=results,
+            params=dict(**trainer.get_params(), **model.get_params()),
+            model_name=model_name,
+            dataset=args.dataset,
+            dataset_path=args.dataset_path,
+            results_path=model_root
+        )
         # Convert binary classifications to multi-class
         clf_df = ids_misclf_per_label(y_pred, y_test_true, test_labels)
         clf_df = clf_df.sort_values("Accuracy", ascending=False)
