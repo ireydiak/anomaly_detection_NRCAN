@@ -177,6 +177,7 @@ class BaseTrainer(ABC):
         Function that plots train and validation losses and accuracies after
         training phase
         """
+
         precision, recall = self.metric_values["precision"], self.metric_values["recall"]
         f1, aupr = self.metric_values["f1-score"], self.metric_values["aupr"]
         epochs = range(1, len(precision) + 1)
@@ -184,21 +185,20 @@ class BaseTrainer(ABC):
         f, ax1 = plt.subplots(figsize=(10, 5))
 
         ax1.plot(
-            epochs, precision, '-o', label="Test precision", c="b"
+            epochs, precision, '-o', label="Precision", c="b"
         )
         ax1.plot(
-            epochs, recall, '-o', label="Test recall", c="g"
+            epochs, recall, '-o', label="Recall", c="g"
         )
         ax1.plot(
-            epochs, aupr, '-o', label="Test AUPR", c="c"
+            epochs, aupr, '-o', label="AUPR", c="c"
         )
         ax1.plot(
-            epochs, f1, '-o', label="Test F1-Score", c="r"
+            epochs, f1, '-o', label="F1-Score", c="r"
         )
-        ax1.set_title("Test Recall, Precision, AUPR and F1-Score")
-        ax1.set_xlabel("Epochs")
-        ax1.set_ylabel("Metrics")
-        ax1.legend()
+        ax1.set_xlabel("Epochs", fontsize=16)
+        ax1.set_ylabel("Metrics", fontsize=16)
+        ax1.legend(fontsize=14)
 
         f.savefig(figname)
         plt.show()
