@@ -51,7 +51,7 @@ def argument_parser():
         "--n-epochs",
         help="Number of training epochs",
         type=int,
-        default=200
+        default=201
     )
     parser.add_argument(
         '--use-ckpt',
@@ -104,7 +104,7 @@ settings = {
         "latent_dim": 1,
         "lambda_1": 0.1,
         "lambda_2": 0.005,
-        "reg_covar": 1e-12,
+        "reg_covar": 1e-8,
         "n_layers": n_layers,
         "compression_factor": compression_factor,
         "ae_act_fn": "relu",

@@ -112,7 +112,7 @@ def test():
             tmp.append("{:2.2f}".format(clf_df.loc[atk_label, "Accuracy"] * 100))
         for metric in measures:
             tmp.append(
-                "{:2.2f}".format(results[metric])
+                "{:2.2f}".format(results[metric]*100)
             )
         if len(summary) == 0:
             summary = np.array(tmp).reshape(len(tmp), 1)
@@ -124,8 +124,8 @@ def test():
     summary_df = pd.DataFrame(
         summary, index=list(attack_types) + measures, columns=settings.keys()
     )
-    summary_df.to_csv("{}/_export/ids2017_1_run_summary.csv".format(args.dataset.lower()))
-    summary_df.to_latex("{}/_export/ids2017_1_run_summary.tex".format(args.dataset.lower()))
+    summary_df.to_csv("{}/_export/{}_1_run_summary.csv".format(args.dataset.lower(), args.dataset.lower()))
+    summary_df.to_latex("{}/_export/{}_1_run_summary.tex".format(args.dataset.lower(), args.dataset.lower()))
 
 
 if __name__ == "__main__":
