@@ -42,11 +42,10 @@ class BaseModel(nn.Module):
 
 class BaseShallowModel(ABC):
 
-    def __init__(self, dataset_name: str, in_features: int, device: str):
-        self.dataset_name = dataset_name
+    def __init__(self, in_features: int, n_instances: int, device: str = None):
         self.device = device
         self.in_features = in_features
-        self.resolve_params(dataset_name)
+        self.n_instances = n_instances
 
     def resolve_params(self, dataset_name: str):
         pass

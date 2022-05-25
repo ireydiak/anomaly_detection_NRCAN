@@ -2,6 +2,7 @@ from sklearn.neighbors import LocalOutlierFactor
 from sklearn.svm import OneClassSVM
 from recforest import RecForest as PyPiRecForest
 from src.model.base import BaseShallowModel
+from sklearn.decomposition import PCA as skPCA
 
 
 class RecForest(BaseShallowModel):
@@ -81,3 +82,20 @@ class LOF(BaseShallowModel):
         }
 
 
+class PCA(BaseShallowModel):
+    name = "PCA"
+
+    def __init__(self, n_components: int):
+        self.n_components = n_components
+        self.clf = skPCA(n_components=n_components)
+
+    @staticmethod
+    def get_args_desc():
+        return [
+            ("n_components", int, 1, "sklearn: Number of components to keep")
+        ]
+
+    def get_pararams(self) -> dict:
+        return {
+            "n_components": self.n_components
+        }

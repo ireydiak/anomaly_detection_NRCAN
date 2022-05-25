@@ -215,12 +215,17 @@ class BaseTrainer(ABC):
 
 class BaseShallowTrainer(ABC):
 
-    def __init__(self, model,
+    def __init__(self,
+                 model,
                  batch_size,
                  lr: float = 1e-4,
                  n_epochs: int = 200,
                  n_jobs_dataloader: int = 0,
-                 device: str = "cuda"):
+                 device: str = "cuda",
+                 anomaly_label=1,
+                 ckpt_root: str = None,
+                 validation_ldr=None
+                 ):
         """
         Parameters are mostly ignored but kept for better code consistency
 
@@ -233,12 +238,15 @@ class BaseShallowTrainer(ABC):
         n_jobs_dataloader
         device
         """
-        self.device = None
-        self.model = model
         self.batch_size = None
-        self.n_jobs_dataloader = None
-        self.n_epochs = None
         self.lr = None
+        self.n_epochs = None
+        self.n_jobs_dataloader = None
+        self.device = None
+        self.anomaly_label = 1
+        self.ckpt_root = None
+        self.validation_ldr = None
+        self.model = model
 
     def train(self, dataset: DataLoader):
         self.model.clf.fit(dataset.dataset.dataset.X)
@@ -250,12 +258,12 @@ class BaseShallowTrainer(ABC):
         y_true, scores, labels = [], [], []
         for row in dataset:
             X, y, label = row
-            score = self.score(X)
+            s = self.score(X)
             y_true.extend(y.cpu().tolist())
-            scores.extend(score)
+            scores.extend(s)
             labels.extend(list(label))
 
-        return np.array(y_true), np.array(scores)
+        return np.array(y_true), np.array(scores), np.array(labels)
 
     def get_params(self) -> dict:
         return {

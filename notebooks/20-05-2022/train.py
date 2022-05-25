@@ -2,10 +2,12 @@ import argparse
 import os
 import numpy as np
 from src.datamanager.dataset import ArrhythmiaDataset, ThyroidDataset, IDS2017Dataset, IDS2018Dataset
+from src.model.shallow import PCA
 from src.trainer.adversarial import ALADTrainer
 from src.trainer.density import DSEBMTrainer
 from src.trainer.one_class import DeepSVDDTrainer, EdgeMLDROCCTrainer
 from src.trainer.reconstruction import AutoEncoderTrainer, MemAETrainer, DAGMMTrainer
+from src.trainer.shallow import PCATrainer
 from src.trainer.transformers import NeuTraLADTrainer
 from src.model.adversarial import ALAD
 from src.model.density import DSEBM
@@ -133,6 +135,11 @@ settings = {
         "n_transforms": 11,
         "trans_fc_in": 200,
         "trans_fc_out": -1,
+    },
+    "PCA": {
+        "model_cls": PCA,
+        "trainer_cls": PCATrainer,
+        "n_components": 6
     }
 }
 

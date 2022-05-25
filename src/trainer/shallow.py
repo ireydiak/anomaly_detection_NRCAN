@@ -39,3 +39,15 @@ class LOFTrainer(BaseShallowTrainer):
 
     def train(self, dataset: DataLoader):
         self.model.clf.fit(dataset.dataset.dataset.X)
+
+
+class PCATrainer(BaseShallowTrainer):
+
+    def score(self, sample: torch.Tensor):
+        sample = sample.numpy()
+        z = self.model.clf.transform(sample)
+        x_hat = self.model.clf.inverse_transform(z)
+        return ((sample - x_hat) ** 2).sum(axis=1)
+
+    def train(self, dataset: DataLoader):
+        self.model.clf.fit(dataset.dataset.dataset.X)
