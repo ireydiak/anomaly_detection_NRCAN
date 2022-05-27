@@ -1,6 +1,10 @@
 import argparse
 import os
+from collections import defaultdict
+
 import numpy as np
+
+from src.bootstrap import store_results
 from src.datamanager.dataset import ArrhythmiaDataset, ThyroidDataset, IDS2017Dataset, IDS2018Dataset
 from src.model.shallow import PCA
 from src.trainer.adversarial import ALADTrainer
@@ -15,6 +19,9 @@ from src.model.one_class import DeepSVDD, DROCC
 from src.model.reconstruction import AutoEncoder, DAGMM, MemAutoEncoder
 from src.model.transformers import NeuTraLAD
 from pathlib import Path
+
+from src.utils import metrics
+from src.utils.utils import ids_misclf_per_label
 
 
 def argument_parser():
@@ -56,11 +63,26 @@ def argument_parser():
         default=201
     )
     parser.add_argument(
-        '--use-ckpt',
+        "--use-ckpt",
         help="Save checkpoints during training",
         action="store_true"
-
     )
+    parser.add_argument(
+        "--run-validation",
+        help="Validate model on test set during training",
+        action="store_true"
+    )
+    parser.add_argument(
+        "--run-test",
+        help="Test the model on test set after training",
+        action="store_true"
+    )
+    parser.add_argument(
+        "--models",
+        nargs="+",
+        default=""
+    )
+
     return parser.parse_args()
 
 
@@ -158,6 +180,17 @@ def resolve_dataset(name, path):
         raise Exception("unsupported dataset %s, aborting" % name)
 
 
+def resolve_models(model_list: list) -> dict:
+    to_train = defaultdict()
+    for model_name in model_list:
+        setting = settings.get(model_name)
+        if setting:
+            to_train[model_name] = setting
+        else:
+            raise KeyError("unknown model {}".format(model_name))
+    return to_train
+
+
 def train():
     args = argument_parser()
     batch_size = args.batch_size
@@ -167,7 +200,8 @@ def train():
     dataset = resolve_dataset(args.dataset, args.dataset_path)
     train_ldr, test_ldr = dataset.loaders(batch_size=batch_size, seed=42)
     print("data loaded with shape {}".format(dataset.shape))
-    for model_name, params in settings.items():
+    to_train = resolve_models(args.models)
+    for model_name, params in to_train.items():
         model_root = os.path.join(args.dataset.lower(), model_name.lower())
         ckpt_path = Path(os.path.join(model_root, "checkpoints"))
         ckpt_path.mkdir(parents=True, exist_ok=True)
@@ -189,15 +223,34 @@ def train():
         )
         # Train model
         trainer.train(train_ldr)
-        # Load best results
-        best_idx = np.argmax(trainer.metric_values["f1-score"])
-        best_epoch = best_idx * 5 + 1
-        precision, recall, f1 = trainer.metric_values["precision"][best_idx], trainer.metric_values["recall"][best_idx], \
-                                trainer.metric_values["f1-score"][best_idx],
-        print("Precision={:2.4f}, Recall={:2.4f}, F1-Score={:2.4f} obtained at epoch {}".format(precision, recall, f1,
-                                                                                                best_epoch))
-        # Display and save learning curves
-        trainer.plot_metrics(figname=os.path.join(model_root, model_name + "_learning_curves.png"))
+        if args.run_validation:
+            # Load best results
+            best_idx = np.argmax(trainer.metric_values["f1-score"])
+            best_epoch = best_idx * 5 + 1
+            precision, recall = trainer.metric_values["precision"][best_idx], trainer.metric_values["recall"][best_idx]
+            f1 = trainer.metric_values["f1-score"][best_idx]
+            print(
+                "Precision={:2.4f}, Recall={:2.4f}, F1-Score={:2.4f} obtained at epoch {}".format(precision, recall, f1, best_epoch)
+            )
+            # Display and save learning curves
+            trainer.plot_metrics(figname=os.path.join(model_root, model_name + "_learning_curves.png"))
+        if args.run_test:
+            y_true, scores, full_labels = trainer.test(test_ldr)
+            res, y_pred = metrics.score_recall_precision_w_threshold(scores, y_true)
+            store_results(
+                results=res,
+                params=dict(**trainer.get_params(), **model.get_params()),
+                model_name=model_name,
+                dataset=args.dataset,
+                dataset_path=args.dataset_path,
+                results_path=model_root
+            )
+            # Convert binary classifications to multi-class
+            clf_df = ids_misclf_per_label(y_pred, y_true, full_labels)
+            clf_df = clf_df.sort_values("Accuracy", ascending=False)
+            clf_df.to_csv(os.path.join(
+                model_root, "{}_class_predictions.csv".format(model_name)
+            ))
 
 
 if __name__ == "__main__":

@@ -108,7 +108,7 @@ def ids_misclf_per_label(y_pred: np.array, y_test_true: np.array, test_labels: n
     for k, v in misclf.items():
         gt[k][1] = v
         gt[k][2] = v / gt[k][0]
-        gt[k][3] = 1 - gt[k][2]
+        gt[k][3] = (1 - gt[k][2]) * 100
     # Create a dataframe from the merged dictionary
     return pd.DataFrame.from_dict(
         gt,

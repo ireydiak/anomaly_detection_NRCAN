@@ -42,7 +42,7 @@ class BaseModel(nn.Module):
 
 class BaseShallowModel(ABC):
 
-    def __init__(self, in_features: int, n_instances: int, device: str = None):
+    def __init__(self, in_features: int, n_instances: int, device: str = None, **kwargs):
         self.device = device
         self.in_features = in_features
         self.n_instances = n_instances

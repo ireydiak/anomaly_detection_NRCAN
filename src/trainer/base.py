@@ -224,7 +224,8 @@ class BaseShallowTrainer(ABC):
                  device: str = "cuda",
                  anomaly_label=1,
                  ckpt_root: str = None,
-                 validation_ldr=None
+                 validation_ldr=None,
+                 **kwargs
                  ):
         """
         Parameters are mostly ignored but kept for better code consistency
