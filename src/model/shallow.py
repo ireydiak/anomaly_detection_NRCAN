@@ -85,7 +85,8 @@ class LOF(BaseShallowModel):
 class PCA(BaseShallowModel):
     name = "PCA"
 
-    def __init__(self, n_components: int):
+    def __init__(self, n_components: int, **kwargs):
+        super(PCA, self).__init__(**kwargs)
         self.n_components = n_components
         self.clf = skPCA(n_components=n_components)
 
@@ -95,7 +96,7 @@ class PCA(BaseShallowModel):
             ("n_components", int, 1, "sklearn: Number of components to keep")
         ]
 
-    def get_pararams(self) -> dict:
+    def get_params(self) -> dict:
         return {
             "n_components": self.n_components
         }
