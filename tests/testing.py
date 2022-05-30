@@ -1,7 +1,6 @@
 import argparse
 import os
 from collections import defaultdict
-
 from src.datamanager.DataManager import DataManager
 from src.datamanager.dataset import ArrhythmiaDataset, ThyroidDataset, IDS2017Dataset
 from src.model.DUAD import DUAD

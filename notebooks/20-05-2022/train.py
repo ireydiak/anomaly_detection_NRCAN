@@ -1,10 +1,8 @@
 import argparse
 import os
-from collections import defaultdict
-
 import numpy as np
-
 from src.bootstrap import store_results
+from collections import defaultdict
 from src.datamanager.dataset import ArrhythmiaDataset, ThyroidDataset, IDS2017Dataset, IDS2018Dataset
 from src.model.shallow import PCA
 from src.trainer.adversarial import ALADTrainer
@@ -223,17 +221,6 @@ def train():
         )
         # Train model
         trainer.train(train_ldr)
-        if args.run_validation:
-            # Load best results
-            best_idx = np.argmax(trainer.metric_values["f1-score"])
-            best_epoch = best_idx * 5 + 1
-            precision, recall = trainer.metric_values["precision"][best_idx], trainer.metric_values["recall"][best_idx]
-            f1 = trainer.metric_values["f1-score"][best_idx]
-            print(
-                "Precision={:2.4f}, Recall={:2.4f}, F1-Score={:2.4f} obtained at epoch {}".format(precision, recall, f1, best_epoch)
-            )
-            # Display and save learning curves
-            trainer.plot_metrics(figname=os.path.join(model_root, model_name + "_learning_curves.png"))
         if args.run_test:
             y_true, scores, full_labels = trainer.test(test_ldr)
             res, y_pred = metrics.score_recall_precision_w_threshold(scores, y_true)
@@ -251,6 +238,15 @@ def train():
             clf_df.to_csv(os.path.join(
                 model_root, "{}_class_predictions.csv".format(model_name)
             ))
+        # Load best results
+        best_idx = np.argmax(trainer.metric_values["f1-score"])
+        best_epoch = best_idx * 5 + 1
+        precision, recall, f1 = trainer.metric_values["precision"][best_idx], trainer.metric_values["recall"][best_idx], \
+                                trainer.metric_values["f1-score"][best_idx],
+        print("Precision={:2.4f}, Recall={:2.4f}, F1-Score={:2.4f} obtained at epoch {}".format(precision, recall, f1,
+                                                                                                best_epoch))
+        # Display and save learning curves
+        trainer.plot_metrics(figname=model_name + "_learning_curves.png")
 
 
 if __name__ == "__main__":
