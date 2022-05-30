@@ -6,10 +6,8 @@ from tqdm import trange
 from torch import optim
 from torch.autograd import Variable
 from torch.utils.data import DataLoader
-
 from src.model.adversarial import ALAD
 from src.trainer.base import BaseTrainer
-
 torch.autograd.set_detect_anomaly(True)
 
 
@@ -18,6 +16,7 @@ class ALADTrainer(BaseTrainer):
         self.optim_ge, self.optim_d = None, None
         super(ALADTrainer, self).__init__(**kwargs)
         self.criterion = nn.BCEWithLogitsLoss()
+        self.set_optimizer(kwargs.get("weight_decay", 0.))
 
     @staticmethod
     def load_from_file(fname: str, device: str = None):
@@ -64,6 +63,8 @@ class ALADTrainer(BaseTrainer):
         )
 
     def train_iter_dis(self, X):
+        # Cleaning gradients
+        self.optim_d.zero_grad()
         # Labels
         y_true = Variable(torch.zeros(X.size(0), 1)).to(self.device)
         y_fake = Variable(torch.ones(X.size(0), 1)).to(self.device)
@@ -75,10 +76,15 @@ class ALADTrainer(BaseTrainer):
         loss_dzz = self.criterion(out_truezz, y_true) + self.criterion(out_fakezz, y_fake)
         loss_dxx = self.criterion(out_truexx, y_true) + self.criterion(out_fakexx, y_fake)
         loss_d = loss_dxz + loss_dzz + loss_dxx
+        # Backward pass
+        loss_d.backward()
+        self.optim_d.step()
 
         return loss_d
 
     def train_iter_gen(self, X):
+        # Cleaning gradients
+        self.optim_ge.zero_grad()
         # Labels
         y_true = Variable(torch.zeros(X.size(0), 1)).to(self.device)
         y_fake = Variable(torch.ones(X.size(0), 1)).to(self.device)
@@ -90,6 +96,9 @@ class ALADTrainer(BaseTrainer):
         loss_gexx = self.criterion(out_fakexx, y_true) + self.criterion(out_truexx, y_fake)
         cycle_consistency = loss_gexx + loss_gezz
         loss_ge = loss_gexz + cycle_consistency
+        # Backward pass
+        loss_ge.backward()
+        self.optim_ge.step()
 
         return loss_ge
 
@@ -103,25 +112,15 @@ class ALADTrainer(BaseTrainer):
             with trange(len(dataset)) as t:
                 for sample in dataset:
                     X, _, _ = sample
-
-                    if len(X) < self.batch_size:
-                        break
                     X_dis, X_gen = X.to(self.device).float(), X.clone().to(self.device).float()
-                    # Cleaning gradients
-                    self.optim_ge.zero_grad()
-                    self.optim_d.zero_grad()
                     # Forward pass
                     loss_d = self.train_iter_dis(X_dis)
                     loss_ge = self.train_iter_gen(X_gen)
-                    # Backward pass
-                    loss_d.backward()
-                    loss_ge.backward()
-                    self.optim_d.step()
-                    self.optim_ge.step()
                     # Journaling
                     d_losses += loss_d.item()
                     ge_losses += loss_ge.item()
                     t.set_postfix(
+                        ep=epoch + 1,
                         loss_d='{:05.4f}'.format(loss_d),
                         loss_ge='{:05.4f}'.format(loss_ge),
                     )

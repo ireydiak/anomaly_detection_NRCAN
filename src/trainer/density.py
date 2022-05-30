@@ -9,7 +9,6 @@ from torch import optim
 from torch.nn import Parameter
 from torch.utils.data import DataLoader
 from tqdm import trange
-
 from src.model.density import DSEBM
 from src.trainer.base import BaseTrainer
 
@@ -130,10 +129,6 @@ class DSEBMTrainer(BaseTrainer):
         for row in dataset:
             X, y, label = row
             X = X.to(self.device).float()
-
-            if len(X) < self.batch_size:
-                break
-
             score_e, score_r = self.score(X)
 
             y_true.extend(y.cpu().tolist())

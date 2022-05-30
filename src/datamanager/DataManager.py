@@ -14,7 +14,8 @@ class MySubset(Subset):
     """
 
     def __getitem__(self, idx):
-        return self.dataset[self.indices[idx]] + (idx,)
+        data = self.dataset[self.indices[idx]]
+        return data[0], data[1], idx
 
 
 class DataManager:

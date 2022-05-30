@@ -1,7 +1,6 @@
 import torch
 import numpy as np
 from torch.utils.data.dataloader import DataLoader
-
 from src.model.reconstruction import AutoEncoder, DAGMM, MemAutoEncoder
 from src.trainer.base import BaseTrainer
 from src.loss.EntropyLoss import EntropyLoss

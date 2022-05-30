@@ -1,7 +1,6 @@
 import torch
 from torch import nn, optim
 from torch.optim.lr_scheduler import StepLR
-
 from src.model.transformers import NeuTraLAD
 from src.trainer.base import BaseTrainer
 

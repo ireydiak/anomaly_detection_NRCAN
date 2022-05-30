@@ -1,7 +1,7 @@
 import torch
 
 from torch.utils.data import DataLoader
-from src.trainer.base import BaseShallowTrainer
+from .base import BaseShallowTrainer
 
 
 class RecForestTrainer(BaseShallowTrainer):

@@ -1,4 +1,6 @@
 import argparse
+from typing import Tuple
+
 import pandas as pd
 import numpy as np
 from sklearn.preprocessing import MinMaxScaler
@@ -130,9 +132,8 @@ COLS = [
 ]
 
 
-def clean_step(path_to_files: str, export_path: str) -> pd.DataFrame:
+def clean_step(path_to_files: str, export_path: str, backup: bool = False) -> Tuple[pd.DataFrame, dict]:
     total_rows = deleted_rows = 0
-    total_features = 83
     chunks = []
 
     for f in os.listdir(path_to_files):
@@ -166,12 +167,11 @@ def clean_step(path_to_files: str, export_path: str) -> pd.DataFrame:
         # Adding chunk to chunks
         chunks.append(chunk)
         
-        # backup
-        chunk.to_csv(
-            f"{export_path}/{utils.folder_struct['clean_step']}/{f}",
-            sep=',', encoding='utf-8', index=False
-        )
-
+        if backup:
+            chunk.to_csv(
+                f"{export_path}/{utils.folder_struct['clean_step']}/{f}",
+                sep=',', encoding='utf-8', index=False
+            )
     stats = {
         "Total Rows": str(total_rows),
         "Total Features": "83",
@@ -183,7 +183,7 @@ def clean_step(path_to_files: str, export_path: str) -> pd.DataFrame:
     return pd.concat(chunks), stats
 
 
-def normalize_step(df: pd.DataFrame, cols: list, base_path: str, fname: str):
+def normalize_step(df: pd.DataFrame, cols: list, base_path: str, fname: str, backup: bool = False):
     print(f'Processing {len(cols)} features for {fname}')
     # Preprocessing inspired by https://journalofbigdata.springeropen.com/articles/10.1186/s40537-021-00426-w
     # Split numerical and non-numerical columns
@@ -198,6 +198,7 @@ def normalize_step(df: pd.DataFrame, cols: list, base_path: str, fname: str):
         df = enc.fit_transform(X, y_prime)
     # Keep labels aside
     y = df['Label'].to_numpy()
+    source_label = df['Label_cat'].to_numpy()
     # Keep only a subset of the features
     df = df[cols]
     # Normalize numerical data
@@ -206,25 +207,28 @@ def normalize_step(df: pd.DataFrame, cols: list, base_path: str, fname: str):
     # This way we avoid normalizing values that are already between 0 and 1.
     to_scale = df[num_cols][(df[num_cols] < 0.0).any(axis=1) & (df[num_cols] > 1.0).any(axis=1)].columns
     print(f'Scaling {len(to_scale)} columns')
-    df[to_scale] = scaler.fit_transform(df[to_scale].values.astype(np.float64))
+    df[to_scale] = scaler.fit_transform(df[to_scale].values.astype(np.float))
     # Merge normalized dataframe with labels
     X = np.concatenate(
         (df.values, y.reshape(-1, 1)),
         axis=1
     )
-    df.to_csv(
-        f'{base_path}/{utils.folder_struct["normalize_step"]}/{fname}.csv',
-        sep=',', encoding='utf-8', index=False
-    )
-    print(f'Saved {base_path}/{utils.folder_struct["normalize_step"]}/{fname}.csv')
+    if backup:
+        df.to_csv(
+            f'{base_path}/{utils.folder_struct["normalize_step"]}/{fname}.csv',
+            sep=',', encoding='utf-8', index=False
+        )
+        print(f'Saved {base_path}/{utils.folder_struct["normalize_step"]}/{fname}.csv')
     del df
-    np.savez(f'{base_path}/{utils.folder_struct["minify_step"]}/{fname}.npz', ids2018=X.astype(np.float64))
+
+    np.savez_compressed(f'{base_path}/{utils.folder_struct["minify_step"]}/{fname}.npz', ids2018=X, label=source_label)
+    # np.savez(f'{base_path}/{utils.folder_struct["minify_step"]}/{fname}_label.npz', ids2018=)
     print(f'Saved {base_path}/{fname}.npz')
 
 
 if __name__ == '__main__':
     # Assumes `path` points to the location of the original CSV files.
-    # `path` must only contain CSV files and not other file types such as folders. 
+    # `path` must only contain CSV files and not other file types such as folders.
     path, export_path, backup, norm = utils.parse_args()
     # 0 - Prepare folder structure
     utils.prepare(export_path)
@@ -234,23 +238,24 @@ if __name__ == '__main__':
         df = pd.read_csv(path_to_clean)
     else:
         # 1 - Clean the data (remove invalid rows and columns)
-        df, clean_stats = clean_step(path, export_path)
+        df, clean_stats = clean_step(path, export_path, backup=backup)
         # Save info about cleaning step
         utils.save_stats(export_path + '/cicids2018_info.csv', clean_stats)
     
     # 2 - Normalize numerical values and treat categorical values
     to_process = [
-        # (list(set(COLS) - set(COLS_TO_DROP) - {'Label'}), 'feature_group_5'),
-        # (["Dst Port", *rank_7_otf_7], 'feature_group_4'),
-        # (["Dst Port", *rank_6_otf_7], 'feature_group_3'),
-        # (["Dst Port", *rank_5_otf_7], 'feature_group_2'),
-        # (["Dst Port", *rank_4_otf_7], 'feature_group_1'),
+        (list(set(COLS) - set(COLS_TO_DROP) - {'Label', 'Category'}), 'feature_group_5'),
+        (["Dst Port", *rank_7_otf_7], 'feature_group_4'),
+        (["Dst Port", *rank_6_otf_7], 'feature_group_3'),
+        (["Dst Port", *rank_5_otf_7], 'feature_group_2'),
+        (["Dst Port", *rank_4_otf_7], 'feature_group_1'),
         (list(set(COLS) - set(COLS_TO_DROP) - {'Dst Port', 'Label', 'Category'}), 'feature_group_5A'),
-        # (rank_7_otf_7, 'feature_group_4A'),
-        # (rank_6_otf_7, 'feature_group_3A'),
-        # (rank_5_otf_7, 'feature_group_2A'),
-        # (rank_4_otf_7, 'feature_group_1A'),
+        (rank_7_otf_7, 'feature_group_4A'),
+        (rank_6_otf_7, 'feature_group_3A'),
+        (rank_5_otf_7, 'feature_group_2A'),
+        (rank_4_otf_7, 'feature_group_1A'),
     ]
+    df['Category'] = df['Category'].astype('category')
     df['Dst Port'] = df['Dst Port'].astype('category')
     for features, fname in to_process:
         normalize_step(df, features, export_path, fname)

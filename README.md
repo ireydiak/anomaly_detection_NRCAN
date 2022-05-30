@@ -1,5 +1,9 @@
 # Deep unsupervised anomaly detection algorithms
 This repository collects different unsupervised machine learning algorithms to detect anomalies.
+## Notice
+This software is solely developed for research purposes.
+It will neither be maintained nor monitored in any rigorous way.
+
 ## Implemented models
 We have implemented the following models. Our implementations of ALAD, DeepSVDD, 
 DROCC and MemAE closely follows the original implementations already available on GitHub.
@@ -195,61 +199,7 @@ Model specific parameters are:
 - **LOF**
   - `--lof-n-neighbors`: the actual number of neighbors used for `kneighbors` queries
     - default: `20`
-  
-## Suggested parameters
-For most models, default parameters can be used to reproduce our results.
-Below we present specific parameters that must be set per dataset
-
-#### DAGMM
-Parameters as suggested in the original paper
-
-| Dataset    | n_mixtures | latent_dim | 
-|------------|------------|------------|
-| Arrhythmia | 2          | 2          | 
-| KDD        | 120-60-tanh;60-30-tanh;30-10-tanh;10-1 | 3-10-tanh;drop(0.5);10-4-softmax|
-| Thyroid    | 2          | 1          |
-
-| Dataset    | n_mixtures | latent_dim | 
-|------------|------------|------------|
-| Arrhythmia | 2          | 2          | 
-| Thyroid    | 2          | 1          |
  
-#### AutoEncoder
-| Dataset    | latent_dim | compression_factor | n_layers |
-|------------|------------|--------------------|----------|
-| Arrhythmia | 10         | 1                  | 2        |
-| Thyroid    | 1          | 2                  | 3        |
-
-#### MemAE
-| Dataset    | latent_dim | compression_factor | n_layers |
-|------------|------------|--------------------|----------|
-| Arrhythmia | 10         | 2                  | 4        |
-| Thyroid    | 4          | 2                  | 3        |
-
-#### SOM-DAGMM
-| Dataset    | latent_dim |
-|------------|------------|
-| Arrhythmia | 2          |
-| Thyroid    | 2          |
- | NSL-KDD | 4          |
- | IDS2018 | 4|
-#### ALAD
-| Dataset    | latent_dim | 
-|------------|------------|
-| Arrhythmia | 64         |
-| KDD10      | 1          |
-
-#### DSEBM
-| Dataset    | fc_1_out | fc_2_out |
-|------------|----------|----------|
-| Arrhythmia | 10       | 2        |
-| Thyroid    | 10       | 2        |
-
-#### NeuTraLAD
-| Dataset    | fc_1_out | n_layers | n_transforms | latent_dim | compression_unit | trans_fc_in | trans_fc_out |
-|------------|----------|----------|--------------|------------|------------------|-------------|--------------|
-| Arrhythmia | 10       | 4        | 11           | 32         | 0                | 200         | -1           |
-| Thyroid    | 10       | 4        | 11           | 24         | 0                | 24          | 6            |
 
 ## Example
 To train a DAGMM on the KDD 10 percent dataset with the default parameters described in the original paper:

@@ -1,25 +1,12 @@
-import warnings
 from copy import deepcopy
-
-from matplotlib import pyplot as plt
-from sklearn.metrics import confusion_matrix, average_precision_score, precision_recall_curve, \
-    plot_precision_recall_curve
 from torch import nn, optim
+from torch.utils.data import DataLoader
 from tqdm import trange
-
 import torch
 import numpy as np
-
-from typing import Callable
-
-from sklearn import metrics
-
 from src.datamanager.DataManager import DataManager
 from src.model.DUAD import DUAD
 from sklearn.mixture import GaussianMixture
-
-# from utils.metrics import score_recall_precision, score_recall_precision_w_thresold
-# from viz.viz import plot_2D_latent, plot_energy_percentile
 
 
 class DUADTrainer:
@@ -31,7 +18,6 @@ class DUADTrainer:
                  lr: float = 1e-4,
                  device: str = "cpu",
                  **kwargs):
-
         self.metric_hist = []
         self.dm = dm
 
@@ -44,7 +30,7 @@ class DUADTrainer:
         self.device = device
         self.model = model.to(self.device)
         self.optimizer = optim.Adam(
-            self.model.parameters(), lr=self.lr, weight_decay=kwargs.get('duad_num_cluster', 20)
+            self.model.parameters(), lr=self.lr, weight_decay=kwargs.get('weight_decay', 0)
         )
         self.criterion = nn.MSELoss()
 
@@ -73,12 +59,18 @@ class DUADTrainer:
 
         return indices_selection
 
-    def train(self, n_epochs: int):
+    def train(self, dataset: DataLoader):
+        """
+        dataset: DataLoader
+            Parameter added for API consistency only.
+            Refer to `self.dm` to access datamanager.
+        """
+        n_epochs = self.n_epochs
         print(f'Training with {self.__class__.__name__}')
         mean_loss = np.inf
         self.dm.update_train_set(self.dm.get_selected_indices())
         train_ldr = self.dm.get_train_set()
-        REEVAL_LIMIT = 5
+        REEVAL_LIMIT = 10
 
         # run clustering, select instances from low variance clusters
         X = []
@@ -106,6 +98,7 @@ class DUADTrainer:
               f"\n")
 
         self.dm.update_train_set(selected_indices)
+
         train_ldr = self.dm.get_train_set()
 
         L = []
@@ -166,7 +159,7 @@ class DUADTrainer:
                             train_inputs = X_i[0].to(self.device).float()
                             loss += self.train_iter(train_inputs)
                             mean_loss = loss / (i + 1)
-                            t.set_postfix(loss='{:05.3f}'.format(mean_loss))
+                            t.set_postfix(loss='{:.3f}'.format(mean_loss))
                             t.update()
             print(f'Reeval  count:{reev_count}\n')
             reev_count += 1
@@ -269,15 +262,15 @@ class DUADTrainer:
     def train_iter(self, X):
 
         code, X_prime, Z_r = self.model(X)
-        l2_z = (torch.cat([code, Z_r.unsqueeze(-1)], axis=1).norm(2, dim=1)).mean()
+        l2_z = (torch.cat([code, Z_r.unsqueeze(-1)], axis=1).norm(2, dim=1)).mean() # (code.norm(2, dim=1)).mean()  # (torch.cat([code, Z_r.unsqueeze(-1)], axis=1).norm(2, dim=1)).mean()
         reg = 0.5
         loss = ((X - X_prime) ** 2).sum(axis=-1).mean() + reg * l2_z  # self.criterion(X, X_prime)
 
         # Use autograd to compute the backward pass.
-        self.optim.zero_grad()
+        self.optimizer.zero_grad()
         loss.backward()
         # updates the weights using gradient descent
-        self.optim.step()
+        self.optimizer.step()
 
         return loss.item()
 
@@ -302,27 +295,27 @@ class DUADTrainer:
                 test_inputs, label_inputs = data[0].float().to(self.device), data[1]
 
                 # forward pass
-                # forward pass
                 code, X_prime, h_x = self.model(test_inputs)
 
                 test_score.append(((test_inputs - X_prime) ** 2).sum(axis=-1).squeeze().cpu().numpy())
-                # test_score.append(h_x.cpu().numpy())
                 test_z.append(code.cpu().numpy())
                 test_labels.append(label_inputs.numpy())
 
             test_score = np.concatenate(test_score, axis=0)
-            test_z = np.concatenate(test_z, axis=0)
             test_labels = np.concatenate(test_labels, axis=0)
-
-            # combined_score = np.concatenate([train_score, test_score], axis=0)
-
-            # Evaluation
-            # comp_threshold = 100 * sum(test_labels == 0) / len(test_labels)
-            # res_max = score_recall_precision(combined_score, test_score, test_labels, nq=30)
-            # res = score_recall_precision_w_thresold(combined_score, test_score, test_labels, pos_label=pos_label,
-            #                                         threshold=comp_threshold)
 
             # switch back to train mode
             self.model.train()
 
             return test_score, test_labels
+
+    def setDataManager(self, dm):
+        self.dm = dm
+
+    def save_ckpt(self, ckpt_fname: str):
+        """ TODO: implement """
+        pass
+
+    def load_from_file(self, ckpt_fname):
+        """ TODO: implement """
+        pass

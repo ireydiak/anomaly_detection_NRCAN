@@ -1,7 +1,11 @@
 import argparse
 import os
+from collections import defaultdict
 
+from src.datamanager.DataManager import DataManager
 from src.datamanager.dataset import ArrhythmiaDataset, ThyroidDataset, IDS2017Dataset
+from src.model.DUAD import DUAD
+from src.trainer.DUADTrainer import DUADTrainer
 from src.trainer.adversarial import ALADTrainer
 from src.trainer.density import DSEBMTrainer
 from src.trainer.one_class import DeepSVDDTrainer, EdgeMLDROCCTrainer
@@ -43,16 +47,21 @@ def argument_parser():
         required=True
     )
     parser.add_argument(
-        '--n-runs',
-        help="Number times the experiment is repeated with different subsamples",
+        "--n-epochs",
+        help="Number of training epochs",
         type=int,
-        default=1
+        default=201
     )
     parser.add_argument(
         '--use-ckpt',
         help="Save checkpoints during training",
         action="store_true"
 
+    )
+    parser.add_argument(
+        "--models",
+        nargs="+",
+        default=""
     )
     return parser.parse_args()
 
@@ -128,6 +137,19 @@ settings = {
         "n_transforms": 11,
         "trans_fc_in": 200,
         "trans_fc_out": -1,
+    },
+    "DUAD": {
+        "model_cls": DUAD,
+        "trainer_cls": DUADTrainer,
+        "p0": 35.,
+        "p": 30.,
+        "r": 10,
+        "p_s": 35.,
+        "n_clusters": 20,
+        "act_fn": "tanh",
+        "latent_dim": 10,
+        "compression_factor": 2,
+        "n_layers": 4
     }
 }
 
@@ -144,16 +166,29 @@ def resolve_dataset(name, path):
         raise Exception("unsupported dataset %s, aborting" % name)
 
 
+def resolve_models(model_list: list) -> dict:
+    to_train = defaultdict()
+    for model_name in model_list:
+        setting = settings.get(model_name)
+        if setting:
+            to_train[model_name] = setting
+        else:
+            raise KeyError("unknown model {}".format(model_name))
+    return to_train
+
+
 def main():
     args = argument_parser()
     batch_size = args.batch_size
     lr = 1e-4
     n_epochs = 200
     use_ckpt = args.use_ckpt
+    selected_models = args.models or list(settings.keys())
+    to_train = resolve_models(selected_models)
     dataset = resolve_dataset(args.dataset, args.dataset_path)
-    train_ldr, test_ldr = dataset.loaders(batch_size=batch_size, seed=42)
+    train_ldr, test_ldr, _ = dataset.loaders(batch_size=batch_size, seed=42)
     print("data loaded with shape {}".format(dataset.shape))
-    for model_name, params in settings.items():
+    for model_name, params in to_train.items():
         ckpt_path = Path(os.path.join(model_name, "checkpoints"))
         ckpt_path.mkdir(parents=True, exist_ok=True)
         print("Training model %s on %s" % (model_name, dataset.name))
@@ -162,7 +197,12 @@ def main():
             **{"in_features": dataset.in_features, "n_instances": dataset.n_instances},
             **params
         )
+        datamanager = None
         model = params["model_cls"](**model_params)
+        if model_name.lower() == "duad":
+            # DataManager for DUAD only
+            train_set, test_set, _ = dataset.split_train_test(test_pct=0.50)
+            datamanager = DataManager(train_set, test_set, batch_size=batch_size)
         trainer = params["trainer_cls"](
             model=model,
             batch_size=batch_size,
@@ -170,7 +210,8 @@ def main():
             n_epochs=n_epochs,
             device="cuda",
             validation_ldr=test_ldr,
-            ckpt_root=str(ckpt_path.absolute()) if use_ckpt else None
+            ckpt_root=str(ckpt_path.absolute()) if use_ckpt else None,
+            dm=datamanager
         )
         # Train model and save checkpoint at the end
         trainer.train(train_ldr)
@@ -182,7 +223,7 @@ def main():
         trainer, model = params["trainer_cls"].load_from_file(ckpt_fname)
         # Test loaded model
         y_true, scores, _ = trainer.test(test_ldr)
-        res = metrics.score_recall_precision_w_threshold(scores, y_true)
+        res, _ = metrics.score_recall_precision_w_threshold(scores, y_true)
         print(res)
         # Display and save learning curves
         trainer.plot_metrics(figname=model_name + "_learning_curves.png")

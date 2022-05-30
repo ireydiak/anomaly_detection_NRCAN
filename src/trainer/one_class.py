@@ -183,7 +183,7 @@ class EdgeMLDROCCTrainer(BaseTrainer):
     def train_iter(self, sample: torch.Tensor):
         pass
 
-    def train(self, dataset: DataLoader):
+    def train(self, train_loader: DataLoader):
         self.model.train()
 
         print("Started training")
@@ -195,8 +195,8 @@ class EdgeMLDROCCTrainer(BaseTrainer):
             epoch_adv_loss = torch.tensor([0]).type(torch.float32).to(self.device)  # AdvLoss
             epoch_ce_loss = 0  # Cross entropy Loss
             adjust_learning_rate(epoch, self.n_epochs, self.only_ce_epochs, self.lr, self.optimizer)
-            with trange(len(dataset)) as t:
-                for sample in dataset:
+            with trange(len(train_loader)) as t:
+                for sample in train_loader:
                     # Data processing
                     X, y, _ = sample
                     X = X.to(self.device).float()

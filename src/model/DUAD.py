@@ -24,22 +24,23 @@ class DUAD(BaseModel):
         self.p = p
         self.r = r
         self.n_clusters = n_clusters
-        self.latent_dim = 1
+        self.latent_dim = latent_dim
         self.n_layers = n_layers
         self.compression_factor = compression_factor
         self.latent_dim = latent_dim
         self.ae = None
         self.cosim = nn.CosineSimilarity()
-        self.act_fn = activation_mapper[act_fn]
+        self.act_fn = act_fn
         self._build_network()
 
     @staticmethod
     def get_args_desc():
         # TODO: better description
         return [
-            ("p0", float, 35., "p0 parameter"),
+            ("p0", float, 35., "Variance threshold of re-evaluation selection"),
             ("p", float, 30., "p parameter"),
             ("r", int, 10, "r parameter"),
+            ("p_s", float, 35., "Variance threshold of initial selection"),
             ("n_clusters", int, 20, "number of clusters"),
             ("act_fn", str, "tanh", "activation function of the AE network"),
             ("latent_dim", int, 10, "latent dimension of the AE network"),
@@ -49,6 +50,8 @@ class DUAD(BaseModel):
 
     def _build_network(self):
         self.ae = AE(
+            n_instances=self.n_instances,
+            in_features=self.in_features,
             latent_dim=self.latent_dim,
             act_fn=self.act_fn,
             n_layers=self.n_layers,

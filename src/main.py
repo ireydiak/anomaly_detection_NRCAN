@@ -1,6 +1,6 @@
 import argparse
-import src.bootstrap as bootstrap
-from src.bootstrap import available_datasets, available_models
+import bootstrap as bootstrap
+from bootstrap import available_datasets, available_models
 
 
 def argument_parser():
@@ -14,28 +14,28 @@ def argument_parser():
               " --n-runs [n_runs] --batch-size [batch_size]"
     )
     parser.add_argument(
-        '--dataset',
+        "--dataset",
         type=str,
         choices=available_datasets,
         required=True
     )
     parser.add_argument(
-        '-d',
-        '--dataset-path',
+        "-d",
+        "--dataset-path",
         type=str,
         help='Path to the dataset',
         required=True
     )
     parser.add_argument(
-        '-m',
-        '--model',
+        "-m",
+        "--model",
         type=str,
         choices=[model.name for model in available_models],
         required=True
     )
     parser.add_argument(
-        '--n-runs',
-        help='number of runs of the experiment',
+        "--n-runs",
+        help="number of runs of the experiment",
         type=int,
         default=1
     )
@@ -60,21 +60,33 @@ def argument_parser():
         help="Where the results will be stored"
     )
     parser.add_argument(
-        '--lr',
+        "--lr",
         type=float,
         default=0.0001,
         help="The learning rate"
     )
     parser.add_argument(
-        '--weight_decay',
+        "--weight-decay",
         type=float,
         default=0,
         help='weight decay for regularization')
     parser.add_argument(
-        "--normal_size",
+        "--normal-size",
         type=float,
         default=1.0,
         help="Percentage of original normal samples to keep"
+    )
+    parser.add_argument(
+        "--val-ratio",
+        type=float,
+        default=0.0,
+        help="Ratio of validation set from the training set"
+    )
+    parser.add_argument(
+        "--hold-out",
+        type=float,
+        default=0.0,
+        help="Percentage of anomalous data to holdout for possible contamination of the training set"
     )
     parser.add_argument(
         "--rho",
@@ -95,10 +107,11 @@ def argument_parser():
         help="Loads and test models found within model_path"
     )
     parser.add_argument(
-        '--seed',
+        "--seed",
         type=float,
         default=42,
-        help='the randomness seed used')
+        help='the randomness seed used'
+    )
 
     # Models params
     for model_cls in available_models:
@@ -112,38 +125,9 @@ def argument_parser():
                 help=help_txt
             )
 
-    # NeutralAD
-    parser.add_argument(
-        '--trans-type',
-        type=str,
-        default="res",
-        choices=["res", "mul"])
-
-    # Duad
-    parser.add_argument(
-        '--duad_r',
-        type=int,
-        default=10,
-        help='Number of epoch required to re-evaluate the selection'
-    )
-    parser.add_argument(
-        '--duad_p_s',
-        type=float,
-        default=35,
-        help='Variance threshold of initial selection'
-    )
-    parser.add_argument(
-        '--duad_p_0',
-        type=float,
-        default=30,
-        help='Variance threshold of re-evaluation selection'
-    )
-    parser.add_argument(
-        '--duad_num-cluster',
-        type=int,
-        default=20,
-        help='Number of clusters'
-    )
+    parser.add_argument('--drop-lastbatch', dest='drop-lastbatch', action='store_true')
+    parser.add_argument('--no-drop-lastbatch', dest='drop-lastbatch', action='store_false')
+    parser.set_defaults(drop_lastbatch=False)
 
     return parser.parse_args()
 
@@ -169,4 +153,8 @@ if __name__ == "__main__":
         models_path=args.model_path,
         test_mode=args.test_mode,
         seed=args.seed,
+        holdout=args.hold_out,
+        contamination_r=args.rho,
+        drop_lastbatch=args.drop_lastbatch,
+        validation_ratio=args.val_ratio,
     )

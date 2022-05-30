@@ -62,6 +62,7 @@ class BaseTrainer(ABC):
         trainer_params = self.get_params()
         model_params = self.model.get_params()
         torch.save(dict(**general_params, **model_params, **trainer_params), fname)
+        self.optimizer = self.set_optimizer(self.weight_decay)
 
     @abstractmethod
     def train_iter(self, sample: torch.Tensor):
@@ -112,7 +113,7 @@ class BaseTrainer(ABC):
 
                     epoch_loss += loss.item()
                     t.set_postfix(
-                        loss='{:05.3f}'.format(epoch_loss / (epoch + 1)),
+                        loss='{:.3f}'.format(epoch_loss / (epoch + 1)),
                         epoch=epoch + 1
                     )
                     t.update()
@@ -127,6 +128,19 @@ class BaseTrainer(ABC):
 
         self.after_training()
 
+    def eval(self, dataset: DataLoader):
+        self.model.eval()
+        with torch.no_grad():
+            loss = 0
+            for row in dataset:
+                X, _, _ = row
+                X = X.to(self.device).float()
+                loss += self.train_iter(X)
+            loss /= len(dataset)
+        self.model.train()
+
+        return loss
+
     def test(self, dataset: DataLoader) -> Union[np.array, np.array]:
         self.model.eval()
         y_true, scores, labels = [], [], []
@@ -134,11 +148,11 @@ class BaseTrainer(ABC):
             for row in dataset:
                 X, y, label = row
                 X = X.to(self.device).float()
-
                 score = self.score(X)
                 y_true.extend(y.cpu().tolist())
                 labels.extend(list(label))
                 scores.extend(score.cpu().tolist())
+        self.model.train()
 
         return np.array(y_true), np.array(scores), np.array(labels)
 

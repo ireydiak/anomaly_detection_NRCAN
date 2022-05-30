@@ -9,7 +9,7 @@ folder_struct = {
 }
 
 
-def parse_args() -> Tuple[str, str, str, bool]:
+def parse_args() -> Tuple[str, str, bool, bool]:
     parser = argparse.ArgumentParser()
     parser.add_argument(
         '-d', '--path', type=str,
@@ -21,7 +21,7 @@ def parse_args() -> Tuple[str, str, str, bool]:
         help='Path to the output directory. Folders will be added to this directory.'
     )
     parser.add_argument(
-        '--backup', type=bool, default=False,
+        '--backup', action="store_true",
         help='Save a backup after the cleaning process to keep track of modifications.'
     )
     feature_parser = parser.add_mutually_exclusive_group(required=False)

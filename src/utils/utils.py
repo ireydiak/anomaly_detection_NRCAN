@@ -115,3 +115,13 @@ def ids_misclf_per_label(y_pred: np.array, y_test_true: np.array, test_labels: n
         orient="index",
         columns=["# Instances test set", "Misclassified count", "Misclassified ratio", "Accuracy"]
     )
+
+
+def random_split_to_two(table, ratio=0):
+    n1 = int(len(table) * (1 - ratio))
+    shuffle_idx = torch.randperm(len(table)).long()
+
+    t1 = table[shuffle_idx[:n1]]
+    t2 = table[shuffle_idx[n1:]]
+
+    return t1, t2

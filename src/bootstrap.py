@@ -5,26 +5,26 @@ from collections import defaultdict
 from datetime import datetime as dt
 
 from torch.utils.data import DataLoader
-from src.model.adversarial import ALAD
+from model.adversarial import ALAD
 
-from src.model.base import BaseModel
-from src.model.density import DSEBM
-from src.model.DUAD import DUAD
-from src.model.one_class import DeepSVDD, DROCC
-from src.model.transformers import NeuTraLAD
-from src.model.reconstruction import AutoEncoder as AE, DAGMM, MemAutoEncoder as MemAE, SOMDAGMM
-from src.model.shallow import RecForest, OCSVM, LOF
-from src.trainer.adversarial import ALADTrainer
-from src.trainer.density import DSEBMTrainer
-from src.trainer.one_class import DeepSVDDTrainer, EdgeMLDROCCTrainer
-from src.trainer.reconstruction import AutoEncoderTrainer as AETrainer, DAGMMTrainer, MemAETrainer, SOMDAGMMTrainer
-from src.trainer.shallow import OCSVMTrainer, RecForestTrainer, LOFTrainer
-from src.trainer.transformers import NeuTraLADTrainer
-from src.trainer.DUADTrainer import DUADTrainer
-from src.utils import metrics
-from src.utils.utils import average_results
-from src.datamanager.DataManager import DataManager
-from src.datamanager.dataset import *
+from model.base import BaseModel
+from model.density import DSEBM
+from model.DUAD import DUAD
+from model.one_class import DeepSVDD, DROCC
+from model.transformers import NeuTraLAD
+from model.reconstruction import AutoEncoder as AE, DAGMM, MemAutoEncoder as MemAE, SOMDAGMM
+from model.shallow import RecForest, OCSVM, LOF
+from trainer.adversarial import ALADTrainer
+from trainer.density import DSEBMTrainer
+from trainer.one_class import DeepSVDDTrainer, EdgeMLDROCCTrainer
+from trainer.reconstruction import AutoEncoderTrainer as AETrainer, DAGMMTrainer, MemAETrainer, SOMDAGMMTrainer
+from trainer.shallow import OCSVMTrainer, RecForestTrainer, LOFTrainer
+from trainer.transformers import NeuTraLADTrainer
+from trainer.DUADTrainer import DUADTrainer
+from utils import metrics
+from utils.utils import average_results
+from datamanager.DataManager import DataManager
+from datamanager.dataset import *
 
 available_models = [
     AE,
@@ -96,7 +96,7 @@ def store_results(
 
 
 def store_model(model, model_name: str, dataset: str, models_path: str = None):
-    output_dir = models_path or f'../models/{dataset}/{model_name}/{dt.now().strftime("%d_%m_%Y_%H_%M_%S")}"'
+    output_dir = models_path or f'../models/{dataset}/{model_name}/{dt.now().strftime("%d_%m_%Y_%H_%M_%S")}'
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
     model.save(f"{output_dir}/{model_name}.pt")
@@ -111,47 +111,27 @@ def resolve_model_trainer(
         learning_rate: float,
         weight_decay: float,
         device: str,
+        datamanager=None
 ):
-    # TODO: dead code
-    # if model_name == "DUAD":
-    #     model = DUAD(
-    #         dataset.in_features,
-    #         10,
-    #         dataset_name=dataset.name,
-    #         in_features=dataset.in_features,
-    #         n_instances=dataset.n_instances,
-    #         device=device
-    #     )
-    #     trainer = DUADTrainer(
-    #         model=model,
-    #         dm=datamanager,
-    #         device=device,
-    #         n_epochs=n_epochs,
-    #         duad_p_s=duad_p_s,
-    #         duad_p_0=duad_p_0,
-    #         duad_r=duad_r,
-    #         duad_num_cluster=duad_num_cluster,
-    #         lr=learning_rate,
-    #         weight_decay=weight_decay
-    #     )
     model_trainer_tuple = model_trainer_map.get(model_name, None)
     assert model_trainer_tuple, "Model %s not found" % model_name
-    model, trainer = model_trainer_tuple
+    model_cls, trainer_cls = model_trainer_tuple
 
-    model = model(
+    model = model_cls(
         dataset_name=dataset.name,
         in_features=dataset.in_features,
         n_instances=dataset.n_instances,
         device=device,
         **model_params,
     )
-    trainer = trainer(
+    trainer = trainer_cls(
         model=model,
         lr=learning_rate,
         n_epochs=n_epochs,
         batch_size=batch_size,
         device=device,
-        weight_decay=weight_decay
+        weight_decay=weight_decay,
+        dm=datamanager
     )
 
     return model, trainer
@@ -160,18 +140,33 @@ def resolve_model_trainer(
 def train_model(
         model: BaseModel,
         model_trainer,
-        train_ldr: DataLoader,
-        test_ldr: DataLoader,
         dataset_name: str,
         n_runs: int,
-        thresh: float,
         device: str,
         model_path: str,
-        test_mode: bool
+        test_mode: bool,
+        dataset,
+        batch_size,
+        seed,
+        contamination_rate,
+        holdout,
+        drop_lastbatch,
+        validation_ratio
+
 ):
     # Training and evaluation on different runs
     all_results = defaultdict(list)
     print("Training model {} for {} epochs on device {}".format(model.name, model_trainer.n_epochs, device))
+
+    train_ldr, test_ldr, val_ldr = dataset.loaders(
+        batch_size=batch_size,
+        seed=seed,
+        contamination_rate=contamination_rate,
+        validation_ratio=validation_ratio,
+        holdout=holdout,
+        drop_last_batch=drop_lastbatch
+    )
+
     if test_mode:
         for model_file_name in os.listdir(model_path):
             model = BaseModel.load(f"{model_path}/{model_file_name}")
@@ -179,10 +174,7 @@ def train_model(
             model_trainer.model = model
             print("Evaluating the model on test set")
             # We test with the minority samples as the positive class
-            # y_train_true, train_scores = model_trainer.test(train_ldr)
             y_test_true, test_scores = model_trainer.test(test_ldr)
-            # y_true = np.concatenate((y_train_true, y_test_true), axis=0)
-            # scores = np.concatenate((train_scores, test_scores), axis=0)
             print("Evaluating model")
             results = metrics.estimate_optimal_threshold(test_scores, y_test_true)
             for k, v in results.items():
@@ -191,25 +183,38 @@ def train_model(
         for i in range(n_runs):
             print(f"Run {i + 1} of {n_runs}")
             if model.name == "DUAD":
-                model_trainer.train()
+                # DataManager for DUAD only
+                # split data in train and test sets
+                train_set, test_set, val_set = dataset.split_train_test(
+                    test_pct=0.50, contamination_rate=contamination_rate, holdout=holdout
+                )
+                dm = DataManager(train_set, test_set, batch_size=batch_size, drop_last=drop_lastbatch)
+                # we train only on the majority class
+                model_trainer.setDataManager(dm)
+                model_trainer.train(dataset=train_set)
             else:
-                _ = model_trainer.train(train_ldr)
+                _ = model_trainer.train(train_ldr, val_ldr)
             print("Completed learning process")
             print("Evaluating model on test set")
             # We test with the minority samples as the positive class
             if model.name == "DUAD":
                 test_scores, y_test_true = model_trainer.evaluate_on_test_set()
             else:
-                # y_train_true, train_scores = model_trainer.test(train_ldr)
                 y_test_true, test_scores = model_trainer.test(test_ldr)
-                # y_true = np.concatenate((y_train_true, y_test_true), axis=0)
-                # scores = np.concatenate((train_scores, test_scores), axis=0)
             results = metrics.estimate_optimal_threshold(test_scores, y_test_true)
             print(results)
             for k, v in results.items():
                 all_results[k].append(v)
-            store_model(model, model.name, dataset_name, model_path)
+            store_model(model, model.name, dataset_name, None)
             model.reset()
+
+            if i < n_runs - 1:
+                train_ldr, test_ldr, val_ldr = dataset.loaders(batch_size=batch_size,
+                                                               seed=seed,
+                                                               contamination_rate=contamination_rate,
+                                                               validation_ratio=validation_ratio,
+                                                               holdout=holdout,
+                                                               drop_last_batch=drop_lastbatch)
 
     # Compute mean and standard deviation of the performance metrics
     print("Averaging results ...")
@@ -232,6 +237,10 @@ def train(
         models_path: str,
         test_mode: bool,
         seed: int,
+        holdout=0.0,
+        contamination_r=0.0,
+        drop_lastbatch=False,
+        validation_ratio=0,
 ):
     # Dynamically load the Dataset instance
     clsname = globals()[f'{dataset_name}Dataset']
@@ -239,18 +248,6 @@ def train(
     anomaly_thresh = 1 - dataset.anomaly_ratio
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
-
-    # split data in train and test sets
-    # we train only on the majority class
-    if model_name == "DUAD":
-        # DataManager for DUAD only
-        train_set, test_set = dataset.split_train_test(test_pct=0.50)
-        dm = DataManager(train_set, test_set, batch_size=batch_size)
-        train_ldr = None,
-        test_ldr = None
-    else:
-        train_ldr, test_ldr = dataset.loaders(batch_size=batch_size, seed=seed)
-        dm = None
 
     # check path
     for p in [results_path, models_path]:
@@ -265,23 +262,29 @@ def train(
         n_epochs=n_epochs,
         weight_decay=weight_decay,
         learning_rate=learning_rate,
-        device=device,
+        device=device
     )
     res = train_model(
         model=model,
         model_trainer=model_trainer,
-        train_ldr=train_ldr,
-        test_ldr=test_ldr,
         dataset_name=dataset_name,
         n_runs=n_runs,
         device=device,
-        thresh=anomaly_thresh,
         model_path=models_path,
-        test_mode=test_mode
+        test_mode=test_mode,
+        dataset=dataset,
+        batch_size=batch_size,
+        seed=seed,
+        contamination_rate=contamination_r,
+        holdout=holdout,
+        drop_lastbatch=drop_lastbatch,
+        validation_ratio=validation_ratio,
+
     )
     print(res)
     params = dict(
         {"BatchSize": batch_size, "Epochs": n_epochs, "CorruptionRatio": corruption_ratio,
+         "HoldoutRatio": holdout,
          "Threshold": anomaly_thresh},
         **model.get_params()
     )
