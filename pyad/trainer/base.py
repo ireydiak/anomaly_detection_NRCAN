@@ -7,8 +7,8 @@ from sklearn import metrics as sk_metrics
 from torch.utils.data.dataloader import DataLoader
 from torch import optim
 from tqdm import trange
-from src.model.base import BaseModel
-from src.utils import metrics
+from pyad.model.base import BaseModel
+from pyad.utils import metrics
 import matplotlib.pyplot as plt
 import os
 

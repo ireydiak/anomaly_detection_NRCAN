@@ -9,13 +9,13 @@ from torch.optim.lr_scheduler import StepLR
 from torch.utils.data import DataLoader
 from torch import nn
 from torch import optim
-from src.loss.EntropyLoss import EntropyLoss
-from src.model.density import DSEBM
-from src.model.one_class import DeepSVDD
-from src.model.reconstruction import AutoEncoder, MemAutoEncoder
-from src.model.transformers import NeuTraLAD
-from src.trainer.base import BaseTrainer
-from src.utils import metrics
+from pyad.loss.EntropyLoss import EntropyLoss
+from pyad.model.density import DSEBM
+from pyad.model.one_class import DeepSVDD
+from pyad.model.reconstruction import AutoEncoder, MemAutoEncoder
+from pyad.model.transformers import NeuTraLAD
+from pyad.trainer.base import BaseTrainer
+from pyad.utils import metrics
 
 
 class IDSTrainer(BaseTrainer, ABC):

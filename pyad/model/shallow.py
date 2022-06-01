@@ -1,7 +1,7 @@
 from sklearn.neighbors import LocalOutlierFactor
 from sklearn.svm import OneClassSVM
 from recforest import RecForest as PyPiRecForest
-from src.model.base import BaseShallowModel
+from pyad.model.base import BaseShallowModel
 from sklearn.decomposition import PCA as skPCA
 
 

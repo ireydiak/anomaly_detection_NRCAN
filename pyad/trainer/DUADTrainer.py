@@ -4,8 +4,8 @@ from torch.utils.data import DataLoader
 from tqdm import trange
 import torch
 import numpy as np
-from src.datamanager.DataManager import DataManager
-from src.model.DUAD import DUAD
+from pyad.datamanager.DataManager import DataManager
+from pyad.model.DUAD import DUAD
 from sklearn.mixture import GaussianMixture
 
 

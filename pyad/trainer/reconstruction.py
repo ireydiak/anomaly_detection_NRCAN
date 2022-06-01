@@ -1,9 +1,9 @@
 import torch
 import numpy as np
 from torch.utils.data.dataloader import DataLoader
-from src.model.reconstruction import AutoEncoder, DAGMM, MemAutoEncoder
-from src.trainer.base import BaseTrainer
-from src.loss.EntropyLoss import EntropyLoss
+from pyad.model.reconstruction import AutoEncoder, DAGMM, MemAutoEncoder
+from pyad.trainer.base import BaseTrainer
+from pyad.loss.EntropyLoss import EntropyLoss
 from torch import nn
 
 

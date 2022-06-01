@@ -1,7 +1,7 @@
 import torch.nn as nn
-from src.model.reconstruction import AutoEncoder as AE
-from src.model.base import BaseModel
-from src.model.utils import activation_mapper
+from pyad.model.reconstruction import AutoEncoder as AE
+from pyad.model.base import BaseModel
+from pyad.model.utils import activation_mapper
 
 
 class DUAD(BaseModel):

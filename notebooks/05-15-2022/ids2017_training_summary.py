@@ -1,13 +1,13 @@
 import pandas as pd
 import numpy as np
 import os
-from src.model.one_class import DeepSVDD
-from src.model.reconstruction import DAGMM, MemAutoEncoder
-from src.trainer.ids import DeepSVDDIDSTrainer, MemAEIDSTrainer, DAGMMIDSTrainer
-from src.utils import metrics
-from src.utils.utils import ids_misclf_per_label
-from src.datamanager.dataset import IDS2017Dataset
-from src.bootstrap import store_results
+from pyad.model.one_class import DeepSVDD
+from pyad.model.reconstruction import DAGMM, MemAutoEncoder
+from pyad.trainer.ids import DeepSVDDIDSTrainer, MemAEIDSTrainer, DAGMMIDSTrainer
+from pyad.utils import metrics
+from pyad.utils.utils import ids_misclf_per_label
+from pyad.datamanager.dataset import IDS2017Dataset
+from pyad.bootstrap import store_results
 from pathlib import Path
 import torch
 

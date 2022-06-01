@@ -6,8 +6,8 @@ from tqdm import trange
 from torch import optim
 from torch.autograd import Variable
 from torch.utils.data import DataLoader
-from src.model.adversarial import ALAD
-from src.trainer.base import BaseTrainer
+from pyad.model.adversarial import ALAD
+from pyad.trainer.base import BaseTrainer
 torch.autograd.set_detect_anomaly(True)
 
 

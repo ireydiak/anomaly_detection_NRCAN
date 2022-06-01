@@ -9,8 +9,8 @@ from torch import optim
 from torch.nn import Parameter
 from torch.utils.data import DataLoader
 from tqdm import trange
-from src.model.density import DSEBM
-from src.trainer.base import BaseTrainer
+from pyad.model.density import DSEBM
+from pyad.trainer.base import BaseTrainer
 
 
 class DSEBMTrainer(BaseTrainer):

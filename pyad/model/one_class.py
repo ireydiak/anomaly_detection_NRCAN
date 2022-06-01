@@ -2,8 +2,8 @@ from collections import OrderedDict
 import torch
 import torch.nn as nn
 from torch import Tensor
-from src.model.base import BaseModel
-from src.model.utils import activation_mapper, create_network
+from pyad.model.base import BaseModel
+from pyad.model.utils import activation_mapper, create_network
 
 
 class DeepSVDD(BaseModel):

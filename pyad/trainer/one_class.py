@@ -4,8 +4,8 @@ from torch.utils.data.dataloader import DataLoader
 import torch
 import numpy as np
 from tqdm import trange
-from src.model.one_class import DeepSVDD, DROCC
-from src.trainer.base import BaseTrainer
+from pyad.model.one_class import DeepSVDD, DROCC
+from pyad.trainer.base import BaseTrainer
 import torch.nn.functional as F
 
 

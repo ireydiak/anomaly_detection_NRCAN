@@ -6,7 +6,7 @@ from torch.utils.data import Dataset, Subset, DataLoader
 from torch.utils.data.dataset import T_co
 from typing import Tuple
 
-from src.utils.utils import random_split_to_two
+from pyad.utils.utils import random_split_to_two
 
 
 class AbstractDataset(Dataset):

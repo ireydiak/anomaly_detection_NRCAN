@@ -1,11 +1,11 @@
 import numpy as np
 import torch
 from minisom import MiniSom
-from src.model.base import BaseModel
-from src.model.GMM import GMM
-from src.model.memory_module import MemoryUnit
-from src.model import utils
-from src.model.utils import activation_mapper
+from pyad.model.base import BaseModel
+from pyad.model.GMM import GMM
+from pyad.model.memory_module import MemoryUnit
+from pyad.model import utils
+from pyad.model.utils import activation_mapper
 from torch import nn
 
 

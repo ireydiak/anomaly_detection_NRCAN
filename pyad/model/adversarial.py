@@ -1,8 +1,8 @@
 import torch
 import torch.nn as nn
 from torch.autograd import Variable
-from src.model.base import BaseModel
-from src.model.utils import weights_init_xavier
+from pyad.model.base import BaseModel
+from pyad.model.utils import weights_init_xavier
 
 
 class ALAD(BaseModel):
