@@ -51,6 +51,7 @@ class AutoEncoder(BaseModel):
         enc_layers = []
         in_features = self.in_features
         compression_factor = self.compression_factor
+        assert compression_factor * self.n_layers < in_features, "invalid parameters, too many layers for the number of available attributes"
         for _ in range(self.n_layers - 1):
             out_features = in_features // compression_factor
             enc_layers.append(

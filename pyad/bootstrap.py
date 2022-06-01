@@ -42,16 +42,16 @@ available_models = [
     SOMDAGMM,
 ]
 
-available_datasets = [
-    "Arrhythmia",
-    "KDD10",
-    "MalMem2022",
-    "NSLKDD",
-    "IDS2018",
-    "IDS2017",
-    "USBIDS",
-    "Thyroid"
-]
+datasets_map = {
+    "Arrhythmia": ArrhythmiaDataset,
+    "KDD10": KDD10Dataset,
+    "MalMem2022": MalMem2022Dataset,
+    "NSLKDD": NSLKDDDataset,
+    "IDS2018": IDS2018Dataset,
+    "IDS2017": IDS2017Dataset,
+    "USBIDS": IDS2018Dataset,
+    "Thyroid": ThyroidDataset
+}
 
 model_trainer_map = {
     # Deep Models
@@ -73,12 +73,12 @@ model_trainer_map = {
 
 
 def store_results(
-    results: dict,
-    params: dict,
-    model_name: str,
-    dataset: str,
-    dataset_path: str,
-    results_path: str = None
+        results: dict,
+        params: dict,
+        model_name: str,
+        dataset: str,
+        dataset_path: str,
+        results_path: str = None
 ):
     output_dir = results_path or f"../results/{dataset}"
     if not os.path.exists(output_dir):
@@ -100,6 +100,17 @@ def store_model(model, model_name: str, dataset: str, models_path: str = None):
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
     model.save(f"{output_dir}/{model_name}.pt")
+
+
+def resolve_dataset(name: str, path: str, normal_size=1):
+    dataset_cls = datasets_map.get(name, None)
+    if not dataset_cls:
+        raise Exception("unknown dataset %s" % name)
+    return dataset_cls(
+        path=path,
+        normal_size=normal_size
+    )
+    return dataset
 
 
 def resolve_model_trainer(
@@ -193,14 +204,14 @@ def train_model(
                 model_trainer.setDataManager(dm)
                 model_trainer.train(dataset=train_set)
             else:
-                _ = model_trainer.train(train_ldr, val_ldr)
+                model_trainer.train(train_ldr)
             print("Completed learning process")
             print("Evaluating model on test set")
             # We test with the minority samples as the positive class
             if model.name == "DUAD":
                 test_scores, y_test_true = model_trainer.evaluate_on_test_set()
             else:
-                y_test_true, test_scores = model_trainer.test(test_ldr)
+                y_test_true, test_scores, _ = model_trainer.test(test_ldr)
             results = metrics.estimate_optimal_threshold(test_scores, y_test_true)
             print(results)
             for k, v in results.items():

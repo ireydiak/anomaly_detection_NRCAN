@@ -1,132 +1,126 @@
-import torch
 import os
+import argparse
 from ray import tune as ray_tune
-from ray.tune.suggest.optuna import OptunaSearch
-from pyad.model.base import BaseModel
-from pyad.trainer.base import BaseTrainer
+from ray.tune.schedulers import ASHAScheduler
+from pyad.bootstrap import resolve_dataset, datasets_map
+from pyad.tuning.reconstruction import AutoEncoderTuner, MemAETuner
+from datetime import datetime as dt
 
 
-def tune(model_cls: BaseModel, trainer_cls: BaseTrainer, cfg: dict, n_epochs: int, device: str, checkpoint_dir=None):
-    net = model_cls(**cfg)
-    net.to(device)
-
-    # The `checkpoint_dir` parameter gets passed by Ray Tune when a checkpoint
-    # should be restored.
-    if checkpoint_dir:
-        checkpoint = os.path.join(checkpoint_dir, "checkpoint")
-        model_state, optimizer_state = torch.load(checkpoint)
-        net.load_state_dict(model_state)
-        optimizer.load_state_dict(optimizer_state)
-
-    data_dir = os.path.abspath("./data")
-    trainset, testset = load_data(data_dir)
-
-    test_abs = int(len(trainset) * 0.8)
-    train_subset, val_subset = random_split(
-        trainset, [test_abs, len(trainset) - test_abs])
-
-    trainloader = torch.utils.data.DataLoader(
-        train_subset,
-        batch_size=int(config["batch_size"]),
-        shuffle=True,
-        num_workers=8)
-    valloader = torch.utils.data.DataLoader(
-        val_subset,
-        batch_size=int(config["batch_size"]),
-        shuffle=True,
-        num_workers=8)
-
-    for epoch in range(10):  # loop over the dataset multiple times
-        running_loss = 0.0
-        epoch_steps = 0
-        for i, data in enumerate(trainloader, 0):
-            # get the inputs; data is a list of [inputs, labels]
-            inputs, labels = data
-            inputs, labels = inputs.to(device), labels.to(device)
-
-            # zero the parameter gradients
-            optimizer.zero_grad()
-
-            # forward + backward + optimize
-            outputs = net(inputs)
-            loss = criterion(outputs, labels)
-            loss.backward()
-            optimizer.step()
-
-            # print statistics
-            running_loss += loss.item()
-            epoch_steps += 1
-            if i % 2000 == 1999:  # print every 2000 mini-batches
-                print("[%d, %5d] loss: %.3f" % (epoch + 1, i + 1,
-                                                running_loss / epoch_steps))
-                running_loss = 0.0
-
-        # Validation loss
-        val_loss = 0.0
-        val_steps = 0
-        total = 0
-        correct = 0
-        for i, data in enumerate(valloader, 0):
-            with torch.no_grad():
-                inputs, labels = data
-                inputs, labels = inputs.to(device), labels.to(device)
-
-                outputs = net(inputs)
-                _, predicted = torch.max(outputs.data, 1)
-                total += labels.size(0)
-                correct += (predicted == labels).sum().item()
-
-                loss = criterion(outputs, labels)
-                val_loss += loss.cpu().numpy()
-                val_steps += 1
-
-        # Here we save a checkpoint. It is automatically registered with
-        # Ray Tune and will potentially be passed as the `checkpoint_dir`
-        # parameter in future iterations.
-        with tune.checkpoint_dir(step=epoch) as checkpoint_dir:
-            path = os.path.join(checkpoint_dir, "checkpoint")
-            torch.save(
-                (net.state_dict(), optimizer.state_dict()), path)
-
-        tune.report(loss=(val_loss / val_steps), accuracy=correct / total)
-    print("Finished Training")
+tuner_map = {
+    "AutoEncoder": AutoEncoderTuner,
+    "MemAE": MemAETuner
+}
 
 
-# # 1. Wrap a PyTorch model in an objective function.
-# def objective(config):
-#     train_loader, test_loader = load_data()  # Load some data
-#     model = ConvNet().to("cpu")  # Create a PyTorch conv net
-#     optimizer = torch.optim.SGD(  # Tune the optimizer
-#         model.parameters(), lr=config["lr"], momentum=config["momentum"]
-#     )
-#
-#     while True:
-#         train(model, optimizer, train_loader)  # Train the model
-#         acc = test(model, test_loader)  # Compute test accuracy
-#         tune.report(aupr=acc)  # Report to Tune
-#
-#
-# # 2. Define a search space and initialize the search algorithm.
-# search_space = {"lr": tune.loguniform(1e-4, 1e-2), "momentum": tune.uniform(0.1, 0.9)}
-# algo = OptunaSearch()
-#
-# # 3. Start a Tune run that maximizes mean accuracy and stops after 5 iterations.
-# analysis = ray_tune.run(
-#     objective,
-#     metric="mean_accuracy",
-#     mode="max",
-#     search_alg=algo,
-#     stop={"training_iteration": 5},
-#     config=search_space,
-# )
-# print("Best config is:", analysis.best_config)
+def parser_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--dataset",
+        type=str,
+        choices=datasets_map.keys(),
+        required=True
+    )
+    parser.add_argument(
+        "--dataset-path",
+        type=str,
+        required=True
+    )
+    parser.add_argument(
+        "--max-num-epochs",
+        type=int,
+        default=100,
+    )
+    parser.add_argument(
+        "--num-samples",
+        type=int,
+        default=10,
+    )
+    parser.add_argument(
+        "--models",
+        nargs="+"
+    )
+    parser.add_argument(
+        "--name",
+        type=str,
+        required=False
+    )
+    parser.add_argument(
+        "--export-path",
+        type=str,
+        default="../results"
+    )
+    return parser.parse_args()
 
-def setup(model_cls, trainer_cls):
-    device = "cpu"
-    if torch.cuda.is_available():
-        device = "cuda:0"
-    return device
+
+def resolve_config(dataset, model_cls) -> dict:
+    return dict(
+        lr=ray_tune.loguniform(1e-4, 1e-1),
+        dataset=dataset,
+        in_features=dataset.in_features,
+        n_instances=dataset.n_instances,
+        **dataset.get_tunable_params(),
+        **model_cls.get_tunable_params(n_instances=dataset.n_instances, in_features=dataset.in_features)
+    )
+
+
+def tune(
+        dataset_name: str,
+        dataset_path: str,
+        models: list,
+        max_num_epochs: int,
+        num_samples: int,
+        export_path: str,
+        experiment_name: str = None,
+):
+    dataset = resolve_dataset(dataset_name, dataset_path)
+    tuners = [tuner_map.get(m) for m in models]
+    assert all([tuner is not None for tuner in tuners]), "invalid tuners provided, make sure given models exist"
+    for tuner_cls in tuners:
+        # Setup
+        cfg = resolve_config(dataset, tuner_cls)
+        experiment_name = experiment_name or os.path.join(
+            tuner_cls.__name__, "{}".format(dt.now().strftime("%d_%m_%Y_%H-%M-%S"))
+        )
+        export_path = os.path.join(export_path, experiment_name)
+        os.makedirs(export_path, exist_ok=True)
+        scheduler = ASHAScheduler(
+            max_t=max_num_epochs,
+            grace_period=1,
+            reduction_factor=2
+        )
+        # Run tuning
+        result = ray_tune.run(
+            tuner_cls,
+            # ray_tune.with_parameters(train_cifar),
+            resources_per_trial={"cpu": 2, "gpu": 1},
+            config=cfg,
+            metric="aupr",
+            mode="max",
+            num_samples=num_samples,
+            scheduler=scheduler,
+            name=experiment_name
+        )
+        # Display best result
+        best_trial = result.get_best_trial("aupr", "max", "last")
+        print("Best trial config: {}".format(best_trial.config))
+        print("Best trial final train loss: {}".format(best_trial.last_result["train_loss"]))
+        print("Best trial final validation loss: {}".format(best_trial.last_result["val_loss"]))
+        print("Best trial final validation aupr: {}".format(best_trial.last_result["aupr"]))
+        result_df = result.dataframe().sort_values(by="aupr", ascending=False)
+        # Save tuning summary in dataframe
+        result_df.to_csv(
+            os.path.join(export_path, "%s_tuning_results.csv" % tuner_cls.__name__)
+        )
 
 
 if __name__ == "__main__":
-    tune(device=device)
+    args = parser_args()
+    tune(
+        dataset_name=args.dataset,
+        dataset_path=args.dataset_path,
+        models=args.models,
+        max_num_epochs=args.max_num_epochs,
+        num_samples=args.num_samples,
+        export_path=args.export_path
+    )

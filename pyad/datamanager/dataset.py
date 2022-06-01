@@ -2,6 +2,7 @@ import numpy as np
 import pandas as pd
 import scipy.io
 import torch
+from ray import tune as ray_tune
 from torch.utils.data import Dataset, Subset, DataLoader
 from torch.utils.data.dataset import T_co
 from typing import Tuple
@@ -73,7 +74,7 @@ class AbstractDataset(Dataset):
                 label: int = 0,
                 holdout: float = 0.0,
                 contamination_rate: float = 0.0,
-                validation_ratio: float = .2,
+                validation_ratio: float = 0.,
                 batch_size: int = 128,
                 num_workers: int = 0,
                 seed: int = None,
@@ -170,6 +171,10 @@ class AbstractDataset(Dataset):
 
         return train_set, test_set, val_set
 
+    @staticmethod
+    def get_tunable_params():
+        raise NotImplementedError
+
 
 class ArrhythmiaDataset(AbstractDataset):
     def __init__(self, **kwargs):
@@ -178,6 +183,12 @@ class ArrhythmiaDataset(AbstractDataset):
 
     def npz_key(self):
         return "arrhythmia"
+
+    @staticmethod
+    def get_tunable_params():
+        return {
+            "batch_size": ray_tune.choice([4, 16, 32, 64])
+        }
 
 
 class IDS2017Dataset(AbstractDataset):
@@ -199,6 +210,12 @@ class IDS2017Dataset(AbstractDataset):
         return np.concatenate(
             (X, np.expand_dims(y, 1)), axis=1
         )
+
+    @staticmethod
+    def get_tunable_params():
+        return {
+            "batch_size": ray_tune.choice([64, 128, 1024])
+        }
 
 
 class IDS2018Dataset(AbstractDataset):
@@ -318,7 +335,13 @@ class IDS2018Dataset(AbstractDataset):
         return train_set, test_set, val_set
 
     def __getitem__(self, index) -> T_co:
-        return self.X[index], self.y[index], index, self.labels[index]
+        return self.X[index], self.y[index], self.labels[index]
+
+    @staticmethod
+    def get_tunable_params():
+        return {
+            "batch_size": ray_tune.choice([64, 128, 1024])
+        }
 
 
 class KDD10Dataset(AbstractDataset):
@@ -333,6 +356,12 @@ class KDD10Dataset(AbstractDataset):
     def npz_key(self):
         return "kdd"
 
+    @staticmethod
+    def get_tunable_params():
+        return {
+            "batch_size": ray_tune.choice([16, 32, 64, 128, 1024])
+        }
+
 
 class NSLKDDDataset(AbstractDataset):
     """
@@ -346,6 +375,12 @@ class NSLKDDDataset(AbstractDataset):
     def npz_key(self):
         return "kdd"
 
+    @staticmethod
+    def get_tunable_params():
+        return {
+            "batch_size": ray_tune.choice([16, 32, 64, 128])
+        }
+
 
 class ThyroidDataset(AbstractDataset):
 
@@ -355,6 +390,12 @@ class ThyroidDataset(AbstractDataset):
 
     def npz_key(self):
         return "thyroid"
+
+    @staticmethod
+    def get_tunable_params():
+        return {
+            "batch_size": ray_tune.choice([16, 32, 64, 128])
+        }
 
 
 class USBIDSDataset(AbstractDataset):
@@ -366,6 +407,12 @@ class USBIDSDataset(AbstractDataset):
     def npz_key(self):
         return "usbids"
 
+    @staticmethod
+    def get_tunable_params():
+        return {
+            "batch_size": ray_tune.choice([64, 128, 1024])
+        }
+
 
 class MalMem2022Dataset(AbstractDataset):
 
@@ -375,3 +422,9 @@ class MalMem2022Dataset(AbstractDataset):
 
     def npz_key(self):
         return "malmem2022"
+
+    @staticmethod
+    def get_tunable_params():
+        return {
+            "batch_size": ray_tune.choice([64, 128, 1024])
+        }

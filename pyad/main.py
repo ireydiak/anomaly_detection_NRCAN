@@ -1,6 +1,6 @@
 import argparse
 import bootstrap as bootstrap
-from bootstrap import available_datasets, available_models
+from bootstrap import datasets_map, available_models
 
 
 def argument_parser():
@@ -16,7 +16,7 @@ def argument_parser():
     parser.add_argument(
         "--dataset",
         type=str,
-        choices=available_datasets,
+        choices=datasets_map.keys(),
         required=True
     )
     parser.add_argument(
