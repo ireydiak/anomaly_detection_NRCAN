@@ -22,6 +22,7 @@ class AutoEncoderTuner(BaseTuner):
             reg=config["reg"]
         )
         self.model = self.model.to(self.device)
+        self.reg = config["reg"]
         self.optimizer = optim.Adam(
             self.model.parameters(),
             lr=config["lr"]
@@ -32,8 +33,7 @@ class AutoEncoderTuner(BaseTuner):
     def train_iter(self, X: torch.Tensor):
         code, X_prime = self.model(X)
         l2_z = code.norm(2, dim=1).mean()
-        reg = 0.5
-        loss = ((X - X_prime) ** 2).sum(axis=-1).mean() + reg * l2_z
+        loss = ((X - X_prime) ** 2).sum(axis=-1).mean() + self.reg * l2_z
 
         return loss
 
