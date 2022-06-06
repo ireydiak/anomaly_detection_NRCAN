@@ -4,37 +4,11 @@ import numpy as np
 from sklearn import metrics as sk_metrics
 
 
-def estimate_optimal_threshold(test_score, y_test, pos_label=1, nq=100, val_ratio=.2):
-    # Generate indices the testscore
-    n = len(test_score)
-    idx = list(range(n))
-    shuffle(idx)
-    idx = np.array(idx)
-
-    # split score in test and validation
-    n_test = int(n * (1 - val_ratio))
-
-    score_t = test_score[idx[:n_test]]
-    y_t = y_test[idx[:n_test]]
-    score_v = test_score[idx[n_test:]]
-    y_v = y_test[idx[n_test:]]
-
-    # Estimate the threshold on the validation set
-    res = estimate_optimal_threshold_legacy(score_v, y_v, pos_label, nq)
-    threshold = res["Thresh_star"]
-
+def estimate_optimal_threshold(test_score, y_test, pos_label=1, nq=100):
     # Compute metrics on the test set
-    metrics = compute_metrics(score_t, y_t, threshold, pos_label)
+    res = estimate_optimal_threshold_legacy(test_score, y_test, pos_label, nq)
 
-    return {
-        "Precision": metrics[1],
-        "Recall": metrics[2],
-        "F1-Score": metrics[3],
-        "AUPR": metrics[5],
-        "AUROC": metrics[4],
-        "Thresh_star": threshold,
-        # "Quantile_star": qis
-    }
+    return res
 
 
 def compute_metrics(test_score, y_test, thresh, pos_label=1):

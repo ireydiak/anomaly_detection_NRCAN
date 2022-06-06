@@ -187,9 +187,87 @@ class NeuTraLAD(BaseModel):
         return self.score(X)
 
 
+class GOAD(BaseModel):
+    name = "GOAD"
+
+    def __init__(
+            self,
+            n_transforms: int,
+            feature_space: int,
+            num_hidden_nodes: int,
+            n_layers: int = 0,
+            eps: float = 0,
+            lamb: float = 0.1,
+            margin: float = 1.,
+            **kwargs
+    ):
+        super().__init__(**kwargs)
+        assert n_layers >= 0, "n_layers must be greater or equal to 0"
+        self.n_transforms = n_transforms
+        self.margin = margin
+        self.feature_space = feature_space
+        self.num_hidden_nodes = num_hidden_nodes
+        self.lamb = lamb
+        self.eps = eps
+        self.n_layers = n_layers
+        self.build_network()
+
+    def build_network(self):
+        trunk_layers = [
+            nn.Conv1d(self.feature_space, self.num_hidden_nodes, kernel_size=1, bias=False)
+        ]
+        for i in range(0, self.n_layers):
+            trunk_layers.append(
+                nn.Conv1d(self.num_hidden_nodes, self.num_hidden_nodes, kernel_size=1, bias=False),
+            )
+            if i < self.n_layers - 1:
+                trunk_layers.append(
+                    nn.LeakyReLU(0.2, inplace=True),
+                )
+            else:
+                trunk_layers.append(
+                    nn.Conv1d(self.num_hidden_nodes, self.num_hidden_nodes, kernel_size=1, bias=False),
+                )
+        self.trunk = nn.Sequential(
+            *trunk_layers
+        )
+        self.head = nn.Sequential(
+            nn.LeakyReLU(0.2, inplace=True),
+            nn.Conv1d(self.num_hidden_nodes, self.n_transforms, kernel_size=1, bias=True),
+        )
+
+    def forward(self, X: torch.Tensor):
+        tc = self.trunk(X)
+        logits = self.head(tc)
+        return tc, logits
+
+    @staticmethod
+    def get_args_desc():
+        return [
+            ("n_transforms", int, 256, "number of affine transformations"),
+            ("margin", float, 1., "margin used in the objective function to regularize the distance between clusters"),
+            ("num_hidden_nodes", int, 8, "number of hidden nodes in the neural network"),
+            ("lamb", float, 0.1, "regularizing term in the objective function"),
+            ("n_layers", int, 0, "number of hidden layers"),
+            ("feature_space", int, 32, "dimension of the feature space learned by the neural network"),
+            ("eps", float, 0., "small value added to the anomaly score to ensure equal probabilities for uncertain regions")
+        ]
+
+    def get_params(self) -> dict:
+        parent_params = super(GOAD, self).get_params()
+        return dict(
+            n_transforms=self.n_transforms,
+            margin=self.margin,
+            feature_space=self.feature_space,
+            lamb=self.lamb,
+            n_layers=self.n_layers,
+            **parent_params
+        )
+
+
 def h_func(x_k, x_l, temp=0.1):
     mat = F.cosine_similarity(x_k, x_l)
 
     return torch.exp(
-        mat / 0.1
+        mat / temp
     )

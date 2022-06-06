@@ -100,7 +100,7 @@ class AbstractDataset(Dataset):
     def split_train_test(self,
                          test_pct: float = .5,
                          label: int = 0,
-                         holdout=0.05,
+                         holdout=0.00,
                          contamination_rate=0.,
                          validation_ratio: float = 0.,
                          seed=None,
