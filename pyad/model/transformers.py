@@ -247,7 +247,7 @@ class GOAD(BaseModel):
             ("n_transforms", int, 256, "number of affine transformations"),
             ("margin", float, 1., "margin used in the objective function to regularize the distance between clusters"),
             ("num_hidden_nodes", int, 8, "number of hidden nodes in the neural network"),
-            ("lamb", float, 0.1, "regularizing term in the objective function"),
+            ("lamb", float, 0.1, "trade-off between triplet and cross-entropy losses"),
             ("n_layers", int, 0, "number of hidden layers"),
             ("feature_space", int, 32, "dimension of the feature space learned by the neural network"),
             ("eps", float, 0., "small value added to the anomaly score to ensure equal probabilities for uncertain regions")

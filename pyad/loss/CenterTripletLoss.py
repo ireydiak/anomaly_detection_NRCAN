@@ -2,9 +2,9 @@ import torch
 import torch.nn as nn
 
 
-class TripletLoss(nn.Module):
+class CenterTripletLoss(nn.Module):
     def __init__(self, margin: float = 1.):
-        super(TripletLoss, self).__init__()
+        super(CenterTripletLoss, self).__init__()
         self.margin = margin
 
     def forward(self, X: torch.Tensor):
@@ -14,5 +14,6 @@ class TripletLoss(nn.Module):
         pos = torch.diagonal(res, dim1=1, dim2=2)
         offset = torch.diagflat(torch.ones(X.size(1))).unsqueeze(0).to(device) * 1e6
         neg = (res + offset).min(-1)[0]
+        # `clamp` used for numerical stability
         loss = torch.clamp(pos + self.margin - neg, min=0).mean()
         return loss
