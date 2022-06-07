@@ -237,7 +237,9 @@ class GOAD(BaseModel):
         )
 
     def forward(self, X: torch.Tensor):
+        # (batch_size, num_hidden_nodes, n_transforms)
         tc = self.trunk(X)
+        # (batch_size, n_transforms, n_transforms)
         logits = self.head(tc)
         return tc, logits
 
