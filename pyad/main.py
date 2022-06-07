@@ -1,6 +1,5 @@
 import argparse
-import bootstrap as bootstrap
-from bootstrap import datasets_map, available_models
+import bootstrap as bsp
 
 
 def argument_parser():
@@ -16,7 +15,7 @@ def argument_parser():
     parser.add_argument(
         "--dataset",
         type=str,
-        choices=datasets_map.keys(),
+        choices=bsp.datasets_map.keys(),
         required=True
     )
     parser.add_argument(
@@ -30,7 +29,7 @@ def argument_parser():
         "-m",
         "--model",
         type=str,
-        choices=[model.name for model in available_models],
+        choices=[model.name for model in bsp.available_models],
         required=True
     )
     parser.add_argument(
@@ -114,7 +113,7 @@ def argument_parser():
     )
 
     # Models params
-    for model_cls in available_models:
+    for model_cls in bsp.available_models:
         for params in model_cls.get_args_desc():
             param_name, datatype, default_value, help_txt = params
             param_name = param_name.replace("_", "-")
@@ -132,12 +131,12 @@ def argument_parser():
     return parser.parse_args()
 
 
-if __name__ == "__main__":
-    args = argument_parser()
+def main(args):
     model_name = args.model.lower()
-    model_params = {k.replace("%s_" % model_name, ""): v for k, v in vars(args).items() if k.lower().startswith(model_name)}
+    model_params = {k.replace("%s_" % model_name, ""): v for k, v in vars(args).items() if
+                    k.lower().startswith(model_name)}
 
-    bootstrap.train(
+    bsp.train(
         model_name=args.model,
         model_params=model_params,
         dataset_name=args.dataset,
@@ -157,4 +156,10 @@ if __name__ == "__main__":
         contamination_r=args.rho,
         drop_lastbatch=args.drop_lastbatch,
         validation_ratio=args.val_ratio,
+    )
+
+
+if __name__ == "__main__":
+    main(
+        argument_parser()
     )

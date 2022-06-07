@@ -151,10 +151,11 @@ def resolve_model_trainer(
 
 
 def train_model(
-        model: BaseModel,
-        model_trainer,
-        dataset_name: str,
-        n_runs: int,
+        model_name: str,
+        model_params: dict,
+        n_epochs: int,
+        weight_decay: float,
+        learning_rate: float,
         device: str,
         model_path: str,
         test_mode: bool,
@@ -167,9 +168,17 @@ def train_model(
         validation_ratio
 
 ):
-    # Training and evaluation on different runs
-    all_results = defaultdict(list)
-    print("Training model {} for {} epochs on device {}".format(model.name, model_trainer.n_epochs, device))
+
+    model, model_trainer = resolve_model_trainer(
+        model_name=model_name,
+        model_params=model_params,
+        dataset=dataset,
+        batch_size=batch_size,
+        n_epochs=n_epochs,
+        weight_decay=weight_decay,
+        learning_rate=learning_rate,
+        device=device
+    )
 
     train_ldr, test_ldr, val_ldr = dataset.loaders(
         batch_size=batch_size,
@@ -190,48 +199,28 @@ def train_model(
             y_test_true, test_scores = model_trainer.test(test_ldr)
             print("Evaluating model")
             results = metrics.estimate_optimal_threshold(test_scores, y_test_true)
-            for k, v in results.items():
-                all_results[k].append(v)
     else:
-        for i in range(n_runs):
-            print(f"Run {i + 1} of {n_runs}")
-            if model.name == "DUAD":
-                # DataManager for DUAD only
-                # split data in train and test sets
-                train_set, test_set, val_set = dataset.split_train_test(
-                    test_pct=0.50, contamination_rate=contamination_rate, holdout=holdout
-                )
-                dm = DataManager(train_set, test_set, batch_size=batch_size, drop_last=drop_lastbatch)
-                # we train only on the majority class
-                model_trainer.setDataManager(dm)
-                model_trainer.train(dataset=train_set)
-            else:
-                model_trainer.train(train_ldr)
-            print("Completed learning process")
-            print("Evaluating model on test set")
-            # We test with the minority samples as the positive class
-            if model.name == "DUAD":
-                test_scores, y_test_true = model_trainer.evaluate_on_test_set()
-            else:
-                y_test_true, test_scores, _ = model_trainer.test(test_ldr)
-            results = metrics.estimate_optimal_threshold(test_scores, y_test_true)
-            print(results)
-            for k, v in results.items():
-                all_results[k].append(v)
-            store_model(model, model.name, dataset_name, None)
-            model.reset()
-
-            if i < n_runs - 1:
-                train_ldr, test_ldr, val_ldr = dataset.loaders(batch_size=batch_size,
-                                                               seed=seed,
-                                                               contamination_rate=contamination_rate,
-                                                               validation_ratio=validation_ratio,
-                                                               holdout=holdout,
-                                                               drop_last_batch=drop_lastbatch)
-
-    # Compute mean and standard deviation of the performance metrics
-    print("Averaging results ...")
-    return average_results(all_results)
+        if model.name == "DUAD":
+            # DataManager for DUAD only
+            # split data in train and test sets
+            train_set, test_set, val_set = dataset.split_train_test(
+                test_pct=0.50, contamination_rate=contamination_rate, holdout=holdout
+            )
+            dm = DataManager(train_set, test_set, batch_size=batch_size, drop_last=drop_lastbatch)
+            # we train only on the majority class
+            model_trainer.setDataManager(dm)
+            model_trainer.train(dataset=train_set)
+        else:
+            model_trainer.train(train_ldr)
+        print("Completed learning process")
+        print("Evaluating model on test set")
+        # We test with the minority samples as the positive class
+        if model.name == "DUAD":
+            test_scores, y_test_true = model_trainer.evaluate_on_test_set()
+        else:
+            y_test_true, test_scores, _ = model_trainer.test(test_ldr)
+        results, _ = metrics.score_recall_precision_w_threshold(test_scores, y_test_true)
+    return results
 
 
 def train(
@@ -266,41 +255,45 @@ def train(
     for p in [results_path, models_path]:
         if p:
             assert os.path.exists(p), "Path %s does not exist" % p
+    # Training and evaluation on different runs
+    all_results = defaultdict(list)
+    print("Training model {} for {} epochs on device {}".format(model_name, n_epochs, device))
 
-    model, model_trainer = resolve_model_trainer(
-        model_name=model_name,
-        model_params=model_params,
-        dataset=dataset,
-        batch_size=batch_size,
-        n_epochs=n_epochs,
-        weight_decay=weight_decay,
-        learning_rate=learning_rate,
-        device=device
-    )
-    res = train_model(
-        model=model,
-        model_trainer=model_trainer,
-        dataset_name=dataset_name,
-        n_runs=n_runs,
-        device=device,
-        model_path=models_path,
-        test_mode=test_mode,
-        dataset=dataset,
-        batch_size=batch_size,
-        seed=seed,
-        contamination_rate=contamination_r,
-        holdout=holdout,
-        drop_lastbatch=drop_lastbatch,
-        validation_ratio=validation_ratio,
+    for i in range(n_runs):
+        print(f"Run {i + 1} of {n_runs}")
+        results = train_model(
+            # model=model,
+            # model_trainer=model_trainer,
+            # dataset_name=dataset_name,
+            model_name=model_name,
+            model_params=model_params,
+            n_epochs=n_epochs,
+            weight_decay=weight_decay,
+            learning_rate=learning_rate,
+            device=device,
+            model_path=models_path,
+            test_mode=test_mode,
+            dataset=dataset,
+            batch_size=batch_size,
+            seed=seed,
+            contamination_rate=contamination_r,
+            holdout=holdout,
+            drop_lastbatch=drop_lastbatch,
+            validation_ratio=validation_ratio,
 
-    )
-    print(res)
+        )
+        for k, v in results.items():
+            all_results[k].append(v)
+        print(results)
+    all_results = average_results(all_results)
     params = dict(
-        {"BatchSize": batch_size, "Epochs": n_epochs, "CorruptionRatio": corruption_ratio,
+        {"BatchSize": batch_size,
+         "Epochs": n_epochs,
+         "CorruptionRatio": corruption_ratio,
          "HoldoutRatio": holdout,
          "Threshold": anomaly_thresh},
-        **model.get_params()
+        **model_params
     )
     # Store the average of results
-    fname = store_results(res, params, model_name, dataset.name, dataset_path, results_path)
+    fname = store_results(all_results, params, model_name, dataset.name, dataset_path, results_path)
     print(f"Results stored in {fname}")
