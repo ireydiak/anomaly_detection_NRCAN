@@ -6,7 +6,7 @@ from torch import nn, optim
 from torch.optim.lr_scheduler import StepLR
 from torch.utils.data import DataLoader
 from tqdm import trange
-from pyad.loss.TripletLoss import TripletLoss
+from pyad.loss.TripletCenterLoss import TripletCenterLoss
 from pyad.model.transformers import NeuTraLAD
 from pyad.trainer.base import BaseTrainer
 
@@ -61,7 +61,7 @@ class GOADTrainer(BaseTrainer):
         # Cross Entropy loss
         self.ce_loss = nn.CrossEntropyLoss()
         # Triplet loss
-        self.tc_loss = TripletLoss(margin=self.margin)
+        self.tc_loss = TripletCenterLoss(margin=self.margin)
         # Transformation matrix
         self.trans_matrix = torch.randn(
             (self.n_transforms, model.in_features, model.feature_space)

@@ -2,9 +2,9 @@ import torch
 import torch.nn as nn
 
 
-class CenterTripletLoss(nn.Module):
+class TripletCenterLoss(nn.Module):
     def __init__(self, margin: float = 1.):
-        super(CenterTripletLoss, self).__init__()
+        super(TripletCenterLoss, self).__init__()
         self.margin = margin
 
     def forward(self, X: torch.Tensor):
