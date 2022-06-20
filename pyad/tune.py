@@ -92,7 +92,6 @@ def tune(
         # Run tuning
         result = ray_tune.run(
             tuner_cls,
-            # ray_tune.with_parameters(train_cifar),
             resources_per_trial={"cpu": 2, "gpu": 1},
             config=cfg,
             metric="aupr",
