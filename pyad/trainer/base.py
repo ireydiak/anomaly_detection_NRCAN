@@ -47,7 +47,7 @@ class BaseTrainer(ABC):
         ckpt = torch.load(fname, map_location=device)
         metric_values = ckpt["metric_values"]
         model = BaseModel.load_from_ckpt(ckpt)
-        trainer = BaseTrainer(model=model, batch_size=ckpt["batch_size"], device=device)
+        trainer = BaseTrainer(model=model, batch_size=ckpt["batch_size"], n_epochs=ckpt["n_epochs"], device=device)
         trainer.optimizer.load_state_dict(ckpt["optimizer_state_dict"])
         trainer.metric_values = metric_values
 
@@ -60,9 +60,10 @@ class BaseTrainer(ABC):
             "metric_values": self.metric_values
         }
         trainer_params = self.get_params()
+        trainer_params["n_epochs"] -= self.epoch
         model_params = self.model.get_params()
         torch.save(dict(**general_params, **model_params, **trainer_params), fname)
-        self.optimizer = self.set_optimizer(self.weight_decay)
+        #self.optimizer = self.set_optimizer(self.weight_decay)
 
     @abstractmethod
     def train_iter(self, sample: torch.Tensor):
@@ -90,8 +91,6 @@ class BaseTrainer(ABC):
     def train(self, dataset: DataLoader):
         self.model.train(mode=True)
         self.before_training(dataset)
-        assert self.model.training, "Model not in training mode. Aborting"
-
         print("Started training")
         for epoch in range(self.n_epochs):
             epoch_loss = 0.0
@@ -113,17 +112,17 @@ class BaseTrainer(ABC):
 
                     epoch_loss += loss.item()
                     t.set_postfix(
-                        loss='{:.3f}'.format(epoch_loss / (epoch + 1)),
+                        loss='{:.4f}'.format(epoch_loss / (epoch + 1)),
                         epoch=epoch + 1
                     )
                     t.update()
 
-            if self.ckpt_root and epoch % 5 == 0:
+            if self.ckpt_root and (epoch + 1) % 5 == 0:
                 self.save_ckpt(
-                    os.path.join(self.ckpt_root, "{}_epoch={}.pt".format(self.model.name.lower(), epoch + 1))
+                    os.path.join(self.ckpt_root, "{}_epoch={}.pt".format(self.model.name.lower(), epoch))
                 )
 
-            if self.validation_ldr is not None and (epoch % 5 == 0 or epoch == 0):
+            if self.validation_ldr is not None and ((epoch + 1) % 5 == 0 or epoch == 0):
                 self.validate()
 
         self.after_training()

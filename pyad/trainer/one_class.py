@@ -25,6 +25,7 @@ class DeepSVDDTrainer(BaseTrainer):
         trainer = DeepSVDDTrainer(model=model, c=ckpt["c"], batch_size=1, device=device)
         trainer.optimizer.load_state_dict(ckpt["optimizer_state_dict"])
         trainer.metric_values = metric_values
+        trainer.n_epochs = ckpt["n_epochs"]
 
         return trainer, model
 
@@ -169,9 +170,10 @@ class EdgeMLDROCCTrainer(BaseTrainer):
         ckpt = torch.load(fname, map_location=device)
         metric_values = ckpt["metric_values"]
         model = DROCC.load_from_ckpt(ckpt)
-        trainer = EdgeMLDROCCTrainer(model=model, batch_size=1, device=device)
+        trainer = EdgeMLDROCCTrainer(model=model, batch_size=ckpt["batch_size"], device=device)
         trainer.optimizer.load_state_dict(ckpt["optimizer_state_dict"])
         trainer.metric_values = metric_values
+        trainer.n_epochs = ckpt["n_epochs"]
 
         return trainer, model
 
@@ -236,12 +238,12 @@ class EdgeMLDROCCTrainer(BaseTrainer):
                     )
                     t.update()
 
-            if self.ckpt_root and epoch % 5 == 0:
+            if self.ckpt_root and (epoch + 1) % 5 == 0:
                 self.save_ckpt(
                     os.path.join(self.ckpt_root, "{}_epoch={}.pt".format(self.model.name.lower(), epoch + 1))
                 )
 
-            if self.validation_ldr is not None and (epoch % 5 == 0 or epoch == 0):
+            if self.validation_ldr is not None and ((epoch + 1) % 5 == 0 or epoch == 0):
                 self.validate()
 
     def one_class_adv_loss(self, x_train_data):

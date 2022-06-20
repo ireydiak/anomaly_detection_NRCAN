@@ -24,7 +24,7 @@ class ALADTrainer(BaseTrainer):
         ckpt = torch.load(fname, map_location=device)
         metric_values = ckpt["metric_values"]
         model = ALAD.load_from_ckpt(ckpt)
-        trainer = ALADTrainer(model=model, batch_size=ckpt["batch_size"], device=device)
+        trainer = ALADTrainer(model=model, batch_size=ckpt["batch_size"], n_epochs=ckpt["n_epochs"], device=device)
         trainer.optim_ge.load_state_dict(ckpt["optim_ge"])
         trainer.optim_d.load_state_dict(ckpt["optim_d"])
         trainer.metric_values = metric_values
@@ -126,10 +126,10 @@ class ALADTrainer(BaseTrainer):
                     )
                     t.update()
 
-            if self.ckpt_root and epoch % 5 == 0:
+            if self.ckpt_root and (epoch + 1) % 5 == 0:
                 self.save_ckpt(
                     os.path.join(self.ckpt_root, "{}_epoch={}.pt".format(self.name.lower(), epoch + 1))
                 )
 
-            if self.validation_ldr is not None and (epoch % 5 == 0 or epoch == 0):
+            if self.validation_ldr is not None and ((epoch + 1) % 5 == 0 or epoch == 0):
                 self.validate()

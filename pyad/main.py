@@ -1,5 +1,15 @@
 import argparse
+import os.path
+import sys
+from collections import defaultdict
+
 import bootstrap as bsp
+from yaml import load
+
+try:
+    from yaml import CLoader as Loader, CDumper as Dumper
+except ImportError:
+    from yaml import Loader, Dumper
 
 
 def argument_parser():
@@ -13,24 +23,26 @@ def argument_parser():
               " --n-runs [n_runs] --batch-size [batch_size]"
     )
     parser.add_argument(
+        "--config",
+        type=str,
+        help="Load configuration from YAML. Use this option to avoid using CLI to setup models and experiments."
+    )
+    parser.add_argument(
         "--dataset",
         type=str,
-        choices=bsp.datasets_map.keys(),
-        required=True
+        choices=bsp.datasets_map.keys()
     )
     parser.add_argument(
         "-d",
         "--dataset-path",
         type=str,
-        help='Path to the dataset',
-        required=True
+        help='Path to the dataset'
     )
     parser.add_argument(
         "-m",
         "--model",
         type=str,
-        choices=[model.name for model in bsp.available_models],
-        required=True
+        choices=[model.name for model in bsp.available_models]
     )
     parser.add_argument(
         "--n-runs",
@@ -41,8 +53,7 @@ def argument_parser():
     parser.add_argument(
         "--batch-size",
         type=int,
-        help="The size of the training batch",
-        required=True
+        help="The size of the training batch"
     )
     parser.add_argument(
         "-e",
@@ -131,7 +142,70 @@ def argument_parser():
     return parser.parse_args()
 
 
-def main(args):
+def parse_config(config_file):
+    with open(config_file) as f:
+        data = load(f, Loader=Loader)
+        err = sanity_checks(data)
+    return data, err
+
+
+def sanity_checks(cfg):
+    assert cfg["DATASETS"], "please specify a dataset"
+    assert cfg["MODELS"], "please specify models"
+    error_bag = defaultdict()
+    # datasets
+    error_bag["DATASETS"] = defaultdict()
+    for dataset_name, dataset_params in cfg["DATASETS"].items():
+        error_bag["DATASETS"][dataset_name] = []
+        if not bsp.datasets_map.get(dataset_name):
+            error_bag["DATASETS"][dataset_name].append("dataset %s does not exist" % dataset_name)
+        available_params = {"batch_size", "normal_size", "holdout", "val_ratio", "path", "contamination_rate"}
+        for param_name in dataset_params.keys():
+            if param_name not in available_params:
+                error_bag["DATASETS"][dataset_name].append(
+                    "unknown param %s, use these parameters %s" % (param_name, available_params)
+                )
+        # make sure path to dataset exists
+        path = dataset_params["path"]
+        if path:
+            if not os.path.exists(path):
+                error_bag["DATASETS"][dataset_name].append(
+                    "path to dataset %s does not exist" % path
+                )
+        else:
+            error_bag["DATASETS"][dataset_name].append("missing `path` parameter")
+    # models and trainers
+    error_bag["MODELS"] = defaultdict()
+    for model_name, model_params in cfg["MODELS"].items():
+        error_bag["MODELS"][model_name] = []
+        if not bsp.model_trainer_map.get(model_name):
+            error_bag["MODELS"][model_name].append("model %s not available" % model_name)
+        model_cls, trainer_cls = bsp.model_trainer_map.get(model_name)
+        try:
+            model = model_cls(
+                in_features=1000,
+                n_instances=1000,
+                **model_params["INIT_PARAMS"]
+            )
+            _ = trainer_cls(
+                model=model,
+                batch_size=64
+            )
+        except Exception as e:
+            error_bag["MODELS"][model_name].append(
+                "could not initialize model %s with exception: %s" % (model_name, e)
+            )
+        # trainers
+        trainer_params = {"n_epochs", "learning_rate", "weight_decay", "momentum"}
+        for param_name in model_params["TRAINER"].keys():
+            if param_name not in trainer_params:
+                error_bag["MODELS"][model_name].append(
+                    "unknown parameter %s, use these parameters %s" % (param_name, trainer_params)
+                )
+    return error_bag
+
+
+def train_cli(args):
     model_name = args.model.lower()
     model_params = {k.replace("%s_" % model_name, ""): v for k, v in vars(args).items() if
                     k.lower().startswith(model_name)}
@@ -157,6 +231,26 @@ def main(args):
         drop_lastbatch=args.drop_lastbatch,
         validation_ratio=args.val_ratio,
     )
+
+
+def train_cfg(args):
+    cfg, err = parse_config(args.config)
+    cfg_ok = True
+    for key, items in err.items():
+        for item_name, item_val in items.items():
+            for err_msg in item_val:
+                cfg_ok = False
+                print("Error in %s -> %s -> %s" % (key, item_name, err_msg))
+    if cfg_ok:
+        bsp.train_from_cfg(cfg)
+        sys.exit(1)
+
+
+def main(args):
+    if args.config:
+        train_cfg(args)
+    else:
+        train_cli(args)
 
 
 if __name__ == "__main__":

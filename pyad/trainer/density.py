@@ -47,7 +47,13 @@ class DSEBMTrainer(BaseTrainer):
         ckpt = torch.load(fname, map_location=device)
         metric_values = ckpt["metric_values"]
         model = DSEBM.load_from_ckpt(ckpt)
-        trainer = DSEBMTrainer(model=model, batch_size=ckpt["batch_size"], device=device, b_prime=ckpt["b_prime"])
+        trainer = DSEBMTrainer(
+            model=model,
+            batch_size=ckpt["batch_size"],
+            n_epochs=ckpt["n_epochs"],
+            device=device,
+            b_prime=ckpt["b_prime"]
+        )
         trainer.optimizer.load_state_dict(ckpt["optimizer_state_dict"])
         trainer.metric_values = metric_values
 
@@ -97,12 +103,12 @@ class DSEBMTrainer(BaseTrainer):
                     )
                     t.update()
 
-            if self.ckpt_root and epoch % 5 == 0:
+            if self.ckpt_root and (epoch + 1) % 5 == 0:
                 self.save_ckpt(
                     os.path.join(self.ckpt_root, "{}_epoch={}.pt".format(self.model.name.lower(), epoch + 1))
                 )
 
-            if self.validation_ldr is not None and (epoch % 5 == 0 or epoch == 0):
+            if self.validation_ldr is not None and ((epoch + 1) % 5 == 0 or epoch == 0):
                 self.validate()
 
         self.after_training()

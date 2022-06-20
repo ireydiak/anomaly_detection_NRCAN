@@ -15,7 +15,9 @@ class AutoEncoderTrainer(BaseTrainer):
         ckpt = torch.load(fname, map_location=device)
         metric_values = ckpt["metric_values"]
         model = AutoEncoder.load_from_ckpt(ckpt)
-        trainer = AutoEncoderTrainer(model=model, batch_size=ckpt["batch_size"], device=device)
+        trainer = AutoEncoderTrainer(
+            model=model, batch_size=ckpt["batch_size"], n_epochs=ckpt["n_epochs"], device=device
+        )
         trainer.optimizer.load_state_dict(ckpt["optimizer_state_dict"])
         trainer.metric_values = metric_values
 
@@ -63,7 +65,9 @@ class DAGMMTrainer(BaseTrainer):
         ckpt = torch.load(fname, map_location=device)
         metric_values = ckpt["metric_values"]
         model = DAGMM.load_from_ckpt(ckpt)
-        trainer = DAGMMTrainer(model=model, batch_size=1, device=device)
+        trainer = DAGMMTrainer(
+            model=model, batch_size=ckpt["batch_size"], n_epochs=ckpt["n_epochs"], device=device
+        )
         trainer.model = model
         trainer.phi = ckpt["phi"]
         trainer.cov_mat = ckpt["cov_mat"]

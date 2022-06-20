@@ -1,12 +1,11 @@
-import numpy as np
-import torch
+import pickle
+import re
+
 import os
 from collections import defaultdict
 from datetime import datetime as dt
 
-from torch.utils.data import DataLoader
 from model.adversarial import ALAD
-
 from model.base import BaseModel
 from model.density import DSEBM
 from model.DUAD import DUAD
@@ -168,7 +167,6 @@ def train_model(
         validation_ratio
 
 ):
-
     model, model_trainer = resolve_model_trainer(
         model_name=model_name,
         model_params=model_params,
@@ -223,6 +221,72 @@ def train_model(
     return results
 
 
+def train_from_cfg(datasets: dict, models: dict, base_path: str):
+    # simple reporting system
+    reporter = defaultdict()
+    # for every dataset ...
+    for dataset_name, dataset_cfg in datasets.items():
+        reporter[dataset_name] = defaultdict()
+        dataset_cls = datasets_map[dataset_name]
+        dataset = dataset_cls(path=dataset_cfg["path"], normal_size=dataset_cfg["normal_size"])
+        # for every model ...
+        for model_name, model_params in models.items():
+            reporter[dataset_name][model_name] = {
+                "Precision": [], "Recall": [], "F1-Score": [], "AUROC": [], "AUPR": [], "Thresh": [],
+                "params": model_params["INIT_PARAMS"]
+            }
+            # create base folder structure
+            results_path = os.path.join(base_path, dataset_name.lower(), model_name.lower())
+            os.makedirs(results_path, exist_ok=True)
+            # repeat experiments `n_runs` times
+            for run_i in range(dataset_cfg["n_runs"]):
+                # create folder structure for checkpoints
+                ckpt_path = os.path.join(results_path, "run_{}".format(run_i + 1))
+                os.makedirs(ckpt_path, exist_ok=True)
+                # look for existing checkpoints
+                ckpt_epochs = sorted([int(re.findall(r'\d+', s)[0]) for s in os.listdir(ckpt_path)])
+                model_cls, trainer_cls = model_trainer_map.get(model_name)
+                if ckpt_epochs:
+                    # load latest checkpoint
+                    last = ckpt_epochs[-1]
+                    ckpt_file = "%s_epoch=%d.pt" % (model_name, last)
+                    trainer, model = trainer_cls.load_from_file(ckpt_file)
+                else:
+                    # setup model
+                    model = model_cls(
+                        in_features=dataset.in_features,
+                        n_instances=dataset.n_instances,
+                        **model_params["INIT_PARAMS"]
+                    )
+                    # setup trainer
+                    trainer = trainer_cls(
+                        model=model,
+                        **model_params["TRAINER"],
+                    )
+                # data loaders
+                train_ldr, test_ldr, _ = dataset.loaders(
+                    batch_size=dataset_cfg["batch_size"],
+                    contamination_rate=dataset_cfg["contamination_rate"],
+                    validation_ratio=dataset_cfg["val_ratio"],
+                    holdout=dataset_cfg["holdout"],
+                )
+                # train
+                trainer.train(train_ldr)
+                # test & evaluate
+                y_test_true, test_scores, _ = trainer.test(test_ldr)
+                results, _ = metrics.score_recall_precision_w_threshold(test_scores, y_test_true)
+                # compile results for current run
+                for k, v in results.items():
+                    reporter[dataset_name][model_name][k].append(v)
+            # compute mean, std for every performance metrics
+            for k in ["Precision", "Recall", "F1-Score", "AUROC", "AUPR"]:
+                v = reporter[dataset_name][model_name][k]
+                reporter[dataset_name][model_name][k] = f"{np.mean(v):.4f}({np.std(v):.4f})"
+    # store reporter
+    with open("reporter.pkl", "wb") as f:
+        pickle.dump(reporter, f)
+
+
 def train(
         model_name: str,
         model_params: dict,
@@ -245,8 +309,8 @@ def train(
         validation_ratio=0,
 ):
     # Dynamically load the Dataset instance
-    clsname = globals()[f'{dataset_name}Dataset']
-    dataset = clsname(path=dataset_path, normal_size=normal_size)
+    dataset_cls = datasets_map[dataset_name]
+    dataset = dataset_cls(path=dataset_path, normal_size=normal_size)
     anomaly_thresh = 1 - dataset.anomaly_ratio
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -279,8 +343,7 @@ def train(
             contamination_rate=contamination_r,
             holdout=holdout,
             drop_lastbatch=drop_lastbatch,
-            validation_ratio=validation_ratio,
-
+            validation_ratio=validation_ratio
         )
         for k, v in results.items():
             all_results[k].append(v)

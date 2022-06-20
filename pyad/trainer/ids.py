@@ -65,11 +65,11 @@ class IDSTrainer(BaseTrainer, ABC):
             if epoch % 10 == 0:
                 print("Epoch={}\tLoss={:2.4f}".format(epoch, epoch_loss))
 
-            if self.ckpt_root and epoch % 5 == 0:
+            if self.ckpt_root and (epoch + 1) % 5 == 0:
                 self.save_ckpt(
                     os.path.join(self.ckpt_root, "{}_epoch={}.pt".format(self.model.name.lower(), epoch + 1)))
 
-            if self.run_test_validation and (epoch % 5 == 0 or epoch == 0):
+            if self.run_test_validation and ((epoch + 1) % 5 == 0 or epoch == 0):
                 y_true, scores, _ = self.test(self.validation_ldr)
                 if self.thresh_mode == "optim":
                     test_res = metrics.estimate_optimal_threshold(scores, y_true)
@@ -156,7 +156,12 @@ class DSEBMIDSTrainer(IDSTrainer):
         ckpt = torch.load(fname, map_location=device)
         metric_values = ckpt["metric_values"]
         model = DSEBM.load_from_ckpt(ckpt)
-        trainer = DSEBMIDSTrainer(model=model, batch_size=ckpt["batch_size"], device=device)
+        trainer = DSEBMIDSTrainer(
+            model=model,
+            batch_size=ckpt["batch_size"],
+            device=device,
+            n_epochs=ckpt["n_epochs"]
+        )
         trainer.optimizer.load_state_dict(ckpt["optimizer_state_dict"])
         trainer.metric_values = metric_values
 
@@ -219,7 +224,9 @@ class NeuTraLADIDSTrainer(IDSTrainer):
         ckpt = torch.load(fname, map_location=device)
         metric_values = ckpt["metric_values"]
         model = NeuTraLAD.load_from_ckpt(ckpt)
-        trainer = NeuTraLADIDSTrainer(model=model, batch_size=ckpt["batch_size"], device=device)
+        trainer = NeuTraLADIDSTrainer(
+            model=model, batch_size=ckpt["batch_size"], device=device, n_epochs=ckpt["n_epochs"]
+        )
         trainer.optimizer.load_state_dict(ckpt["optimizer_state_dict"])
         trainer.metric_values = metric_values
 
@@ -244,7 +251,9 @@ class AEIDSTrainer(IDSTrainer):
         ckpt = torch.load(fname, map_location=device)
         metric_values = ckpt["metric_values"]
         model = AutoEncoder.load_from_ckpt(ckpt)
-        trainer = AEIDSTrainer(model=model, batch_size=ckpt["batch_size"], device=device)
+        trainer = AEIDSTrainer(
+            model=model, batch_size=ckpt["batch_size"], device=device, n_epochs=ckpt["n_epochs"]
+        )
         trainer.optimizer.load_state_dict(ckpt["optimizer_state_dict"])
         trainer.metric_values = metric_values
 
@@ -275,7 +284,9 @@ class MemAEIDSTrainer(IDSTrainer):
         ckpt = torch.load(fname, map_location=device)
         metric_values = ckpt["metric_values"]
         model = MemAutoEncoder.load_from_ckpt(ckpt)
-        trainer = MemAEIDSTrainer(model=model, batch_size=ckpt["batch_size"], device=device)
+        trainer = MemAEIDSTrainer(
+            model=model, batch_size=ckpt["batch_size"], device=device, n_epochs=ckpt["n_epochs"]
+        )
         trainer.optimizer.load_state_dict(ckpt["optimizer_state_dict"])
         trainer.metric_values = metric_values
 
@@ -342,7 +353,9 @@ class DeepSVDDIDSTrainer(IDSTrainer):
         ckpt = torch.load(fname, map_location=device)
         metric_values = ckpt["metric_values"]
         model = DeepSVDD.load_from_ckpt(ckpt)
-        trainer = DeepSVDDIDSTrainer(model=model, batch_size=ckpt["batch_size"], device=device)
+        trainer = DeepSVDDIDSTrainer(
+            model=model, batch_size=ckpt["batch_size"], device=device, n_epochs=ckpt["n_epochs"]
+        )
         trainer.c = ckpt["c"]
         trainer.R = ckpt.get("R", None)
         trainer.optimizer.load_state_dict(ckpt["optimizer_state_dict"])
@@ -410,6 +423,7 @@ class DAGMMIDSTrainer(IDSTrainer):
         device = device or torch.device("cuda" if torch.cuda.is_available() else "cpu")
         ckpt = torch.load(fname, map_location=device)
         model = model.load_from_ckpt(ckpt, model)
+        trainer.n_epochs = ckpt["n_epochs"]
         trainer.model = model
         trainer.phi = ckpt["phi"]
         trainer.cov_mat = ckpt["cov_mat"]

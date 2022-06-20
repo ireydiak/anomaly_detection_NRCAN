@@ -104,7 +104,7 @@ class AbstractDataset(Dataset):
                          contamination_rate=0.,
                          validation_ratio: float = 0.,
                          seed=None,
-                         debug=True) -> Tuple[Subset, Subset, Subset]:
+                         debug=False) -> Tuple[Subset, Subset, Subset]:
         assert (label == 0 or label == 1)
         assert 1 > holdout
         assert 0 <= contamination_rate <= 1
