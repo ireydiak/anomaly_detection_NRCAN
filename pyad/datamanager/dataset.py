@@ -54,6 +54,18 @@ class AbstractDataset(Dataset):
     def __getitem__(self, index) -> T_co:
         return self.X[index], self.y[index], self.labels[index]
 
+    @staticmethod
+    def get_default_cfg():
+        return {
+            "batch_size": 4,
+            "normal_size": 1,
+            "holdout": 0,
+            "val_ratio": 0,
+            "contamination_rate": 0,
+            "path": "",
+            "n_runs": 1
+        }
+
     def _load_data(self, path: str):
         if path.endswith(".npz"):
             data = np.load(path)[self.npz_key()]

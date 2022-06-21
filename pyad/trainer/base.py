@@ -1,5 +1,7 @@
 import numpy as np
 import torch
+import matplotlib.pyplot as plt
+import os
 
 from abc import ABC, abstractmethod
 from typing import Union
@@ -9,8 +11,6 @@ from torch import optim
 from tqdm import trange
 from pyad.model.base import BaseModel
 from pyad.utils import metrics
-import matplotlib.pyplot as plt
-import os
 
 
 class BaseTrainer(ABC):
@@ -35,7 +35,7 @@ class BaseTrainer(ABC):
         self.lr = lr
         self.anomaly_label = anomaly_label
         self.weight_decay = kwargs.get('weight_decay', 0)
-        self.optimizer = self.set_optimizer(weight_decay=kwargs.get('weight_decay', 0))
+        self.optimizer = self.set_optimizer(weight_decay=self.weight_decay)
         self.ckpt_root = ckpt_root
         self.validation_ldr = validation_ldr
         self.metric_values = {"precision": [], "recall": [], "f1-score": [], "aupr": []}
@@ -161,6 +161,14 @@ class BaseTrainer(ABC):
             "n_epochs": self.n_epochs,
             "batch_size": self.batch_size,
             "epoch": self.epoch,
+        }
+
+    @staticmethod
+    def get_default_cfg() -> dict:
+        return {
+            "n_epochs": 200,
+            "learning_rate": 1e-3,
+            "weight_decay": 0
         }
 
     def predict(self, scores: np.array, thresh: float):

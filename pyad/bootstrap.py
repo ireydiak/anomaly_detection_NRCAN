@@ -221,6 +221,15 @@ def train_model(
     return results
 
 
+def merge_cfg(priority, defaults):
+    cfg = defaultdict()
+    for key, val in defaults:
+        cfg[key] = priority.get(
+            key, val
+        )
+    return cfg
+
+
 def train_from_cfg(datasets: dict, models: dict, base_path: str):
     # simple reporting system
     reporter = defaultdict()
@@ -228,6 +237,7 @@ def train_from_cfg(datasets: dict, models: dict, base_path: str):
     for dataset_name, dataset_cfg in datasets.items():
         reporter[dataset_name] = defaultdict()
         dataset_cls = datasets_map[dataset_name]
+        dataset_cfg = merge_cfg(dataset_cfg, dataset_cls.get_default_cfg())
         dataset = dataset_cls(path=dataset_cfg["path"], normal_size=dataset_cfg["normal_size"])
         # for every model ...
         for model_name, model_params in models.items():
@@ -261,7 +271,7 @@ def train_from_cfg(datasets: dict, models: dict, base_path: str):
                     # setup trainer
                     trainer = trainer_cls(
                         model=model,
-                        **model_params["TRAINER"],
+                        **merge_cfg(model_params["TRAINER"], trainer_cls.get_default_cfg()),
                     )
                 # data loaders
                 train_ldr, test_ldr, _ = dataset.loaders(

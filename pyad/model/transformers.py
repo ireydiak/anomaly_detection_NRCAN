@@ -6,13 +6,22 @@ import numpy as np
 from pyad.model.base import BaseModel
 
 
-def create_network(D: int, out_dims: np.array, bias=True) -> list:
+def create_network(
+        input_dim: int, hidden_dims: list, bias=True, act_fn: nn.Module = nn.ReLU
+) -> list:
     net_layers = []
-    previous_dim = D
-    for dim in out_dims:
-        net_layers.append(nn.Linear(previous_dim, dim, bias=bias))
-        net_layers.append(nn.ReLU())
-        previous_dim = dim
+    for i in range(len(hidden_dims) - 1):
+        net_layers.append(
+            nn.Linear(input_dim, hidden_dims[i], bias=bias)
+        )
+        net_layers.append(
+            act_fn()
+        )
+        input_dim = hidden_dims[i]
+
+    net_layers.append(
+        nn.Linear(input_dim, hidden_dims[-1], bias=bias)
+    )
     return net_layers
 
 
@@ -21,33 +30,43 @@ class NeuTraLAD(BaseModel):
 
     def __init__(
             self,
-            fc_1_out: int,
-            fc_last_out: int,
+            # fc_1_out: int,
+            # fc_last_out: int,
             compression_unit: int,
             n_transforms: int,
-            n_layers: int,
+            # n_layers: int,
             trans_type: str,
             temperature: float,
-            trans_fc_in: int,
-            trans_fc_out: int,
+            # trans_fc_in: int,
+            # trans_fc_out: int,
+            trans_hidden_layers: list,
+            enc_hidden_dims: list,
             **kwargs
     ):
         super(NeuTraLAD, self).__init__(**kwargs)
         self.compression_unit = compression_unit
-        self.fc_1_out = fc_1_out
-        self.fc_last_out = fc_last_out
-        self.n_layers = n_layers
+        # self.fc_1_out = fc_1_out
+        # self.fc_last_out = fc_last_out
+        # self.n_layers = n_layers
         self.n_transforms = n_transforms
         self.temperature = temperature
         self.trans_type = trans_type
-        self.trans_fc_in = trans_fc_in if trans_fc_in and trans_fc_in > 0 else self.in_features
-        self.trans_fc_out = trans_fc_out if trans_fc_out and trans_fc_out > 0 else self.in_features
+        # self.trans_fc_in = trans_fc_in if trans_fc_in and trans_fc_in > 0 else self.in_features
+        # self.trans_fc_out = trans_fc_out if trans_fc_out and trans_fc_out > 0 else self.in_features
         self.cosim = nn.CosineSimilarity()
-        self._build_network()
-
+        # Encoder and Transformation layers
+        self.enc_hidden_dims = enc_hidden_dims
+        self.trans_hidden_layers = trans_hidden_layers
+        # Encoder
+        self.enc = nn.Sequential(
+            *create_network(self.in_features, self.enc_hidden_dims)
+        ).to(self.device)
+        # Transforms
+        self.masks = self._create_masks()
+        # self._build_network()
+    #
     @staticmethod
     def get_args_desc():
-        # TODO: better description
         return [
             ("fc_1_out", int, 90, "output dim of first hidden layer"),
             ("fc_last_out", int, 32, "output dim of the last layer"),
@@ -56,11 +75,21 @@ class NeuTraLAD(BaseModel):
             ("trans_type", str, "mul", "transformation type (choose between 'res' or 'mul')"),
             ("n_layers", int, 4, "number of layers"),
             ("n_transforms", int, 11, "number of transformations"),
-            ("trans_fc_in", int, 200, "input dim of transformer layer"),
-            ("trans_fc_out", int, -1, "output dim of transformer layer"),
+            ("trans_hidden_dims", list, [200], "dimensions of the hidden layers"),
+            ("enc_hidden_dims", list, [64, 32], "dimensions of the encoder layers")
         ]
 
-    def _create_masks(self) -> list:
+    def _create_masks(self):
+        masks = []
+        for k_i in range(self.n_transforms):
+            layers = create_network(self.in_features, self.trans_hidden_layers, bias=False)
+            layers.append(nn.Sigmoid())
+            masks.append(
+                nn.Sequential(*layers).to(self.device)
+            )
+        return masks
+
+    def _create_masks_legacy(self) -> list:
         masks = [None] * self.n_transforms
         out_dims = self.trans_layers
         for K_i in range(self.n_transforms):
@@ -82,7 +111,7 @@ class NeuTraLAD(BaseModel):
         enc_layers = create_network(self.in_features, out_dims)[:-1]  # removes ReLU from the last layer
         self.enc = nn.Sequential(*enc_layers).to(self.device)
         # Masks / Transformations
-        self.masks = self._create_masks()
+        self.masks = self._create_masks_legacy()
 
     @staticmethod
     def load_from_ckpt(ckpt):
