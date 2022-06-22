@@ -3,7 +3,11 @@ import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
 
+from pyad.loss.TripletCenterLoss import TripletCenterLoss
 from pyad.model.base import BaseModel
+import pytorch_lightning as pl
+
+from pyad.utils import metrics
 
 
 def create_network(
@@ -32,7 +36,7 @@ class NeuTraLAD(BaseModel):
             self,
             # fc_1_out: int,
             # fc_last_out: int,
-            #compression_unit: int,
+            # compression_unit: int,
             n_transforms: int,
             # n_layers: int,
             trans_type: str,
@@ -64,6 +68,7 @@ class NeuTraLAD(BaseModel):
         # Transforms
         self.masks = self._create_masks()
         # self._build_network()
+
     #
     @staticmethod
     def get_args_desc():
@@ -208,6 +213,159 @@ class NeuTraLAD(BaseModel):
         return self.score(X)
 
 
+class LitGOAD(pl.LightningModule):
+    def __init__(self,
+                 in_features: int,
+                 n_transforms: int,
+                 feature_dim: int,
+                 num_hidden_nodes: int,
+                 batch_size: int,
+                 n_layers: int = 0,
+                 lr=1e-4,
+                 eps=0,
+                 lamb=0.1,
+                 margin=1):
+        super(LitGOAD, self).__init__()
+        self.save_hyperparameters(
+            "n_transforms", "feature_dim", "num_hidden_nodes", "eps", "lamb", "margin", "n_layers"
+        )
+        self.lr = lr
+        self.batch_size = batch_size
+        self.in_features = in_features
+        self.n_transforms = n_transforms
+        self.margin = margin
+        self.feature_dim = feature_dim
+        self.num_hidden_nodes = num_hidden_nodes
+        self.lamb = lamb
+        self.eps = eps
+        self.n_layers = n_layers
+        self.build_network()
+        # Cross entropy loss
+        self.ce_loss = nn.CrossEntropyLoss()
+        # Triplet loss
+        self.tc_loss = TripletCenterLoss(margin=self.margin)
+        # Transformation matrix
+        self.trans_matrix = torch.randn(
+            (self.n_transforms, self.in_features, feature_dim),
+            device=self.device
+        )
+        # Hypersphere centers
+        self.centers = torch.zeros((self.feature_dim, self.n_transforms), device=self.device)
+
+    def build_network(self):
+        trunk_layers = [
+            nn.Conv1d(self.feature_dim, self.num_hidden_nodes, kernel_size=1, bias=False)
+        ]
+        for i in range(0, self.n_layers):
+            trunk_layers.append(
+                nn.Conv1d(self.num_hidden_nodes, self.num_hidden_nodes, kernel_size=1, bias=False),
+            )
+            if i < self.n_layers - 1:
+                trunk_layers.append(
+                    nn.LeakyReLU(0.2, inplace=True),
+                )
+            else:
+                trunk_layers.append(
+                    nn.Conv1d(self.num_hidden_nodes, self.num_hidden_nodes, kernel_size=1, bias=False),
+                )
+        self.trunk = nn.Sequential(
+            *trunk_layers
+        )
+        self.head = nn.Sequential(
+            nn.LeakyReLU(0.2, inplace=True),
+            nn.Conv1d(self.num_hidden_nodes, self.n_transforms, kernel_size=1, bias=True),
+        )
+
+    def configure_optimizers(self):
+        optimizer = torch.optim.Adam(
+            self.parameters(),
+            lr=self.lr
+        )
+        return optimizer
+
+    def forward(self, X: torch.Tensor):
+        # (batch_size, num_hidden_nodes, n_transforms)
+        tc = self.trunk(X)
+        # (batch_size, n_transforms, n_transforms)
+        logits = self.head(tc)
+        return tc, logits
+
+    def score(self, sample: torch.Tensor):
+        diffs = ((sample.unsqueeze(2) - self.centers) ** 2).sum(-1)
+        diffs_eps = self.eps * torch.ones_like(diffs)
+        diffs = torch.max(diffs, diffs_eps)
+        logp_sz = torch.nn.functional.log_softmax(-diffs, dim=2)
+        score = -torch.diagonal(logp_sz, 0, 1, 2).sum(dim=1)
+        return score
+
+    def on_fit_start(self):
+        # Transfer modules to appropriate device
+        self.trans_matrix = self.trans_matrix.to(self.device)
+        self.centers = self.centers.to(self.device)
+
+    def test_step(self, batch, batch_idx):
+        X, y_true, labels = batch
+        X = X.float()
+        # Apply affine transformations
+        X_augmented = torch.vstack(
+            [X @ t for t in self.trans_matrix]
+        ).reshape(X.shape[0], self.feature_dim, self.n_transforms)
+        # Forward pass & reshape
+        zs, fs = self.forward(X_augmented)
+        zs = zs.permute(0, 2, 1)
+        # Compute anomaly score
+        scores = self.score(zs)
+        # val_probs_rots[idx] = -torch.diagonal(score, 0, 1, 2).cpu().data.numpy()
+        return {
+            "scores": scores,
+            "y_true": y_true,
+            "labels": labels
+        }
+
+    def training_step(self, batch, batch_idx):
+        X, _, _ = batch
+        X = X.float()
+
+        # transformation labels
+        labels = torch.arange(
+            self.n_transforms
+        ).unsqueeze(0).expand((len(X), self.n_transforms)).long().to(self.device)
+
+        # Apply affine transformations
+        X_augmented = torch.vstack(
+            [X @ t for t in self.trans_matrix]
+        ).reshape(X.shape[0], self.feature_dim, self.n_transforms).to(self.device)
+        # Forward pass
+        tc_zs, logits = self.forward(X_augmented)
+        # Update enters estimates
+        self.centers += tc_zs.mean(0)
+        # Update batch count for computing centers means
+        self.n_batch += 1
+        # Compute losses
+        ce_loss = self.ce_loss(logits, labels)
+        tc_loss = self.tc_loss(tc_zs)
+        loss = self.lamb * tc_loss + ce_loss
+
+        return loss
+
+    def on_train_epoch_start(self) -> None:
+        self.centers = torch.zeros((self.num_hidden_nodes, self.n_transforms)).to(self.device)
+        self.n_batch = 0
+
+    def on_train_epoch_end(self) -> None:
+        self.centers = (self.centers.mT / self.n_batch).unsqueeze(0).to(self.device)
+
+    def test_epoch_end(self, outputs) -> None:
+        scores, y_true, labels = np.array([]), np.array([]), np.array([])
+        for output in outputs:
+            scores = np.append(scores, output["scores"].cpu().detach().numpy())
+            y_true = np.append(y_true, output["y_true"].cpu().detach().numpy())
+            labels = np.append(labels, output["labels"].cpu().detach().numpy())
+        results, _ = metrics.score_recall_precision_w_threshold(scores, y_true)
+        for k, v in results.items():
+            self.log(k, v)
+
+
 class GOAD(BaseModel):
     name = "GOAD"
 
@@ -273,7 +431,8 @@ class GOAD(BaseModel):
             ("lamb", float, 0.1, "trade-off between triplet and cross-entropy losses"),
             ("n_layers", int, 0, "number of hidden layers"),
             ("feature_space", int, 32, "dimension of the feature space learned by the neural network"),
-            ("eps", float, 0., "small value added to the anomaly score to ensure equal probabilities for uncertain regions")
+            ("eps", float, 0.,
+             "small value added to the anomaly score to ensure equal probabilities for uncertain regions")
         ]
 
     def get_params(self) -> dict:

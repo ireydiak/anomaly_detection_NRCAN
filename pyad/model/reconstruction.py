@@ -1,12 +1,123 @@
 import numpy as np
 import torch
 from minisom import MiniSom
+from pytorch_lightning.utilities.types import STEP_OUTPUT
+
 from pyad.model.base import BaseModel
 from pyad.model.GMM import GMM
 from pyad.model.memory_module import MemoryUnit
 from pyad.model import utils
 from pyad.model.utils import activation_mapper
 from torch import nn
+import pytorch_lightning as pl
+from typing import List, Any
+
+from pyad.utils import metrics
+
+
+def create_net_layers(in_dim, out_dim, hidden_dims, activation="relu"):
+    layers = []
+    for i in range(len(hidden_dims)):
+        layers.append(
+            nn.Linear(in_dim, hidden_dims[i])
+        )
+        layers.append(
+            activation_mapper[activation]
+        )
+        in_dim = hidden_dims[i]
+    layers.append(
+        nn.Linear(hidden_dims[-1], out_dim)
+    )
+    return layers
+
+
+class LitAutoEncoder(pl.LightningModule):
+    def __init__(self,
+                 in_features: int,
+                 n_instances: int,
+                 hidden_dims: List[int],
+                 latent_dim: int,
+                 lr=1e-4,
+                 reg=0.5,
+                 activation="relu"):
+        super(LitAutoEncoder, self).__init__()
+        # call this to save hyper-parameters to the checkpoint
+        self.save_hyperparameters(
+            "hidden_dims", "latent_dim", "lr", "reg", "activation"
+        )
+        self.in_features = in_features
+        self.n_instances = n_instances
+        self.hidden_dims = hidden_dims
+        self.activation = activation
+        self.latent_dim = latent_dim
+        self.reg = reg
+        self.lr = lr
+        self.encoder = nn.Sequential(
+            *create_net_layers(in_dim=in_features, out_dim=latent_dim, hidden_dims=hidden_dims, activation=activation)
+        )
+        self.decoder = nn.Sequential(
+            *create_net_layers(
+                in_dim=latent_dim, out_dim=in_features, hidden_dims=list(reversed(hidden_dims)), activation=activation
+            )
+        )
+
+    @staticmethod
+    def add_model_specific_args(parent_parser):
+        parser = parent_parser.add_argument_group("AutoEncoder")
+        parser.add_argument("--hidden-dims", type=str)
+        parser.add_argument("--encoder-layers", type=int, default=12)
+        parser.add_argument("--latent-dim", type=int, default=1)
+        parser.add_argument("--reg", type=float, default=0.5)
+        parser.add_argument("--lr", type=float, default=1e-4)
+        return parent_parser
+
+    def forward(self, X: torch.Tensor, **kwargs) -> Any:
+        X, y_true, full_labels = X
+        X = X.float()
+        scores = self.score(X)
+        return scores, y_true, full_labels
+
+    def score(self, X: torch.Tensor):
+        emb = self.encoder(X)
+        X_hat = self.decoder(emb)
+        return ((X - X_hat) ** 2).sum(axis=-1)
+
+    def training_step(self, batch, batch_idx) -> STEP_OUTPUT:
+        X, _, _ = batch
+        X = X.float()
+        emb = self.encoder(X)
+        X_hat = self.decoder(emb)
+        l2_emb = emb.norm(2, dim=1).mean()
+        loss = ((X - X_hat) ** 2).sum(axis=-1).mean() + self.reg * l2_emb
+        return loss
+
+    def test_step(self, batch, batch_idx):
+        X, y_true, labels = batch
+        X = X.float()
+        scores = self.score(X)
+
+        return {
+            "scores": scores,
+            "y_true": y_true,
+            "labels": labels
+        }
+
+    def test_epoch_end(self, outputs) -> None:
+        scores, y_true, labels = np.array([]), np.array([]), np.array([])
+        for output in outputs:
+            scores = np.append(scores, output["scores"].cpu().detach().numpy())
+            y_true = np.append(y_true, output["y_true"].cpu().detach().numpy())
+            labels = np.append(labels, output["labels"].cpu().detach().numpy())
+        results, _ = metrics.score_recall_precision_w_threshold(scores, y_true)
+        for k, v in results.items():
+            self.log(k, v)
+
+    def configure_optimizers(self):
+        optimizer = torch.optim.Adam(
+            self.parameters(),
+            lr=self.lr
+        )
+        return optimizer
 
 
 class AutoEncoder(BaseModel):

@@ -100,7 +100,7 @@ class AbstractDataset(Dataset):
                                                              seed=seed)
 
         train_ldr = DataLoader(dataset=train_set, batch_size=batch_size, num_workers=num_workers,
-                               drop_last=drop_last_batch)
+                               drop_last=drop_last_batch, pin_memory=True)
 
         val_ldr = DataLoader(dataset=val_set, batch_size=batch_size, num_workers=num_workers,
                              drop_last=drop_last_batch)
