@@ -32,19 +32,19 @@ class NeuTraLAD(BaseModel):
             self,
             # fc_1_out: int,
             # fc_last_out: int,
-            compression_unit: int,
+            #compression_unit: int,
             n_transforms: int,
             # n_layers: int,
             trans_type: str,
             temperature: float,
             # trans_fc_in: int,
             # trans_fc_out: int,
-            trans_hidden_layers: list,
+            trans_hidden_dims: list,
             enc_hidden_dims: list,
             **kwargs
     ):
         super(NeuTraLAD, self).__init__(**kwargs)
-        self.compression_unit = compression_unit
+        # self.compression_unit = compression_unit
         # self.fc_1_out = fc_1_out
         # self.fc_last_out = fc_last_out
         # self.n_layers = n_layers
@@ -56,7 +56,7 @@ class NeuTraLAD(BaseModel):
         self.cosim = nn.CosineSimilarity()
         # Encoder and Transformation layers
         self.enc_hidden_dims = enc_hidden_dims
-        self.trans_hidden_layers = trans_hidden_layers
+        self.trans_hidden_dims = trans_hidden_dims
         # Encoder
         self.enc = nn.Sequential(
             *create_network(self.in_features, self.enc_hidden_dims)
@@ -82,7 +82,7 @@ class NeuTraLAD(BaseModel):
     def _create_masks(self):
         masks = []
         for k_i in range(self.n_transforms):
-            layers = create_network(self.in_features, self.trans_hidden_layers, bias=False)
+            layers = create_network(self.in_features, self.trans_hidden_dims, bias=False)
             layers.append(nn.Sigmoid())
             masks.append(
                 nn.Sequential(*layers).to(self.device)
@@ -118,29 +118,21 @@ class NeuTraLAD(BaseModel):
         model = NeuTraLAD(
             in_features=ckpt["in_features"],
             n_instances=ckpt["n_instances"],
-            fc_1_out=ckpt["fc_1_out"],
-            fc_last_out=ckpt["fc_last_out"],
-            compression_unit=ckpt["compression_unit"],
             n_transforms=ckpt["n_transforms"],
-            n_layers=ckpt["n_layers"],
-            trans_type=ckpt["trans_type"],
             temperature=ckpt["temperature"],
-            trans_fc_in=ckpt["trans_fc_in"],
-            trans_fc_out=ckpt["trans_fc_out"]
+            trans_type=ckpt["trans_type"],
+            enc_hidden_dims=ckpt["enc_hidden_dims"],
+            trans_hidden_dims=ckpt["trans_hiddem_dims"]
         )
         return model
 
     def get_params(self) -> dict:
         params = dict(
-            fc_1_out=self.fc_1_out,
-            fc_last_out=self.fc_last_out,
-            compression_unit=self.compression_unit,
             n_transforms=self.n_transforms,
-            n_layers=self.n_layers,
-            trans_type=self.trans_type,
             temperature=self.temperature,
-            trans_fc_in=self.trans_fc_in,
-            trans_fc_out=self.trans_fc_out,
+            trans_type=self.trans_type,
+            enc_hidden_dims=self.enc_hidden_dims,
+            trans_hidden_dims=self.trans_hiddem_dims
         )
         return dict(
             **super(NeuTraLAD, self).get_params(),

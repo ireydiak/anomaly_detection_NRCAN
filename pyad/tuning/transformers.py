@@ -13,10 +13,28 @@ from pyad.tuning.base import BaseTuner
 from ray import tune as ray_tune
 
 
-
-class NeuTraLADTrainer(BaseTuner):
+class NeuTraLADTuner(BaseTuner):
     def setup(self, config: dict):
-        # self.device = "cuda" if torch.cuda.is_available() else "cpu"
+        self.device = "cuda" if torch.cuda.is_available() else "cpu"
+        self.model = NeuTraLAD(
+            in_features=config["in_features"],
+            n_instances=config["n_instances"],
+            n_transforms=config["n_transforms"],
+            temperature=config["temperature"],
+            trans_type=config["trans_type"],
+            enc_hidden_dims=config["enc_hidden_dims"],
+            trans_hidden_dims=config["trans_hiddem_dims"]
+        )
+        mask_params = list()
+        for mask in self.model.masks:
+            mask_params += list(mask.parameters())
+        self.optimizer = optim.Adam(
+            list(self.model.enc.parameters()) + mask_params,
+            lr=self.lr,
+            weight_decay=self.weight_decay
+        )
+        self.scheduler = StepLR(self.optimizer, step_size=20, gamma=0.9)
+        self.criterion = nn.MSELoss()
         # self.model = MemAutoEncoder(
         #     in_features=config["in_features"],
         #     n_instances=config["n_instances"],
@@ -42,15 +60,12 @@ class NeuTraLADTrainer(BaseTuner):
         #     batch_size=config["batch_size"]
         # )
 
-    def train_iter(self, sample: torch.Tensor):
-        # x_hat, w_hat = self.model(sample)
-        # R = self.recon_loss_fn(sample, x_hat)
-        # E = self.entropy_loss_fn(w_hat)
-        return R + (self.alpha * E)
+    def train_iter(self, X: torch.Tensor):
+        scores = self.model(X)
+        return scores.mean()
 
     def score(self, X: torch.Tensor):
-        # x_hat, _ = self.model(X)
-        return torch.sum((X - x_hat) ** 2, dim=1)
+        return self.model(X)
 
     @staticmethod
     def get_tunable_params(n_instances: int, in_features: int):
@@ -59,13 +74,22 @@ class NeuTraLADTrainer(BaseTuner):
         else:
             layer_opts = [1, 2]
             compression_opts = []
+        transform_opts = [6, 11, 64, 512] if n_instances < 500_000 else [6, 11, 64]
+        n_layers = 1 if in_features < 50 else 2
+        trans_hidden_opts = [
+            [in_features * 2] * n_layers,
+            [in_features + 200] * n_layers,
+            [in_features + 100] * n_layers
+        ]
+        enc_hidden_opts = [
+            in_features // 2
+        ]
         return {
-            "encoder_hidden_dims": ray_tune.choice([]),
-            "n_transforms": ray_tune.choice([11]),
-            "n_layers": ray_tune.choice(layer_opts),
+            "n_transforms": ray_tune.choice(transform_opts),
             "trans_type": ray_tune.choice(["mul", "res"]),
             "temperature": ray_tune.loguniform(1, 0.001),
-            "trans_hidden_dims": 0 ,
+            "trans_hidden_layers": ray_tune.choice(trans_hidden_opts),
+            "enc_hidden_dims": []
         }
         # if in_features < 20:
         #     n_layers = [1, 2]
@@ -84,5 +108,5 @@ class NeuTraLADTrainer(BaseTuner):
         # }
 
 
-class GOADTrainer(BaseTuner):
+class GOADTuner(BaseTuner):
     pass

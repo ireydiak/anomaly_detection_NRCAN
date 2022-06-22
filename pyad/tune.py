@@ -4,12 +4,15 @@ from ray import tune as ray_tune
 from ray.tune.schedulers import ASHAScheduler
 from pyad.bootstrap import resolve_dataset, datasets_map
 from pyad.tuning.reconstruction import AutoEncoderTuner, MemAETuner
+from pyad.tuning.transformers import NeuTraLADTuner, GOADTuner
 from datetime import datetime as dt
 
 
 tuner_map = {
     "AutoEncoder": AutoEncoderTuner,
-    "MemAE": MemAETuner
+    "MemAE": MemAETuner,
+    "GOADTuner": GOADTuner,
+    "NeutralADTuner": NeuTraLADTuner
 }
 
 
@@ -73,23 +76,28 @@ def tune(
         export_path: str,
         experiment_name: str = None,
 ):
+    # dataset
     dataset = resolve_dataset(dataset_name, dataset_path)
+    # make sure tuners are implemented for selected models
     tuners = [tuner_map.get(m) for m in models]
     assert all([tuner is not None for tuner in tuners]), "invalid tuners provided, make sure given models exist"
+    # for every tuner ...
     for tuner_cls in tuners:
-        # Setup
+        # setup
         cfg = resolve_config(dataset, tuner_cls)
         experiment_name = experiment_name or os.path.join(
             tuner_cls.__name__, "{}".format(dt.now().strftime("%d_%m_%Y_%H-%M-%S"))
         )
+        # folder structure
         export_path = os.path.join(export_path, experiment_name)
         os.makedirs(export_path, exist_ok=True)
+        # scheduler for early stop
         scheduler = ASHAScheduler(
             max_t=max_num_epochs,
             grace_period=1,
             reduction_factor=2
         )
-        # Run tuning
+        # start tuning
         result = ray_tune.run(
             tuner_cls,
             resources_per_trial={"cpu": 2, "gpu": 1},
