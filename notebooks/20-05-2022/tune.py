@@ -8,21 +8,21 @@ import itertools as it
 
 import pandas as pd
 
-from src.datamanager.dataset import ArrhythmiaDataset, ThyroidDataset, IDS2017Dataset, IDS2018Dataset
-from src.model.shallow import PCA
-from src.trainer.adversarial import ALADTrainer
-from src.trainer.density import DSEBMTrainer
-from src.trainer.one_class import DeepSVDDTrainer, EdgeMLDROCCTrainer
-from src.trainer.reconstruction import AutoEncoderTrainer, MemAETrainer, DAGMMTrainer
-from src.trainer.shallow import PCATrainer
-from src.trainer.transformers import NeuTraLADTrainer
-from src.model.adversarial import ALAD
-from src.model.density import DSEBM
-from src.model.one_class import DeepSVDD, DROCC
-from src.model.reconstruction import AutoEncoder, DAGMM, MemAutoEncoder
-from src.model.transformers import NeuTraLAD
+from pyad.datamanager.dataset import ArrhythmiaDataset, ThyroidDataset, IDS2017Dataset, IDS2018Dataset
+from pyad.model.shallow import PCA
+from pyad.trainer.adversarial import ALADTrainer
+from pyad.trainer.density import DSEBMTrainer
+from pyad.trainer.one_class import DeepSVDDTrainer, EdgeMLDROCCTrainer
+from pyad.trainer.reconstruction import AutoEncoderTrainer, MemAETrainer, DAGMMTrainer
+from pyad.trainer.shallow import PCATrainer
+from pyad.trainer.transformers import NeuTraLADTrainer
+from pyad.model.adversarial import ALAD
+from pyad.model.density import DSEBM
+from pyad.model.one_class import DeepSVDD, DROCC
+from pyad.model.reconstruction import AutoEncoder, DAGMM, MemAutoEncoder
+from pyad.model.transformers import NeuTraLAD
 from pathlib import Path
-from src.utils import metrics
+from pyad.utils import metrics
 from train import resolve_dataset
 
 

@@ -1,21 +1,21 @@
 import argparse
 import os
 from collections import defaultdict
-from src.datamanager.DataManager import DataManager
-from src.datamanager.dataset import ArrhythmiaDataset, ThyroidDataset, IDS2017Dataset
-from src.model.DUAD import DUAD
-from src.trainer.DUADTrainer import DUADTrainer
-from src.trainer.adversarial import ALADTrainer
-from src.trainer.density import DSEBMTrainer
-from src.trainer.one_class import DeepSVDDTrainer, EdgeMLDROCCTrainer
-from src.trainer.reconstruction import AutoEncoderTrainer, MemAETrainer, DAGMMTrainer
-from src.trainer.transformers import NeuTraLADTrainer
-from src.model.adversarial import ALAD
-from src.model.density import DSEBM
-from src.model.one_class import DeepSVDD, DROCC
-from src.model.reconstruction import AutoEncoder, DAGMM, MemAutoEncoder
-from src.model.transformers import NeuTraLAD
-from src.utils import metrics
+from pyad.datamanager.DataManager import DataManager
+from pyad.datamanager.dataset import ArrhythmiaDataset, ThyroidDataset, IDS2017Dataset
+from pyad.model.DUAD import DUAD
+from pyad.trainer.DUADTrainer import DUADTrainer
+from pyad.trainer.adversarial import ALADTrainer
+from pyad.trainer.density import DSEBMTrainer
+from pyad.trainer.one_class import DeepSVDDTrainer, EdgeMLDROCCTrainer
+from pyad.trainer.reconstruction import AutoEncoderTrainer, MemAETrainer, DAGMMTrainer
+from pyad.trainer.transformers import NeuTraLADTrainer
+from pyad.model.adversarial import ALAD
+from pyad.model.density import DSEBM
+from pyad.model.one_class import DeepSVDD, DROCC
+from pyad.model.reconstruction import AutoEncoder, DAGMM, MemAutoEncoder
+from pyad.model.transformers import NeuTraLAD
+from pyad.utils import metrics
 from pathlib import Path
 
 
