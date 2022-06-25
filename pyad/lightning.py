@@ -1,9 +1,9 @@
-from pyad.model.reconstruction import LitAutoEncoder
-from pyad.datamanager.dataset import ThyroidDataset, ArrhythmiaDataset, KDD10Dataset
+from pyad.model.reconstruction import LitAutoEncoder, LitMemAE
+from pyad.datamanager.dataset import ThyroidDataset, ArrhythmiaDataset, KDD10Dataset, NSLKDDDataset
 import pyad.model.transformers
 from pyad.model.transformers import LitGOAD, LitNeuTraLAD
-import pyad.datamanager.data_module
-from pyad.datamanager.data_module import BaseDataset
+#import pyad.datamanager.data_module
+#from pyad.datamanager.data_module import BaseDataset
 import pytorch_lightning as pl
 from pytorch_lightning.utilities.cli import MODEL_REGISTRY, DATAMODULE_REGISTRY, LightningCLI
 from pytorch_lightning.utilities.cli import MODEL_REGISTRY, DATAMODULE_REGISTRY
@@ -11,7 +11,7 @@ from jsonargparse import ArgumentParser
 import argparse
 
 MODEL_REGISTRY.register_classes(pyad.model.transformers, pl.LightningModule)
-DATAMODULE_REGISTRY.register_classes(pyad.datamanager.data_module, pl.LightningDataModule)
+#DATAMODULE_REGISTRY.register_classes(pyad.datamanager.data_module, pl.LightningDataModule)
 
 
 class MyLightningCLI(LightningCLI):
@@ -91,7 +91,6 @@ def prepare_thyroid(model_name: str):
     data_path = "../data/Thyroid/thyroid.mat"
     dataset = ThyroidDataset(path=data_path)
     batch_size = 128
-    train_ldr, test_ldr, _ = dataset.loaders(batch_size=batch_size)
 
     if model_name == "litautoencoder":
         model = LitAutoEncoder(
@@ -111,6 +110,19 @@ def prepare_thyroid(model_name: str):
             trans_hidden_dims=[24],
             enc_hidden_dims=[24, 24, 24, 24, 24]
         )
+    elif model_name == "litmemae":
+        batch_size = 32
+        model = LitMemAE(
+            in_features=dataset.in_features,
+            mem_dim=50,
+            latent_dim=1,
+            enc_hidden_dims=[12, 24],
+            shrink_thresh=0.0025,
+            alpha=2e-4,
+            activation="relu",
+            lr=1e-3,
+            weight_decay=1e-4
+        )
     else:
         model = LitGOAD(
             in_features=dataset.in_features,
@@ -123,14 +135,43 @@ def prepare_thyroid(model_name: str):
             lamb=0.1,
             margin=1
         )
+
+    train_ldr, test_ldr, _ = dataset.loaders(batch_size=batch_size)
     return model, train_ldr, test_ldr
+
+
+def prepare_nslkdd(model_name: str):
+    model_name = model_name.lower()
+    data_path = "../data/NSL-KDD/3_minified/NSL-KDD_minified.npz"
+    dataset = NSLKDDDataset(path=data_path)
+
+    if model_name == "litmemae":
+        batch_size = 128
+        model = LitMemAE(
+            in_features=dataset.in_features,
+            mem_dim=100,
+            latent_dim=1,
+            enc_hidden_dims=[120, 30, 15],
+            shrink_thresh=0.00025,
+            alpha=2e-4,
+            activation="relu",
+            lr=1e-4,
+            weight_decay=1e-4
+        )
+    else:
+        raise Exception("unknown model %s" % model_name)
+
+    train_ldr, test_ldr, _ = dataset.loaders(batch_size=batch_size)
+    return model, train_ldr, test_ldr
+
 
 
 def prepare_arrhythmia(model_name: str):
     model_name = model_name.lower()
-    data_path = "../data/Arrhythmia/arrhythmia_normalized.npz"
+    #data_path = "../data/Arrhythmia/arrhythmia_normalized.npz"
+    data_path = "../data/Arrhythmia/arrhythmia.mat"
     dataset = ArrhythmiaDataset(path=data_path)
-    batch_size = 64
+    batch_size = 32
     n_epochs = 200
 
     if model_name.lower() == "litautoencoder":
@@ -150,6 +191,18 @@ def prepare_arrhythmia(model_name: str):
             temperature=0.1,
             trans_hidden_dims=[200, 274],
             enc_hidden_dims=[64, 64, 64, 64, 32]
+        )
+    elif model_name == "litmemae":
+        model = LitMemAE(
+            in_features=dataset.in_features,
+            mem_dim=50,
+            latent_dim=60,
+            enc_hidden_dims=[200, 121],
+            shrink_thresh=0.0025,
+            alpha=2e-4,
+            activation="relu",
+            lr=1e-3,
+            weight_decay=1e-4
         )
     else:
         model = LitGOAD(
@@ -180,6 +233,8 @@ def main(args):
         model, train_ldr, test_ldr = prepare_thyroid(args.model)
     elif dataset_name == "kdd" or dataset_name == "kdd10":
         model, train_ldr, test_ldr = prepare_kdd(args.model)
+    elif dataset_name == "nsl-kdd" or dataset_name == "nslkdd":
+        model, train_ldr, test_ldr = prepare_nslkdd(args.model)
     else:
         model, train_ldr, test_ldr = prepare_thyroid(args.model)
 

@@ -1,0 +1,11 @@
+activation: relu
+alpha: 0.0002
+enc_hidden_dims:
+- 120
+- 30
+- 15
+latent_dim: 1
+lr: 0.0001
+mem_dim: 100
+shrink_thresh: 0.00025
+weight_decay: 0.0001

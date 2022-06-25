@@ -6,18 +6,18 @@ import math
 
 
 # relu based hard shrinkage function, only works for positive values
-def hard_shrink_relu(X, lamb=0, epsilon=1e-12) -> float:
-    return (F.relu(X - lamb) * input) / (torch.abs(X - lamb) + epsilon)
+def hard_shrink_relu(X, lamb=0., epsilon=1e-12) -> float:
+    return (F.relu(X - lamb) * X) / (torch.abs(X - lamb) + epsilon)
 
 
 class MemoryUnit(nn.Module):
-    def __init__(self, mem_dim: int, in_features: int, shrink_thres=0.0025, device='cpu'):
+    def __init__(self, mem_dim: int, in_features: int, shrink_thres=0.0025):#, device='cpu'):
         super(MemoryUnit, self).__init__()
-        self.device = device
+        #self.device = device
         self.mem_dim = mem_dim
         self.in_features = in_features
         # M x C
-        self.weight = Parameter(torch.Tensor(self.mem_dim, self.in_features)).to(device)
+        self.weight = Parameter(torch.Tensor(self.mem_dim, self.in_features))#.to(device)
         self.shrink_thres = shrink_thres
         self.bias = None
         self.reset_params()
@@ -35,7 +35,7 @@ class MemoryUnit(nn.Module):
         att_weight = F.softmax(att_weight, dim=1)
         if self.shrink_thres > 0:
             # TODO: test with hard_shrink_relu
-            # att_weight = hard_shrink_relu(att_weight, lamb=self.shrink_thres)
+            att_weight = hard_shrink_relu(att_weight, lamb=self.shrink_thres)
             att_weight = F.relu(att_weight)
             att_weight = F.normalize(att_weight, p=1, dim=1)
         # Mem^T, MxC
