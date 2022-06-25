@@ -2,6 +2,7 @@ import numpy as np
 import torch
 from minisom import MiniSom
 from pytorch_lightning.utilities.types import STEP_OUTPUT
+from torch.optim.lr_scheduler import StepLR
 
 from pyad.model.base import BaseModel
 from pyad.model.GMM import GMM
@@ -15,18 +16,18 @@ from typing import List, Any
 from pyad.utils import metrics
 
 
-def create_net_layers(in_dim, out_dim, hidden_dims, activation="relu"):
+def create_net_layers(in_dim, out_dim, hidden_dims, activation="relu", bias=True):
     layers = []
     for i in range(len(hidden_dims)):
         layers.append(
-            nn.Linear(in_dim, hidden_dims[i])
+            nn.Linear(in_dim, hidden_dims[i], bias=bias)
         )
         layers.append(
             activation_mapper[activation]
         )
         in_dim = hidden_dims[i]
     layers.append(
-        nn.Linear(hidden_dims[-1], out_dim)
+        nn.Linear(hidden_dims[-1], out_dim, bias=bias)
     )
     return layers
 
@@ -34,11 +35,11 @@ def create_net_layers(in_dim, out_dim, hidden_dims, activation="relu"):
 class LitAutoEncoder(pl.LightningModule):
     def __init__(self,
                  in_features: int,
-                 n_instances: int,
                  hidden_dims: List[int],
                  latent_dim: int,
-                 lr=1e-4,
+                 lr=1e-3,
                  reg=0.5,
+                 weight_decay=1e-4,
                  activation="relu"):
         super(LitAutoEncoder, self).__init__()
         # call this to save hyper-parameters to the checkpoint
@@ -46,10 +47,10 @@ class LitAutoEncoder(pl.LightningModule):
             "hidden_dims", "latent_dim", "lr", "reg", "activation"
         )
         self.in_features = in_features
-        self.n_instances = n_instances
         self.hidden_dims = hidden_dims
         self.activation = activation
         self.latent_dim = latent_dim
+        self.weight_decay = weight_decay
         self.reg = reg
         self.lr = lr
         self.encoder = nn.Sequential(
@@ -64,11 +65,12 @@ class LitAutoEncoder(pl.LightningModule):
     @staticmethod
     def add_model_specific_args(parent_parser):
         parser = parent_parser.add_argument_group("AutoEncoder")
-        parser.add_argument("--hidden-dims", type=str)
-        parser.add_argument("--encoder-layers", type=int, default=12)
-        parser.add_argument("--latent-dim", type=int, default=1)
+        parser.add_argument("--hidden_dims", type=List[int])
+        parser.add_argument("--latent_dim", type=int, default=1)
         parser.add_argument("--reg", type=float, default=0.5)
-        parser.add_argument("--lr", type=float, default=1e-4)
+        parser.add_argument("--lr", type=float, default=1e-3)
+        parser.add_argument("--weight_decay", type=float, default=1e-4)
+
         return parent_parser
 
     def forward(self, X: torch.Tensor, **kwargs) -> Any:
@@ -117,7 +119,8 @@ class LitAutoEncoder(pl.LightningModule):
             self.parameters(),
             lr=self.lr
         )
-        return optimizer
+        scheduler = StepLR(optimizer, step_size=20, gamma=0.9)
+        return [optimizer], [scheduler]
 
 
 class AutoEncoder(BaseModel):

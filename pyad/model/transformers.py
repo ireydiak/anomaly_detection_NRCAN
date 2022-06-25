@@ -238,7 +238,7 @@ class LitNeuTraLAD(pl.LightningModule):
             weight_decay=self.weight_decay
         )
         scheduler = StepLR(optimizer, step_size=20, gamma=0.9)
-        return optimizer #[optimizer], [scheduler]
+        return [optimizer], [scheduler]
 
     def _create_masks(self):
         masks = nn.ModuleList()
@@ -359,12 +359,14 @@ class LitGOAD(pl.LightningModule):
                  lr=1e-4,
                  eps=0,
                  lamb=0.1,
-                 margin=1):
+                 margin=1,
+                 weight_decay=0.):
         super(LitGOAD, self).__init__()
         self.save_hyperparameters(
             "n_transforms", "feature_dim", "num_hidden_nodes", "eps", "lamb", "margin", "n_layers"
         )
         self.lr = lr
+        self.weight_decay = weight_decay
         self.batch_size = batch_size
         self.in_features = in_features
         self.n_transforms = n_transforms
@@ -380,12 +382,13 @@ class LitGOAD(pl.LightningModule):
         # Triplet loss
         self.tc_loss = TripletCenterLoss(margin=self.margin)
         # Transformation matrix
-        self.trans_matrix = torch.randn(
+        trans_matrix = torch.randn(
             (self.n_transforms, self.in_features, feature_dim),
-            device=self.device
         )
+        self.register_buffer("trans_matrix", trans_matrix)
         # Hypersphere centers
-        self.centers = torch.zeros((self.feature_dim, self.n_transforms), device=self.device)
+        centers = torch.zeros((self.feature_dim, self.n_transforms), device=self.device)
+        self.register_buffer("centers", centers)
 
     @staticmethod
     def add_model_specific_args(parent_parser):
@@ -399,6 +402,7 @@ class LitGOAD(pl.LightningModule):
         parser.add_argument("--weight_decay", type=float, default=1e-4)
         parser.add_argument("--eps", type=float, default=0.)
         parser.add_argument("--lamb", type=float, default=0.1)
+        parser.add_argument("--margin", type=float, default=1.)
 
         return parent_parser
 
@@ -447,11 +451,6 @@ class LitGOAD(pl.LightningModule):
         logp_sz = torch.nn.functional.log_softmax(-diffs, dim=2)
         score = -torch.diagonal(logp_sz, 0, 1, 2).sum(dim=1)
         return score
-
-    def on_fit_start(self):
-        # Transfer modules to appropriate device
-        self.trans_matrix = self.trans_matrix.to(self.device)
-        self.centers = self.centers.to(self.device)
 
     def test_step(self, batch, batch_idx):
         X, y_true, labels = batch

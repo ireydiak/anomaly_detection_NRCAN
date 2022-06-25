@@ -1,5 +1,5 @@
 from pyad.model.reconstruction import LitAutoEncoder
-from pyad.datamanager.dataset import ThyroidDataset, ArrhythmiaDataset
+from pyad.datamanager.dataset import ThyroidDataset, ArrhythmiaDataset, KDD10Dataset
 import pyad.model.transformers
 from pyad.model.transformers import LitGOAD, LitNeuTraLAD
 import pyad.datamanager.data_module
@@ -21,34 +21,69 @@ class MyLightningCLI(LightningCLI):
         parser.link_arguments("data.n_instances", "model.init_args.n_instances", apply_on="instantiate")
 
 
-class VerboseStore(argparse.Action):
-    def __init__(self, option_strings, dest, nargs=None, **kwargs):
-        if nargs is not None:
-            raise ValueError('nargs not allowed')
-        super(VerboseStore, self).__init__(option_strings, dest, **kwargs)
-
-    def __call__(self, parser, namespace, values, option_string=None):
-        print('Here I am, setting the ' \
-              'values %r for the %r option...' % (values, option_string))
-        model = MODEL_REGISTRY[values]
-        model.add_model_specific_args(parser)
-        # for model in MODEL_REGISTRY.classes:
-        #     model.add_model_specific_args(parser)
-        #     parser.add_class_arguments(model, "model")
-        # setattr(namespace, self.dest, values)
-
-
 def argparser():
     parser = ArgumentParser()
-   # parser = pl.Trainer.add_argparse_args(parser)
+    # parser = pl.Trainer.add_argparse_args(parser)
     parser.add_argument("--model", type=str)
     parser.add_argument("--dataset", type=str)
+    parser.add_argument("--max_epochs", type=int, default=50)
     # model-specific arguments
     # for model in MODEL_REGISTRY.classes:
     #     model.add_model_specific_args(parser)
     # parser.link_arguments("data.in_features", "model.init_args.in_features", apply_on="instantiate")
     # parser.link_arguments("data.n_instances", "model.init_args.n_instances", apply_on="instantiate")
     return parser.parse_args()
+
+
+def prepare_kdd(model_name: str):
+    model_name = model_name.lower()
+    data_path = "C:/Users/verdi/Documents/Datasets/KDD/3_minified/KDD10percent_minified.npz"
+    dataset = KDD10Dataset(path=data_path)
+    weight_decay = 1e-4
+
+    if model_name == "litautoencoder":
+        batch_size = 1024
+        n_epochs = 10
+        model = LitAutoEncoder(
+            in_features=dataset.in_features,
+            latent_dim=1,
+            hidden_dims=[64, 32, 16, 8],
+            activation="relu",
+            weight_decay=weight_decay,
+            lr=1e-3
+        )
+    elif model_name == "litneutralad":
+        batch_size = 1024
+        n_epochs = 10
+        model = LitNeuTraLAD(
+            in_features=dataset.in_features,
+            weight_decay=weight_decay,
+            lr=1e-3,
+            n_transforms=11,
+            trans_type="mul",
+            temperature=0.1,
+            trans_hidden_dims=[200, 121],
+            enc_hidden_dims=[64, 64, 64, 64, 32]
+        )
+    elif model_name == "litgoad":
+        batch_size = 64
+        n_epochs = 25
+        model = LitGOAD(
+            in_features=dataset.in_features,
+            n_layers=5,
+            weight_decay=1e-4,
+            n_transforms=64,
+            feature_dim=64,
+            num_hidden_nodes=32,
+            lamb=0.1,
+            eps=0,
+            margin=1,
+            batch_size=batch_size
+        )
+    else:
+        raise Exception("unknown model %s" % model_name)
+    train_ldr, test_ldr, _ = dataset.loaders(batch_size=batch_size)
+    return model, train_ldr, test_ldr
 
 
 def prepare_thyroid(model_name: str):
@@ -61,7 +96,6 @@ def prepare_thyroid(model_name: str):
     if model_name == "litautoencoder":
         model = LitAutoEncoder(
             in_features=dataset.in_features,
-            n_instances=dataset.n_instances,
             latent_dim=2,
             hidden_dims=[4],
             activation="relu"
@@ -97,10 +131,11 @@ def prepare_arrhythmia(model_name: str):
     data_path = "../data/Arrhythmia/arrhythmia_normalized.npz"
     dataset = ArrhythmiaDataset(path=data_path)
     batch_size = 64
+    n_epochs = 200
+
     if model_name.lower() == "litautoencoder":
         model = LitAutoEncoder(
             in_features=dataset.in_features,
-            n_instances=dataset.n_instances,
             latent_dim=2,
             hidden_dims=[4],
             activation="relu"
@@ -135,7 +170,7 @@ def prepare_arrhythmia(model_name: str):
 
 def main(args):
     dataset_name = args.dataset.lower()
-    max_epochs = 50
+    max_epochs = args.max_epochs
     # trainer
     trainer = pl.Trainer(precision=16, accelerator="gpu", devices=1, max_epochs=max_epochs)
 
@@ -143,6 +178,8 @@ def main(args):
         model, train_ldr, test_ldr = prepare_arrhythmia(args.model)
     elif dataset_name == "thyroid":
         model, train_ldr, test_ldr = prepare_thyroid(args.model)
+    elif dataset_name == "kdd" or dataset_name == "kdd10":
+        model, train_ldr, test_ldr = prepare_kdd(args.model)
     else:
         model, train_ldr, test_ldr = prepare_thyroid(args.model)
 
