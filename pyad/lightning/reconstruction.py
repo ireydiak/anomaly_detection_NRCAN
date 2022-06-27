@@ -3,7 +3,7 @@ import torch
 from pytorch_lightning.utilities.cli import MODEL_REGISTRY
 from pytorch_lightning.utilities.types import STEP_OUTPUT
 from torch.optim.lr_scheduler import StepLR
-
+from pyad.lightning.base import BaseLightningModel
 from pyad.loss.EntropyLoss import EntropyLoss
 from pyad.model.memory_module import MemoryUnit
 from pyad.model.utils import activation_mapper
@@ -30,25 +30,21 @@ def create_net_layers(in_dim, out_dim, hidden_dims, activation="relu", bias=True
 
 
 @MODEL_REGISTRY
-class LitMemAE(pl.LightningModule):
+class LitMemAE(BaseLightningModel):
     def __init__(
             self,
-            in_features: int,
             mem_dim: int,
             latent_dim: int,
             enc_hidden_dims: List[int],
             shrink_thresh: float,
             alpha: float,
             activation="relu",
-            lr: float = 1e-3,
-            weight_decay: float = 0
+            **kwargs
     ):
-        super(LitMemAE, self).__init__()
-        self.save_hyperparameters(ignore=["in_features"])
-        self.in_features = in_features
+        super(LitMemAE, self).__init__(**kwargs)
         # encoder-decoder network
         self.encoder = nn.Sequential(*create_net_layers(
-            in_dim=in_features,
+            in_dim=self.in_features,
             out_dim=self.hparams.latent_dim,
             hidden_dims=self.hparams.enc_hidden_dims,
             activation=self.hparams.activation
@@ -56,7 +52,7 @@ class LitMemAE(pl.LightningModule):
         # xavier_init(self.encoder)
         self.decoder = nn.Sequential(*create_net_layers(
             in_dim=self.hparams.latent_dim,
-            out_dim=in_features,
+            out_dim=self.in_features,
             hidden_dims=list(reversed(self.hparams.enc_hidden_dims)),
             activation=self.hparams.activation
         ))
@@ -110,30 +106,9 @@ class LitMemAE(pl.LightningModule):
         X = X.float()
         return self.compute_loss(X)
 
-    def score(self, X: torch.Tensor):
+    def score(self, X: torch.Tensor, y: torch.Tensor = None):
         X_hat, _ = self.forward(X)
-        return torch.sum((X - X_hat) ** 2, axis=1)
-
-    def test_step(self, batch, batch_idx):
-        X, y_true, labels = batch
-        X = X.float()
-        scores = self.score(X)
-        return {
-            "scores": scores,
-            "y_true": y_true,
-            "labels": labels
-        }
-
-    def test_epoch_end(self, outputs) -> None:
-        scores, y_true, labels = np.array([]), np.array([]), np.array([])
-        for output in outputs:
-            scores = np.append(scores, output["scores"].cpu().detach().numpy())
-            y_true = np.append(y_true, output["y_true"].cpu().detach().numpy())
-            labels = np.append(labels, output["labels"].cpu().detach().numpy())
-        # results, _ = metrics.score_recall_precision_w_threshold(scores, y_true)
-        results = metrics.estimate_optimal_threshold(scores, y_true)
-        for k, v in results.items():
-            self.log(k, v)
+        return torch.sum((X - X_hat) ** 2, dim=1)
 
     def configure_optimizers(self):
         optimizer = torch.optim.Adam(
@@ -146,33 +121,28 @@ class LitMemAE(pl.LightningModule):
 
 
 @MODEL_REGISTRY
-class LitAutoEncoder(pl.LightningModule):
+class LitAutoEncoder(BaseLightningModel):
     def __init__(self,
-                 in_features: int,
                  hidden_dims: List[int],
                  latent_dim: int,
-                 lr=1e-3,
                  reg=0.5,
-                 weight_decay=1e-4,
-                 activation="relu"):
-        super(LitAutoEncoder, self).__init__()
-        # call this to save hyper-parameters to the checkpoint
-        self.save_hyperparameters(
-            "hidden_dims", "latent_dim", "lr", "reg", "activation"
-        )
-        self.in_features = in_features
-        self.hidden_dims = hidden_dims
-        self.activation = activation
-        self.latent_dim = latent_dim
-        self.weight_decay = weight_decay
-        self.reg = reg
-        self.lr = lr
+                 activation="relu",
+                 **kwargs):
+        super(LitAutoEncoder, self).__init__(**kwargs)
         self.encoder = nn.Sequential(
-            *create_net_layers(in_dim=in_features, out_dim=latent_dim, hidden_dims=hidden_dims, activation=activation)
+            *create_net_layers(
+                in_dim=self.in_features,
+                out_dim=self.hparams.latent_dim,
+                hidden_dims=self.hparams.hidden_dims,
+                activation=self.hparams.activation
+            )
         )
         self.decoder = nn.Sequential(
             *create_net_layers(
-                in_dim=latent_dim, out_dim=in_features, hidden_dims=list(reversed(hidden_dims)), activation=activation
+                in_dim=self.hparams.latent_dim,
+                out_dim=self.in_features,
+                hidden_dims=list(reversed(self.hparams.hidden_dims)),
+                activation=self.hparams.activation
             )
         )
 
@@ -193,7 +163,7 @@ class LitAutoEncoder(pl.LightningModule):
         scores = self.score(X)
         return scores, y_true, full_labels
 
-    def score(self, X: torch.Tensor):
+    def score(self, X: torch.Tensor, y: torch.Tensor = None):
         emb = self.encoder(X)
         X_hat = self.decoder(emb)
         return ((X - X_hat) ** 2).sum(axis=-1)
@@ -204,34 +174,13 @@ class LitAutoEncoder(pl.LightningModule):
         emb = self.encoder(X)
         X_hat = self.decoder(emb)
         l2_emb = emb.norm(2, dim=1).mean()
-        loss = ((X - X_hat) ** 2).sum(axis=-1).mean() + self.reg * l2_emb
+        loss = ((X - X_hat) ** 2).sum(axis=-1).mean() + self.hparams.reg * l2_emb
         return loss
-
-    def test_step(self, batch, batch_idx):
-        X, y_true, labels = batch
-        X = X.float()
-        scores = self.score(X)
-
-        return {
-            "scores": scores,
-            "y_true": y_true,
-            "labels": labels
-        }
-
-    def test_epoch_end(self, outputs) -> None:
-        scores, y_true, labels = np.array([]), np.array([]), np.array([])
-        for output in outputs:
-            scores = np.append(scores, output["scores"].cpu().detach().numpy())
-            y_true = np.append(y_true, output["y_true"].cpu().detach().numpy())
-            labels = np.append(labels, output["labels"].cpu().detach().numpy())
-        results, _ = metrics.score_recall_precision_w_threshold(scores, y_true)
-        for k, v in results.items():
-            self.log(k, v)
 
     def configure_optimizers(self):
         optimizer = torch.optim.Adam(
             self.parameters(),
-            lr=self.lr
+            lr=self.hparams.lr
         )
         scheduler = StepLR(optimizer, step_size=20, gamma=0.9)
         return [optimizer], [scheduler]

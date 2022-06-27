@@ -9,6 +9,7 @@ from torch.optim import Optimizer
 from torch.optim.lr_scheduler import StepLR
 
 from pyad.loss.TripletCenterLoss import TripletCenterLoss
+from pyad.lightning.base import BaseLightningModel
 from pyad.model.base import BaseModel
 import pytorch_lightning as pl
 from pytorch_lightning.core.optimizer import LightningOptimizer
@@ -16,43 +17,51 @@ from pytorch_lightning.core.optimizer import LightningOptimizer
 from pyad.utils import metrics
 
 
+def create_network(
+        input_dim: int, hidden_dims: list, bias=True, act_fn: nn.Module = nn.ReLU
+) -> list:
+    net_layers = []
+    for i in range(len(hidden_dims) - 1):
+        net_layers.append(
+            nn.Linear(input_dim, hidden_dims[i], bias=bias)
+        )
+        net_layers.append(
+            act_fn()
+        )
+        input_dim = hidden_dims[i]
+
+    net_layers.append(
+        nn.Linear(input_dim, hidden_dims[-1], bias=bias)
+    )
+    return net_layers
+
+
 @MODEL_REGISTRY
-class LitNeuTraLAD(pl.LightningModule):
+class LitNeuTraLAD(BaseLightningModel):
     name = "LITNeuTraLAD"
 
     def __init__(
             self,
-            in_features: int,
-            weight_decay: float,
-            lr: float,
             n_transforms: int,
             trans_type: str,
             temperature: float,
             trans_hidden_dims: List[int],
             enc_hidden_dims: List[int],
+            **kwargs
     ):
-        super(LitNeuTraLAD, self).__init__()
+        super(LitNeuTraLAD, self).__init__(**kwargs)
         # call this to save hyper-parameters to the checkpoint
-        self.save_hyperparameters(
-            ignore=["in_features"]
-        )
         # General parameters
-        self.in_features = in_features
-        self.weight_decay = weight_decay
-        self.lr = lr
+        # self.weight_decay = weight_decay
+        # self.lr = lr
         # Model parameters
-        self.n_transforms = n_transforms
-        self.temperature = temperature
-        self.trans_type = trans_type
         self.cosim = nn.CosineSimilarity()
         # Encoder and Transformation layers
-        self.enc_hidden_dims = enc_hidden_dims
-        self.trans_hidden_dims = trans_hidden_dims
-        if self.trans_hidden_dims[-1] != in_features:
-            self.trans_hidden_dims.append(in_features)
+        if self.hparams.trans_hidden_dims[-1] != self.in_features:
+            self.hparams.trans_hidden_dims.append(self.in_features)
         # Encoder
         self.enc = nn.Sequential(
-            *create_network(self.in_features, self.enc_hidden_dims, bias=False)
+            *create_network(self.in_features, self.hparams.enc_hidden_dims, bias=False)
         )
         # Transforms
         self.masks = self._create_masks()
@@ -72,16 +81,16 @@ class LitNeuTraLAD(pl.LightningModule):
     def configure_optimizers(self):
         optimizer = torch.optim.Adam(
             self.parameters(),
-            lr=self.lr,
-            weight_decay=self.weight_decay
+            lr=self.hparams.lr,
+            weight_decay=self.hparams.weight_decay
         )
         scheduler = StepLR(optimizer, step_size=20, gamma=0.9)
         return [optimizer], [scheduler]
 
     def _create_masks(self):
         masks = nn.ModuleList()
-        for k_i in range(self.n_transforms):
-            layers = create_network(self.in_features, self.trans_hidden_dims, bias=False)
+        for k_i in range(self.hparams.n_transforms):
+            layers = create_network(self.in_features, self.hparams.trans_hidden_dims, bias=False)
             layers.append(nn.Sigmoid())
             masks.append(
                 nn.Sequential(*layers)
@@ -101,28 +110,7 @@ class LitNeuTraLAD(pl.LightningModule):
 
         return loss
 
-    def test_step(self, batch, batch_idx):
-        X, y_true, labels = batch
-        X = X.float()
-        scores = self.score(X)
-
-        return {
-            "scores": scores,
-            "y_true": y_true,
-            "labels": labels
-        }
-
-    def test_epoch_end(self, outputs) -> None:
-        scores, y_true, labels = np.array([]), np.array([]), np.array([])
-        for output in outputs:
-            scores = np.append(scores, output["scores"].cpu().detach().numpy())
-            y_true = np.append(y_true, output["y_true"].cpu().detach().numpy())
-            labels = np.append(labels, output["labels"].cpu().detach().numpy())
-        results, _ = metrics.score_recall_precision_w_threshold(scores, y_true)
-        for k, v in results.items():
-            self.log(k, v)
-
-    def score(self, X: torch.Tensor):
+    def score(self, X: torch.Tensor, y: torch.Tensor = None):
         Xk = self._computeX_k(X)
         Xk = Xk.permute((1, 0, 2))
         Zk = self.enc(Xk)
@@ -132,7 +120,7 @@ class LitNeuTraLAD(pl.LightningModule):
         Hij = self._computeBatchH_ij(Zk)
         Hx_xk = self._computeBatchH_x_xk(Z, Zk)
 
-        mask_not_k = (~torch.eye(self.n_transforms, dtype=torch.bool, device=self.device)).float()
+        mask_not_k = (~torch.eye(self.hparams.n_transforms, dtype=torch.bool, device=self.device)).float()
         numerator = Hx_xk
         denominator = Hx_xk + (mask_not_k * Hij).sum(dim=2)
         scores_V = numerator / denominator
@@ -143,28 +131,28 @@ class LitNeuTraLAD(pl.LightningModule):
     def _computeH_ij(self, Z):
         hij = F.cosine_similarity(Z.unsqueeze(1), Z.unsqueeze(0), dim=2)
         exp_hij = torch.exp(
-            hij / self.temperature
+            hij / self.hparams.temperature
         )
         return exp_hij
 
     def _computeBatchH_ij(self, Z):
         hij = F.cosine_similarity(Z.unsqueeze(2), Z.unsqueeze(1), dim=3)
         exp_hij = torch.exp(
-            hij / self.temperature
+            hij / self.hparams.temperature
         )
         return exp_hij
 
     def _computeH_x_xk(self, z, zk):
         hij = F.cosine_similarity(z.unsqueeze(0), zk)
         exp_hij = torch.exp(
-            hij / self.temperature
+            hij / self.hparams.temperature
         )
         return exp_hij
 
     def _computeBatchH_x_xk(self, z, zk):
         hij = F.cosine_similarity(z.unsqueeze(1), zk, dim=2)
         exp_hij = torch.exp(
-            hij / self.temperature
+            hij / self.hparams.temperature
         )
         return exp_hij
 
@@ -177,8 +165,8 @@ class LitNeuTraLAD(pl.LightningModule):
             else:
                 return lambda mask, X: mask(X) * X
 
-        t_function = transform(self.trans_type, X)
-        for k in range(self.n_transforms):
+        t_function = transform(self.hparams.trans_type, X)
+        for k in range(self.hparams.n_transforms):
             X_t_k = t_function(self.masks[k], X)
             X_t_s.append(X_t_k)
         X_t_s = torch.stack(X_t_s, dim=0)
@@ -186,46 +174,33 @@ class LitNeuTraLAD(pl.LightningModule):
         return X_t_s
 
 
-class LitGOAD(pl.LightningModule):
+class LitGOAD(BaseLightningModel):
     def __init__(self,
-                 in_features: int,
                  n_transforms: int,
                  feature_dim: int,
                  num_hidden_nodes: int,
                  batch_size: int,
                  n_layers: int = 0,
-                 lr=1e-4,
                  eps=0,
                  lamb=0.1,
                  margin=1,
-                 weight_decay=0.):
-        super(LitGOAD, self).__init__()
+                 **kwargs):
+        super(LitGOAD, self).__init__(**kwargs)
         self.save_hyperparameters(
             "n_transforms", "feature_dim", "num_hidden_nodes", "eps", "lamb", "margin", "n_layers"
         )
-        self.lr = lr
-        self.weight_decay = weight_decay
-        self.batch_size = batch_size
-        self.in_features = in_features
-        self.n_transforms = n_transforms
-        self.margin = margin
-        self.feature_dim = feature_dim
-        self.num_hidden_nodes = num_hidden_nodes
-        self.lamb = lamb
-        self.eps = eps
-        self.n_layers = n_layers
         self.build_network()
         # Cross entropy loss
         self.ce_loss = nn.CrossEntropyLoss()
         # Triplet loss
-        self.tc_loss = TripletCenterLoss(margin=self.margin)
+        self.tc_loss = TripletCenterLoss(margin=self.hparams.margin)
         # Transformation matrix
         trans_matrix = torch.randn(
-            (self.n_transforms, self.in_features, feature_dim),
+            (self.hparams.n_transforms, self.in_features, feature_dim),
         )
         self.register_buffer("trans_matrix", trans_matrix)
         # Hypersphere centers
-        centers = torch.zeros((self.feature_dim, self.n_transforms), device=self.device)
+        centers = torch.zeros((self.hparams.feature_dim, self.hparams.n_transforms))
         self.register_buffer("centers", centers)
 
     @staticmethod
@@ -246,32 +221,32 @@ class LitGOAD(pl.LightningModule):
 
     def build_network(self):
         trunk_layers = [
-            nn.Conv1d(self.feature_dim, self.num_hidden_nodes, kernel_size=1, bias=False)
+            nn.Conv1d(self.hparams.feature_dim, self.hparams.num_hidden_nodes, kernel_size=1, bias=False)
         ]
-        for i in range(0, self.n_layers):
+        for i in range(0, self.hparams.n_layers):
             trunk_layers.append(
-                nn.Conv1d(self.num_hidden_nodes, self.num_hidden_nodes, kernel_size=1, bias=False),
+                nn.Conv1d(self.hparams.num_hidden_nodes, self.hparams.num_hidden_nodes, kernel_size=1, bias=False),
             )
-            if i < self.n_layers - 1:
+            if i < self.hparams.n_layers - 1:
                 trunk_layers.append(
                     nn.LeakyReLU(0.2, inplace=True),
                 )
             else:
                 trunk_layers.append(
-                    nn.Conv1d(self.num_hidden_nodes, self.num_hidden_nodes, kernel_size=1, bias=False),
+                    nn.Conv1d(self.hparams.num_hidden_nodes, self.hparams.num_hidden_nodes, kernel_size=1, bias=False),
                 )
         self.trunk = nn.Sequential(
             *trunk_layers
         )
         self.head = nn.Sequential(
             nn.LeakyReLU(0.2, inplace=True),
-            nn.Conv1d(self.num_hidden_nodes, self.n_transforms, kernel_size=1, bias=True),
+            nn.Conv1d(self.hparams.num_hidden_nodes, self.hparams.n_transforms, kernel_size=1, bias=True),
         )
 
     def configure_optimizers(self):
         optimizer = torch.optim.Adam(
             self.parameters(),
-            lr=self.lr
+            lr=self.hparams.lr
         )
         return optimizer
 
@@ -284,7 +259,7 @@ class LitGOAD(pl.LightningModule):
 
     def score(self, sample: torch.Tensor):
         diffs = ((sample.unsqueeze(2) - self.centers) ** 2).sum(-1)
-        diffs_eps = self.eps * torch.ones_like(diffs)
+        diffs_eps = self.hparams.eps * torch.ones_like(diffs)
         diffs = torch.max(diffs, diffs_eps)
         logp_sz = torch.nn.functional.log_softmax(-diffs, dim=2)
         score = -torch.diagonal(logp_sz, 0, 1, 2).sum(dim=1)
@@ -296,7 +271,7 @@ class LitGOAD(pl.LightningModule):
         # Apply affine transformations
         X_augmented = torch.vstack(
             [X @ t for t in self.trans_matrix]
-        ).reshape(X.shape[0], self.feature_dim, self.n_transforms)
+        ).reshape(X.shape[0], self.hparams.feature_dim, self.hparams.n_transforms)
         # Forward pass & reshape
         zs, fs = self.forward(X_augmented)
         zs = zs.permute(0, 2, 1)
@@ -315,13 +290,13 @@ class LitGOAD(pl.LightningModule):
 
         # transformation labels
         labels = torch.arange(
-            self.n_transforms
-        ).unsqueeze(0).expand((len(X), self.n_transforms)).long().to(self.device)
+            self.hparams.n_transforms
+        ).unsqueeze(0).expand((len(X), self.hparams.n_transforms)).long().to(self.device)
 
         # Apply affine transformations
         X_augmented = torch.vstack(
             [X @ t for t in self.trans_matrix]
-        ).reshape(X.shape[0], self.feature_dim, self.n_transforms).to(self.device)
+        ).reshape(X.shape[0], self.hparams.feature_dim, self.hparams.n_transforms).to(self.device)
         # Forward pass
         tc_zs, logits = self.forward(X_augmented)
         # Update enters estimates
@@ -331,23 +306,13 @@ class LitGOAD(pl.LightningModule):
         # Compute losses
         ce_loss = self.ce_loss(logits, labels)
         tc_loss = self.tc_loss(tc_zs)
-        loss = self.lamb * tc_loss + ce_loss
+        loss = self.hparams.lamb * tc_loss + ce_loss
 
         return loss
 
     def on_train_epoch_start(self) -> None:
-        self.centers = torch.zeros((self.num_hidden_nodes, self.n_transforms)).to(self.device)
+        self.centers = torch.zeros((self.hparams.num_hidden_nodes, self.hparams.n_transforms)).to(self.device)
         self.n_batch = 0
 
     def on_train_epoch_end(self) -> None:
         self.centers = (self.centers.mT / self.n_batch).unsqueeze(0).to(self.device)
-
-    def test_epoch_end(self, outputs) -> None:
-        scores, y_true, labels = np.array([]), np.array([]), np.array([])
-        for output in outputs:
-            scores = np.append(scores, output["scores"].cpu().detach().numpy())
-            y_true = np.append(y_true, output["y_true"].cpu().detach().numpy())
-            labels = np.append(labels, output["labels"].cpu().detach().numpy())
-        results, _ = metrics.score_recall_precision_w_threshold(scores, y_true)
-        for k, v in results.items():
-            self.log(k, v)

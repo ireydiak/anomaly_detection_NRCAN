@@ -72,8 +72,9 @@ def prepare_kdd(model_name: str):
         n_epochs = 25
         model = LitGOAD(
             in_features=dataset.in_features,
-            n_layers=5,
+            lr=1e-4,
             weight_decay=1e-4,
+            n_layers=5,
             n_transforms=64,
             feature_dim=64,
             num_hidden_nodes=32,
@@ -99,7 +100,9 @@ def prepare_thyroid(model_name: str):
             in_features=dataset.in_features,
             latent_dim=2,
             hidden_dims=[4],
-            activation="relu"
+            activation="relu",
+            lr=1e-4,
+            weight_decay=1e-4
         )
     elif model_name == "litneutralad":
         model = LitNeuTraLAD(
@@ -125,9 +128,11 @@ def prepare_thyroid(model_name: str):
             lr=1e-3,
             weight_decay=1e-4
         )
-    else:
+    elif model_name == "litgoad":
         model = LitGOAD(
             in_features=dataset.in_features,
+            lr=1e-4,
+            weight_decay=1e-4,
             n_transforms=256,
             feature_dim=32,
             num_hidden_nodes=8,
@@ -180,7 +185,9 @@ def prepare_arrhythmia(model_name: str):
             in_features=dataset.in_features,
             latent_dim=2,
             hidden_dims=[4],
-            activation="relu"
+            activation="relu",
+            lr=1e-4,
+            weight_decay=1e-4
         )
     elif model_name == "litneutralad":
         model = LitNeuTraLAD(
@@ -208,6 +215,8 @@ def prepare_arrhythmia(model_name: str):
     else:
         model = LitGOAD(
             in_features=dataset.in_features,
+            lr=1e-4,
+            weight_decay=1e-4,
             n_transforms=256,
             feature_dim=32,
             num_hidden_nodes=8,
