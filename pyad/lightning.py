@@ -92,7 +92,7 @@ def prepare_kdd(model_name: str):
 def prepare_thyroid(model_name: str):
     model_name = model_name.lower()
     data_path = "../data/Thyroid/thyroid.mat"
-    dataset = ThyroidDataset(path=data_path)
+    dataset = ThyroidDataset(path=data_path, scaler="standard")
     batch_size = 128
 
     if model_name == "litautoencoder":
@@ -129,19 +129,23 @@ def prepare_thyroid(model_name: str):
             weight_decay=1e-4
         )
     elif model_name == "litgoad":
+        batch_size = 64
         model = LitGOAD(
             in_features=dataset.in_features,
-            lr=1e-4,
+            lr=1e-3,
             weight_decay=1e-4,
             n_transforms=256,
             feature_dim=32,
             num_hidden_nodes=8,
             batch_size=batch_size,
-            n_layers=0,
+            n_layers=1,
             eps=0,
             lamb=0.1,
-            margin=1
+            margin=1,
+            threshold=95.18882565959649,
         )
+    else:
+        raise Exception("unknown model %s" % model_name)
 
     train_ldr, test_ldr, _ = dataset.loaders(batch_size=batch_size)
     return model, train_ldr, test_ldr
@@ -212,7 +216,7 @@ def prepare_arrhythmia(model_name: str):
             lr=1e-3,
             weight_decay=1e-4
         )
-    else:
+    elif model_name == "litgoad":
         model = LitGOAD(
             in_features=dataset.in_features,
             lr=1e-4,
@@ -226,6 +230,8 @@ def prepare_arrhythmia(model_name: str):
             lamb=0.1,
             margin=1
         )
+    else:
+        raise Exception("unkown model %s" % model_name)
     train_ldr, test_ldr, _ = dataset.loaders(batch_size=batch_size)
 
     return model, train_ldr, test_ldr

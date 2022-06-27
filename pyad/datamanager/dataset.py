@@ -6,16 +6,41 @@ from ray import tune as ray_tune
 from torch.utils.data import Dataset, Subset, DataLoader
 from torch.utils.data.dataset import T_co
 from typing import Tuple
-
+from sklearn.preprocessing import MinMaxScaler, StandardScaler
 from pyad.utils.utils import random_split_to_two
+
+scaler_map = {
+    "minmax": MinMaxScaler,
+    "minmaxscaler": MinMaxScaler,
+    "standard": StandardScaler,
+    "standardscaler": StandardScaler
+}
+
+
+class SimpleDataset(Dataset):
+    def __init__(self, X, y, labels):
+        self.X = X
+        self.y = y
+        self.labels = labels
+
+    def __len__(self):
+        return len(self.X)
+
+    def __getitem__(self, index) -> T_co:
+        return self.X[index], self.y[index], self.labels[index]
 
 
 class AbstractDataset(Dataset):
-    def __init__(self, path: str, normal_size: float = 1.0, seed=None, **kwargs):
+    def __init__(self, path: str, normal_size: float = 1.0, seed=None, scaler=None, **kwargs):
         self.name = self.__class__.__name__
         self.labels = np.array([])
         self.seed = seed
-
+        if scaler is not None:
+            assert scaler.lower() in set(scaler_map.keys()), "unknown scaler %s, please use %s" % (
+            scaler, scaler_map.keys())
+            self.scaler = scaler_map[scaler.lower()]()
+        else:
+            self.scaler = None
         data = self._load_data(path)
         if normal_size < 1.:
             self.X, self.y = self.select_data_subset(normal_size, data, **kwargs)
@@ -98,7 +123,8 @@ class AbstractDataset(Dataset):
                                                              contamination_rate=contamination_rate,
                                                              validation_ratio=validation_ratio,
                                                              seed=seed)
-
+        if self.scaler:
+            train_set, test_set, val_set = self.normalize(train_set, test_set, val_set)
         train_ldr = DataLoader(dataset=train_set, batch_size=batch_size, num_workers=num_workers,
                                drop_last=drop_last_batch, pin_memory=True)
 
@@ -108,6 +134,20 @@ class AbstractDataset(Dataset):
         test_ldr = DataLoader(dataset=test_set, batch_size=batch_size, num_workers=num_workers,
                               drop_last=drop_last_batch)
         return train_ldr, test_ldr, val_ldr
+
+    def normalize(self, train_set, test_set, val_set=None):
+        train_data = train_set.dataset.X[train_set.indices]
+        train_y, train_labels = train_set.dataset.y[train_set.indices], train_set.dataset.labels[train_set.indices]
+        test_data = test_set.dataset.X[test_set.indices]
+        test_y, test_labels = test_set.dataset.y[test_set.indices], test_set.dataset.labels[test_set.indices]
+        self.scaler.fit(train_data)
+        train_set = SimpleDataset(X=self.scaler.transform(train_data), y=train_y, labels=train_labels)
+        test_set = SimpleDataset(X=self.scaler.transform(test_data), y=test_y, labels=test_labels)
+        if val_set is not None and len(val_set) > 0:
+            val_data = val_set.dataset.X[val_set.indices]
+            val_y, val_labels = val_set.dataset.y[val_set.indices], val_set.dataset.labels[val_set.indices]
+            val_set = SimpleDataset(X=self.scaler.transform(val_data), y=val_y, labels=val_labels)
+        return train_set, test_set, val_set
 
     def split_train_test(self,
                          test_pct: float = .5,
