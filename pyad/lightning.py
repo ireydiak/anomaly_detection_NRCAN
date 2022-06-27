@@ -1,17 +1,19 @@
-from pyad.model.reconstruction import LitAutoEncoder, LitMemAE
+from pyad.lightning.reconstruction import LitAutoEncoder, LitMemAE
 from pyad.datamanager.dataset import ThyroidDataset, ArrhythmiaDataset, KDD10Dataset, NSLKDDDataset
-import pyad.model.transformers
-from pyad.model.transformers import LitGOAD, LitNeuTraLAD
-#import pyad.datamanager.data_module
-#from pyad.datamanager.data_module import BaseDataset
+import pyad.lightning.transformers
+from pyad.lightning.transformers import LitGOAD, LitNeuTraLAD
+# import pyad.datamanager.data_module
+# from pyad.datamanager.data_module import BaseDataset
 import pytorch_lightning as pl
 from pytorch_lightning.utilities.cli import MODEL_REGISTRY, DATAMODULE_REGISTRY, LightningCLI
 from pytorch_lightning.utilities.cli import MODEL_REGISTRY, DATAMODULE_REGISTRY
 from jsonargparse import ArgumentParser
 import argparse
 
-MODEL_REGISTRY.register_classes(pyad.model.transformers, pl.LightningModule)
-#DATAMODULE_REGISTRY.register_classes(pyad.datamanager.data_module, pl.LightningDataModule)
+MODEL_REGISTRY.register_classes(pyad.lightning.transformers, pl.LightningModule)
+
+
+# DATAMODULE_REGISTRY.register_classes(pyad.datamanager.data_module, pl.LightningDataModule)
 
 
 class MyLightningCLI(LightningCLI):
@@ -165,10 +167,9 @@ def prepare_nslkdd(model_name: str):
     return model, train_ldr, test_ldr
 
 
-
 def prepare_arrhythmia(model_name: str):
     model_name = model_name.lower()
-    #data_path = "../data/Arrhythmia/arrhythmia_normalized.npz"
+    # data_path = "../data/Arrhythmia/arrhythmia_normalized.npz"
     data_path = "../data/Arrhythmia/arrhythmia.mat"
     dataset = ArrhythmiaDataset(path=data_path)
     batch_size = 32
