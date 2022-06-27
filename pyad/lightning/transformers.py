@@ -304,10 +304,15 @@ class LitGOAD(BaseLightningModel):
         # Update batch count for computing centers means
         self.n_batch += 1
         # Compute losses
+        loss = self.compute_loss(logits, labels, tc_zs)
+
+        return loss
+
+    def compute_loss(self, logits, labels, tc_zs, mode="train"):
         ce_loss = self.ce_loss(logits, labels)
         tc_loss = self.tc_loss(tc_zs)
         loss = self.hparams.lamb * tc_loss + ce_loss
-
+        self.log(mode + "_loss", loss)
         return loss
 
     def on_train_epoch_start(self) -> None:

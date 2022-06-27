@@ -15,14 +15,17 @@ class BaseLightningModel(pl.LightningModule):
             threshold: float = None
     ):
         super(BaseLightningModel, self).__init__()
-        assert 0. <= threshold <= 100., "`threshold` must be inclusively between 0 and 1"
+        if threshold:
+            assert 0. <= threshold <= 100., "`threshold` must be inclusively between 0 and 1"
+        else:
+            self.threshold = None
         self.in_features = in_features
         self.n_instances = n_instances
         self.threshold = threshold
         # call this to save hyper-parameters to the checkpoint
         # will save children parameters as well
         self.save_hyperparameters(
-            ignore=["in_features", "n_instances"]
+            ignore=["in_features", "n_instances", "threshold"]
         )
 
     def score(self, X: torch.Tensor, y: torch.Tensor = None):

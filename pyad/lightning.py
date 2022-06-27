@@ -169,6 +169,21 @@ def prepare_nslkdd(model_name: str):
             lr=1e-4,
             weight_decay=1e-4
         )
+    elif model_name == "litgoad":
+        batch_size = 64
+        model = LitGOAD(
+            in_features=dataset.in_features,
+            lr=1e-3,
+            weight_decay=1e-4,
+            n_transforms=256,
+            feature_dim=128,
+            num_hidden_nodes=128,
+            batch_size=batch_size,
+            n_layers=5,
+            eps=0,
+            lamb=0.1,
+            margin=1
+        )
     else:
         raise Exception("unknown model %s" % model_name)
 

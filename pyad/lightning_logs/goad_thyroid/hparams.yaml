@@ -1,0 +1,11 @@
+batch_size: 64
+eps: 0
+feature_dim: 32
+lamb: 0.1
+lr: 0.001
+margin: 1
+n_layers: 1
+n_transforms: 256
+num_hidden_nodes: 8
+threshold: 95.18882565959649
+weight_decay: 0.0001
