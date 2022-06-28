@@ -1,20 +1,13 @@
-from typing import Union, Optional, Callable, Any, List
-from pytorch_lightning.utilities.cli import MODEL_REGISTRY, DATAMODULE_REGISTRY
+from typing import List
+from pytorch_lightning.utilities.cli import MODEL_REGISTRY
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import numpy as np
-from torch.optim import Optimizer
 from torch.optim.lr_scheduler import StepLR
-
 from pyad.loss.TripletCenterLoss import TripletCenterLoss
 from pyad.lightning.base import BaseLightningModel
-from pyad.model.base import BaseModel
-import pytorch_lightning as pl
-from pytorch_lightning.core.optimizer import LightningOptimizer
-
-from pyad.utils import metrics
+from ray import tune
 
 
 def create_network(
@@ -50,10 +43,6 @@ class LitNeuTraLAD(BaseLightningModel):
             **kwargs
     ):
         super(LitNeuTraLAD, self).__init__(**kwargs)
-        # call this to save hyper-parameters to the checkpoint
-        # General parameters
-        # self.weight_decay = weight_decay
-        # self.lr = lr
         # Model parameters
         self.cosim = nn.CosineSimilarity()
         # Encoder and Transformation layers
@@ -77,6 +66,33 @@ class LitNeuTraLAD(BaseLightningModel):
         parser.add_argument("--weight_decay", type=float, default=1e-4)
 
         return parent_parser
+
+    @staticmethod
+    def get_ray_config(in_features: int, n_instances: int):
+        enc_dim = in_features // 2 if in_features > 10 else in_features * 3
+        latent_dim = enc_dim // 2 if in_features > 10 else in_features
+        enc_hidden_dims_choices = [
+            [enc_dim, enc_dim, enc_dim, enc_dim, latent_dim], # 5 layers
+            [enc_dim, enc_dim, latent_dim], # 3 layers
+            [enc_dim, latent_dim] # 2 layers
+        ]
+        trans_hidden_dims_choices = [
+            [100],
+            [200],
+            [400]
+        ]
+        parent_choices = BaseLightningModel.get_ray_config(in_features, n_instances)
+        child_choices = {
+            "n_transforms": tune.choice([5, 11, 21, 63]),
+            "trans_type": tune.choice(["res", "mul"]),
+            "temperature": tune.loguniform(1e-1, 1e-3),
+            "trans_hidden_dims": tune.choice(trans_hidden_dims_choices),
+            "enc_hidden_dims": tune.choice(enc_hidden_dims_choices)
+        }
+        return dict(
+            **parent_choices,
+            **child_choices
+        )
 
     def configure_optimizers(self):
         optimizer = torch.optim.Adam(
@@ -103,10 +119,15 @@ class LitNeuTraLAD(BaseLightningModel):
         scores = self.score(X)
         return scores, y_true, full_labels
 
+    def compute_loss(self, X: torch.Tensor, mode="train"):
+        loss = self.score(X).mean()
+        self.log(mode + "_loss", loss)
+        return loss
+
     def training_step(self, batch, batch_idx):
         X, _, _ = batch
         X = X.float()
-        loss = self.score(X).mean()
+        loss = self.compute_loss(X)
 
         return loss
 
@@ -196,7 +217,7 @@ class LitGOAD(BaseLightningModel):
         self.tc_loss = TripletCenterLoss(margin=self.hparams.margin)
         # Transformation matrix
         trans_matrix = torch.randn(
-            (self.hparams.n_transforms, self.in_features, feature_dim),
+            (self.hparams.n_transforms, self.in_features, self.hparams.feature_dim),
         )
         self.register_buffer("trans_matrix", trans_matrix)
         # Hypersphere centers
@@ -218,6 +239,35 @@ class LitGOAD(BaseLightningModel):
         parser.add_argument("--margin", type=float, default=1.)
 
         return parent_parser
+
+    @staticmethod
+    def get_ray_config(in_features: int, n_instances: int):
+        if n_instances < 1_000_000:
+            feature_dim_choices = n_transforms_choices = [32, 64, 128, 256]
+        else:
+            feature_dim_choices = [32, 64]
+            n_transforms_choices = [32]
+
+        if n_instances < 5_000:
+            n_layers_choices = [0, 1]
+            num_hidden_nodes_choices = [8, 16, 32]
+        else:
+            n_layers_choices = [2, 3, 5]
+            num_hidden_nodes_choices = [8, 32, 64, 128]
+        parent_choices = BaseLightningModel.get_ray_config(in_features, n_instances)
+        child_choices = {
+            "n_transforms": tune.choice(n_transforms_choices),
+            "feature_dim": tune.choice(feature_dim_choices),
+            "num_hidden_nodes": tune.choice(num_hidden_nodes_choices),
+            "eps": 0,
+            "lamb": tune.loguniform(1e-1, 1.),
+            "margin": 1,
+            "n_layers": tune.choice(n_layers_choices)
+        }
+        return dict(
+            **parent_choices,
+            **child_choices
+        )
 
     def build_network(self):
         trunk_layers = [
@@ -248,7 +298,9 @@ class LitGOAD(BaseLightningModel):
             self.parameters(),
             lr=self.hparams.lr
         )
-        return optimizer
+        scheduler = StepLR(optimizer, step_size=20, gamma=0.9)
+
+        return [optimizer], [scheduler]
 
     def forward(self, X: torch.Tensor):
         # (batch_size, num_hidden_nodes, n_transforms)

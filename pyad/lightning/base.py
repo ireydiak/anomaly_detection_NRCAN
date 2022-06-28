@@ -2,6 +2,7 @@ import pytorch_lightning as pl
 import torch
 import numpy as np
 from pyad.utils import metrics
+from ray import tune
 
 
 class BaseLightningModel(pl.LightningModule):
@@ -28,6 +29,14 @@ class BaseLightningModel(pl.LightningModule):
             ignore=["in_features", "n_instances", "threshold"]
         )
 
+    @staticmethod
+    def get_ray_config(in_features: int, n_instances: int):
+        return {
+            "lr": tune.loguniform(1e-2, 1e-4),
+            "weight_decay": tune.choice([0, 1e-4]),
+            "batch_size": tune.choice([32, 64, 128])
+        }
+
     def score(self, X: torch.Tensor, y: torch.Tensor = None):
         raise NotImplementedError
 
@@ -38,7 +47,11 @@ class BaseLightningModel(pl.LightningModule):
             y_true = np.append(y_true, output["y_true"].cpu().detach().numpy())
             labels = np.append(labels, output["labels"].cpu().detach().numpy())
         results, _ = metrics.score_recall_precision_w_threshold(scores, y_true, threshold=self.threshold)
-        self.log("performance", results)
+        self.results = results
+        self.log_dict(results)
+
+    def on_test_end(self):
+        return self.results
 
     def test_step(self, batch, batch_idx):
         X, y_true, labels = batch
