@@ -163,7 +163,7 @@ def clean_step(path_to_files: str, export_path: str, backup: bool = False) -> Tu
     return df, stats
 
 
-def normalize_step(df: pd.DataFrame, cols: list, base_path: str, fname: str, backup: bool = False):
+def encoding_step(df: pd.DataFrame, cols: list, base_path: str, fname: str, backup: bool = False):
     print(f'Processing {len(cols)} features for {fname}')
     # Preprocessing inspired by https://journalofbigdata.springeropen.com/articles/10.1186/s40537-021-00426-w
     # Split numerical and non-numerical columns
@@ -181,13 +181,6 @@ def normalize_step(df: pd.DataFrame, cols: list, base_path: str, fname: str, bac
     y = df['Label'].to_numpy()
     # Keep only a subset of the features
     df = df[cols]
-    # Normalize numerical data
-    scaler = MinMaxScaler()
-    # Select numerical columns with values in the range (0, 1)
-    # This way we avoid normalizing values that are already between 0 and 1.
-    to_scale = df[num_cols][(df[num_cols] < 0.0).any(axis=1) & (df[num_cols] > 1.0).any(axis=1)].columns
-    print(f"Scaling {len(to_scale)} columns: " + ", ".join(num_cols))
-    df[to_scale] = scaler.fit_transform(df[to_scale].values.astype(np.float64))
     # Merge normalized dataframe with labels
     X = np.concatenate(
         (df.values, y.reshape(-1, 1)),
@@ -206,10 +199,10 @@ def normalize_step(df: pd.DataFrame, cols: list, base_path: str, fname: str, bac
     print(f'Saved {compressed_fname}')
 
 
-if __name__ == '__main__':
+def main():
     # Assumes `path` points to the location of the original CSV files.
-    # `path` must only contain CSV files and not other file types such as folders. 
-    path, export_path, backup, _ = utils.parse_args()
+    # `path` must only contain CSV files and not other file types such as folders.
+    path, export_path, backup = utils.parse_args()
     # 0 - Prepare folder structure
     utils.prepare(export_path)
     path_to_clean = f"{export_path}/{utils.folder_struct['clean_step']}/usb-ids_clean.csv"
@@ -230,4 +223,8 @@ if __name__ == '__main__':
     ]
     df['Destination Port'] = df['Destination Port'].astype('category')
     for features, fname in to_process:
-        normalize_step(df, features, export_path, fname, backup)
+        encoding_step(df, features, export_path, fname, backup)
+
+
+if __name__ == '__main__':
+   main()

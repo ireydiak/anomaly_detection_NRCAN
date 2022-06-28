@@ -1,3 +1,6 @@
+from typing import Sequence
+
+import jsonargparse.actions
 import math
 
 from pytorch_lightning.loggers import TensorBoardLogger
@@ -15,15 +18,12 @@ from jsonargparse import ArgumentParser
 import argparse
 
 from ray import tune
-from ray.tune.integration.pytorch_lightning import TuneReportCallback
 from ray.tune import CLIReporter
 from ray.tune.schedulers import ASHAScheduler, PopulationBasedTraining
 from ray.tune.integration.pytorch_lightning import TuneReportCallback, TuneReportCheckpointCallback
-from bootstrap import datasets_map
+
 MODEL_REGISTRY.register_classes(pyad.lightning.transformers, pl.LightningModule)
-
-
-# DATAMODULE_REGISTRY.register_classes(pyad.datamanager.data_module, pl.LightningDataModule)
+DATAMODULE_REGISTRY.register_classes(pyad.datamanager.dataset, AbstractDataset)
 
 
 class MyLightningCLI(LightningCLI):
@@ -33,22 +33,30 @@ class MyLightningCLI(LightningCLI):
         parser.link_arguments("data.n_instances", "model.init_args.n_instances", apply_on="instantiate")
 
 
+class FindRegistryAction(argparse.Action):
+    def __init__(self, option_strings: Sequence[str], dest: str, registry, append_str=""):
+        super().__init__(option_strings, dest)
+        self.registry = registry
+        self.append_str = append_str
+
+    def __call__(self, parser, args, values, option_string=None):
+        if self.append_str:
+            values = values + self.append_str
+        model_cls = self.registry[values]
+        setattr(args, self.dest, model_cls)
+
+
 def argparser():
     # general parser with generic arguments
     parser = ArgumentParser(prog="")
-    # parser.add_argument("--model", type=str)
-    # parser.add_argument("--dataset", type=str)
-    # parser.add_argument("--max_epochs", type=int, default=50)
+    parser.add_argument("--dataset", action=FindRegistryAction, registry=DATAMODULE_REGISTRY, append_str="Dataset")
+    parser.add_argument("--model", action=FindRegistryAction, registry=MODEL_REGISTRY)
 
     # training arguments
     train_parser = ArgumentParser()
-    train_parser.add_argument("--model", type=str)
-    train_parser.add_argument("--dataset", type=str)
     train_parser.add_argument("--max_epochs", type=int, default=50)
-    # parser = pl.Trainer.add_argparse_args(parser)
 
     # model-specific arguments
-
     # for model in MODEL_REGISTRY.classes:
     #     model.add_model_specific_args(parser)
     # parser.link_arguments("data.in_features", "model.init_args.in_features", apply_on="instantiate")
@@ -59,7 +67,6 @@ def argparser():
     tuning_parser.add_argument("--num_samples", type=int, default=50)
     tuning_parser.add_argument("--num_gpus", type=int, default=None, help="set to `None` to use all available gpus")
     tuning_parser.add_argument("--model", type=str)
-    tuning_parser.add_argument("--dataset", type=str)
     tuning_parser.add_argument("--max_epochs", type=int, default=50)
     tuning_parser.add_argument("--scaler", choices=["standard", "minmax"], default="minmax")
     tuning_parser.add_argument("--dataset_path", type=str)
@@ -72,9 +79,9 @@ def argparser():
     return parser.parse_args()
 
 
-def prepare_kdd(model_name: str):
-    model_name = model_name.lower()
-    data_path = "C:/Users/verdi/Documents/Datasets/KDD/3_minified/KDD10percent_minified.npz"
+def prepare_kdd(model_cls):
+    model_name = model_cls.__name__.lower()
+    data_path = "../data/KDD10/kdd10percent.npz"
     dataset = KDD10Dataset(path=data_path)
     weight_decay = 1e-4
 
@@ -124,8 +131,8 @@ def prepare_kdd(model_name: str):
     return model, train_ldr, test_ldr
 
 
-def prepare_thyroid(model_name: str):
-    model_name = model_name.lower()
+def prepare_thyroid(model_cls):
+    model_name = model_cls.__name__.lower()
     data_path = "../data/Thyroid/thyroid.mat"
     dataset = ThyroidDataset(path=data_path, scaler="standard")
     batch_size = 128
@@ -199,9 +206,9 @@ def prepare_thyroid(model_name: str):
     return model, train_ldr, test_ldr
 
 
-def prepare_nslkdd(model_name: str):
-    model_name = model_name.lower()
-    data_path = "../data/NSL-KDD/3_minified/NSL-KDD_minified.npz"
+def prepare_nslkdd(model_cls):
+    model_name = model_cls.__name__.lower()
+    data_path = "../data/NSL-KDD/NSL-KDD_minified.npz"
     dataset = NSLKDDDataset(path=data_path)
 
     if model_name == "litmemae":
@@ -239,10 +246,9 @@ def prepare_nslkdd(model_name: str):
     return model, train_ldr, test_ldr
 
 
-def prepare_arrhythmia(model_name: str):
-    model_name = model_name.lower()
-    # data_path = "../data/Arrhythmia/arrhythmia_normalized.npz"
-    data_path = "../data/Arrhythmia/arrhythmia.mat"
+def prepare_arrhythmia(model_cls):
+    model_name = model_cls.__name__.lower()
+    data_path = "../data/Arrhythmia/arrhythmia.npz"
     dataset = ArrhythmiaDataset(path=data_path)
     batch_size = 32
     n_epochs = 200
@@ -343,21 +349,13 @@ def train_tune(
     )
 
 
-def tune_asha(args):
-    model_cls: pl.LightningModule = MODEL_REGISTRY[args.model]
-    dataset_cls = datasets_map[args.dataset]
+def tune_asha(model_cls, dataset_cls, args):
     dataset = dataset_cls(path=args.dataset_path, scaler=args.scaler)
 
     config = model_cls.get_ray_config(
         in_features=dataset.in_features,
         n_instances=dataset.n_instances
     )
-    # config = {
-    #     "layer_1_size": tune.choice([32, 64, 128]),
-    #     "layer_2_size": tune.choice([64, 128, 256]),
-    #     "lr": tune.loguniform(1e-4, 1e-1),
-    #     "batch_size": tune.choice([16, 32, 64, 128]),
-    # }
 
     scheduler = ASHAScheduler(
         max_t=args.max_epochs,
@@ -392,22 +390,22 @@ def tune_asha(args):
     print("Best hyperparameters found were: ", analysis.best_config)
 
 
-def train(args):
-    dataset_name = args.dataset.lower()
+def train(model_cls, dataset_cls, args):
+    dataset_name = dataset_cls.name
     max_epochs = args.max_epochs
     # trainer
     trainer = pl.Trainer(precision=16, accelerator="gpu", devices=1, max_epochs=max_epochs)
 
     if dataset_name == "arrhythmia":
-        model, train_ldr, test_ldr = prepare_arrhythmia(args.model)
+        model, train_ldr, test_ldr = prepare_arrhythmia(model_cls)
     elif dataset_name == "thyroid":
-        model, train_ldr, test_ldr = prepare_thyroid(args.model)
+        model, train_ldr, test_ldr = prepare_thyroid(model_cls)
     elif dataset_name == "kdd" or dataset_name == "kdd10":
-        model, train_ldr, test_ldr = prepare_kdd(args.model)
+        model, train_ldr, test_ldr = prepare_kdd(model_cls)
     elif dataset_name == "nsl-kdd" or dataset_name == "nslkdd":
-        model, train_ldr, test_ldr = prepare_nslkdd(args.model)
+        model, train_ldr, test_ldr = prepare_nslkdd(model_cls)
     else:
-        model, train_ldr, test_ldr = prepare_thyroid(args.model)
+        model, train_ldr, test_ldr = prepare_thyroid(model_cls)
 
     # learn
     trainer.fit(
@@ -418,17 +416,20 @@ def train(args):
     res = trainer.test(
         model=model,
         dataloaders=test_ldr
-    )
+    )[0]
+    # store_results()
+    a = 1
 
 
+# def store_results(results_dict: dict, hparams: dict)
 available_subcommands = ["tune", "train"]
 
 
 def main(args):
     if args.subcommand == "tune":
-        tune_asha(args.tune)
+        tune_asha(args.model, args.dataset, args.tune)
     elif args.subcommand == "train":
-        train(args.train)
+        train(args.model, args.dataset, args.train)
     else:
         raise Exception("unknown subcommand %s, please choose between %s", (args.subcommand, available_subcommands))
 

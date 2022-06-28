@@ -3,6 +3,7 @@ import numpy as np
 import utils
 import argparse
 from sklearn.preprocessing import MinMaxScaler
+
 # from src.utils import check_dir
 
 parser = argparse.ArgumentParser()
@@ -11,7 +12,6 @@ parser.add_argument('-o', '--output-directory', help='Must be an empty directory
 
 TRAIN_FILENAME = 'KDDTrain+.txt'
 TEST_FILENAME = 'KDDTest+.txt'
-
 
 NORMAL_LABEL = 0
 ANORMAL_LABEL = 1
@@ -29,8 +29,8 @@ def df_stats(df: pd.DataFrame):
     num_cols = df.select_dtypes(include=[np.number]).columns
     cat_cols = df.select_dtypes(include=['category', 'object']).columns
     return {
-        'D': df.shape[1],
-        'N': df.shape[0],
+        'in_features': df.shape[1],
+        'n_instances': df.shape[0],
         'Numerical Columns': len(num_cols),
         'Categorical Columns': len(cat_cols)
     }
@@ -44,8 +44,10 @@ def import_data(base_path: str):
     coltypes = np.where(df_info["type"].str.contains("continuous"), "float", "str")
     colnames = np.append(colnames, ["label"])
     coltypes = np.append(coltypes, ["str"])
-    df_train = pd.read_csv(base_path + '/' + TRAIN_FILENAME, names=colnames, index_col=False, dtype=dict(zip(colnames, coltypes)))
-    df_test = pd.read_csv(base_path + '/' + TEST_FILENAME, names=colnames, index_col=False, dtype=dict(zip(colnames, coltypes)))
+    df_train = pd.read_csv(base_path + '/' + TRAIN_FILENAME, names=colnames, index_col=False,
+                           dtype=dict(zip(colnames, coltypes)))
+    df_test = pd.read_csv(base_path + '/' + TEST_FILENAME, names=colnames, index_col=False,
+                          dtype=dict(zip(colnames, coltypes)))
     # UBN added an extra `difficulty_level` columns which we ignore here
     return pd.concat([df_train, df_test], ignore_index=True, sort=False)
 
@@ -59,11 +61,6 @@ def preprocess(df: pd.DataFrame):
     # Assumes dtypes were previously assigned
     one_hot = pd.get_dummies(df.iloc[:, :-1])
 
-    # min-max scaling
-    scaler = MinMaxScaler()
-    cols = one_hot.select_dtypes(["float", "int"]).columns
-    one_hot[cols] = scaler.fit_transform(one_hot[cols].values.astype(np.float64))
-
     # Extract and simplify labels (normal data is 1, attacks are labelled as 0)
     y = np.where(df.label == "normal", NORMAL_LABEL, ANORMAL_LABEL)
     df['label'] = y
@@ -72,37 +69,37 @@ def preprocess(df: pd.DataFrame):
         (one_hot.values, y.reshape(-1, 1)),
         axis=1
     )
+    assert np.isnan(X).sum() == 0, "found nan values, aborting"
 
     return X, df, len(cols_uniq_vals)
 
 
-if __name__ == '__main__':
-    dataset_path, output_directory, _, _ = utils.parse_args()
-    
+def main():
+    dataset_path, output_directory, _ = utils.parse_args()
+
     df_0 = import_data(dataset_path)
     stats_0 = df_stats(df_0)
 
     X, df_1, n_cols_dropped = preprocess(df_0)
-    
+
     stats_0['Normal Instances'] = (df_1['label'] == NORMAL_LABEL).sum()
     stats_0['Anormal Instances'] = (df_1['label'] == ANORMAL_LABEL).sum()
     stats_0['Anomaly Ratio'] = stats_0['Anormal Instances'] / len(df_1)
-    stats_1 = {'N Prime': len(X), 'D Prime': X.shape[1] - 1}
+    stats_1 = {'Final n_instances': len(X), 'Final n_features': X.shape[1] - 1}
     stats_1['Dropped Columns'] = n_cols_dropped
+    stats_1['NaN values'] = int(np.isnan(X).sum())
 
     # prepare the output directory
     utils.prepare(output_directory)
 
     export_stats(output_directory, stats_0, stats_1)
 
-    path = '{}/{}/{}.csv'.format(output_directory, utils.folder_struct["normalize_step"], "NSL-KDD_normalized")
-    df_1.to_csv(
-        path,
-        sep=',', encoding='utf-8', index=False
-    )
-
     path = '{}/{}/{}.npz'.format(output_directory, utils.folder_struct["minify_step"], "NSL-KDD_minified")
     np.savez(
         path,
-        kdd=X.astype(np.float64)
+        X.astype(np.float64)
     )
+
+
+if __name__ == '__main__':
+    main()

@@ -4,12 +4,11 @@ from typing import Tuple
 
 folder_struct = {
     'clean_step': '1_clean',
-    'normalize_step': '2_normalized',
-    'minify_step': '3_minified'
+    'minify_step': '2_minified'
 }
 
 
-def parse_args() -> Tuple[str, str, bool, bool]:
+def parse_args() -> Tuple[str, str, bool]:
     parser = argparse.ArgumentParser()
     parser.add_argument(
         '-d', '--path', type=str,
@@ -24,16 +23,11 @@ def parse_args() -> Tuple[str, str, bool, bool]:
         '--backup', action="store_true",
         help='Save a backup after the cleaning process to keep track of modifications.'
     )
-    feature_parser = parser.add_mutually_exclusive_group(required=False)
-    feature_parser.add_argument('--norm', dest='norm', action='store_true')
-    feature_parser.add_argument('--no-norm', dest='norm', action='store_false')
-    parser.set_defaults(norm=True)
-
 
     args = parser.parse_args()
     return args.path if not args.path.endswith('/') else args.path[:-1], \
            args.export_path if not args.export_path.endswith('/') else args.export_path[:-1], \
-           args.backup, args.norm
+           args.backup
 
 
 def prepare(base_path: str):

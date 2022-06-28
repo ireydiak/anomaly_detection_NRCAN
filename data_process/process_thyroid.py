@@ -79,53 +79,25 @@ def clean_step(path_to_dataset: str, export_path: str, backup: bool = False) -> 
     return df, y, stats
 
 
-def normalize_step(df: pd.DataFrame, y: np.ndarray, base_path: str, backup: bool = False, norm=True):
-    print(f'Processing {len(df.columns)} features')
-
-    # Split numerical and non-numerical columns
-    num_cols = df.select_dtypes(exclude=["object", "category"]).columns.tolist()
-    cat_cols = df.select_dtypes(include=["category", "object"]).columns.tolist()
-    # Categorical columns should have been removed already
-    assert len(cat_cols) == 0
-    # Normalize numerical data
-    scaler = MinMaxScaler()
-    # Select numerical columns with values in the range (0, 1)
-    # This way we avoid normalizing values that are already between 0 and 1.
-    to_scale = df[num_cols][(df[num_cols] < 0.0).any(axis=1) & (df[num_cols] > 1.0).any(axis=1)].columns
-    print(f"Scaling {len(to_scale)} columns: " + ", ".join([str(col) for col in num_cols]))
-    if norm:
-        df[to_scale] = scaler.fit_transform(df[to_scale].values.astype(np.float64))
-    # Merge normalized dataframe with labels
-    X = np.concatenate(
-        (df.values, y.reshape(-1, 1)),
-        axis=1
-    )
-    if backup:
-        normalized_fname = f'{base_path}/{utils.folder_struct["normalize_step"]}/ann_thyroid.csv'
-        df.to_csv(
-            normalized_fname,
-            sep=',', encoding='utf-8', index=False
-        )
-        print(f'Saved {normalized_fname}')
-    compressed_fname = f'{base_path}/{utils.folder_struct["minify_step"]}/ann_thyroid.npz'
-    np.savez(compressed_fname, thyroid=X.astype(np.float64))
-    print(f'Saved {compressed_fname}')
-
-
-if __name__ == '__main__':
+def main():
     # Assumes `path` points to the ann-*.data
-    path, export_path, backup, normlize_flag = utils.parse_args()
+    path, export_path, backup = utils.parse_args()
     # 0 - Prepare folder structure
     utils.prepare(export_path)
     path_to_clean = f"{export_path}/{utils.folder_struct['clean_step']}/ann_thyroid.csv"
-    if os.path.isfile(path_to_clean):
-        print("Clean file exists. Skipping cleaning step.")
-        df = pd.read_csv(path_to_clean)
-    else:
-        # 1 - Clean the data (remove invalid rows and columns)
-        df, y, clean_stats = clean_step(path, export_path, backup)
-        # Save info about cleaning step
-        utils.save_stats(export_path + '/ann_thyroid_info.csv', clean_stats)
 
-    # 2 - Normalize numerical values and treat categorical values
-    normalize_step(df, y, export_path, norm=normlize_flag)
+    # 1 - Clean the data (remove invalid rows and columns)
+    df, y, clean_stats = clean_step(path, export_path, backup)
+    # Save info about cleaning step
+    utils.save_stats(export_path + '/ann_thyroid_info.csv', clean_stats)
+
+    X = np.concatenate((
+        df.to_numpy(),
+        np.expand_dims(y, 1)
+    ), axis=1)
+    compressed_fname = f'{export_path}/{utils.folder_struct["minify_step"]}/thyroid.npz'
+    np.savez(compressed_fname, thyroid=X.astype(np.float64))
+
+
+if __name__ == '__main__':
+    main()

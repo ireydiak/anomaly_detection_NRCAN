@@ -3,13 +3,11 @@ import os
 import pandas as pd
 import numpy as np
 import argparse
-from sklearn.preprocessing import MinMaxScaler
 import utils
 
 folder_struct = {
     'clean_step': '1_clean',
-    'normalize_step': '2_normalized',
-    'minify_step': '3_minified'
+    'minify_step': '2_minified'
 }
 
 os.chdir(os.path.dirname(__file__))
@@ -30,8 +28,8 @@ def df_stats(df: pd.DataFrame):
     num_cols = df.select_dtypes(include=[np.number]).columns
     cat_cols = df.select_dtypes(include=['category', 'object']).columns
     return {
-        'N': df.shape[0],
-        'D': df.shape[1],
+        'n_instances': df.shape[0],
+        'in_features': df.shape[1],
         'Numerical Columns': len(num_cols),
         'Categorical Columns': len(cat_cols)
     }
@@ -58,11 +56,6 @@ def preprocess(df: pd.DataFrame):
     # Assumes dtypes were previously assigned
     one_hot = pd.get_dummies(df.iloc[:, :-1])
 
-    # min-max scaling
-    scaler = MinMaxScaler()
-    cols = one_hot.select_dtypes(["float", "int"]).columns
-    one_hot[cols] = scaler.fit_transform(one_hot[cols].values.astype(np.float64))
-
     # Extract and simplify labels (normal data is 0, attacks are labelled as 1)
     y = np.where(df.label == "normal.", ANORMAL_LABEL, NORMAL_LABEL)
 
@@ -73,29 +66,33 @@ def preprocess(df: pd.DataFrame):
         (one_hot.values, y.reshape(-1, 1)),
         axis=1
     )
+    assert np.isnan(X).sum() == 0, "found nan values, aborting"
 
     return X, df, cols_uniq_vals.to_list()
 
 
-if __name__ == '__main__':
-    _, output_dir, _, _ = utils.parse_args()
+def main():
+    _, output_dir, _ = utils.parse_args()
     df_0 = import_data()
     stats_0 = df_stats(df_0)
 
     X, df_1, cols_dropped = preprocess(df_0)
     stats_0['Normal Instances'] = (df_1['label'] == NORMAL_LABEL).sum()
     stats_0['Anormal Instances'] = (df_1['label'] == ANORMAL_LABEL).sum()
-    stats_1 = {'N Prime': len(X), 'D Prime': X.shape[1] - 1}
+    stats_0['Anomaly Ratio'] = stats_0['Anormal Instances'] / len(df_1)
+    stats_1 = {'Final n_instances': len(X), 'Final n_features': X.shape[1] - 1}
     stats_1['N Dropped Columns'] = len(cols_dropped)
     stats_1['Dropped Columns'] = [' '.join(cols_dropped)]
+    stats_1['NaN values'] = int(np.isnan(X).sum())
 
     # prepare the output directory
     utils.prepare(output_dir)
 
     export_stats(output_dir, dict(**stats_0, **stats_1))
 
-    path = '{}/{}/{}.csv'.format(output_dir, folder_struct["normalize_step"], "KDD10percent_normalized")
+    path = '{}/{}/{}.npz'.format(output_dir, folder_struct["minify_step"], "kdd10percent")
+    np.savez(path, X.astype(np.float64))
 
-    df_1.to_csv(path, sep=',', encoding='utf-8', index=False)
-    path = '{}/{}/{}.npz'.format(output_dir, folder_struct["minify_step"], "KDD10percent_minified")
-    np.savez(path, kdd=X.astype(np.float64))
+
+if __name__ == '__main__':
+    main()

@@ -7,14 +7,15 @@ import warnings
 import utils
 import os
 from typing import Tuple
-from scipy.io import loadmat 
+from scipy.io import loadmat
 from datetime import datetime as dt
+
 # import warnings
 
 warnings.filterwarnings('ignore')
 
 
-def clean_step(path_to_dataset: str, export_path: str, backup: bool = False) -> Tuple[pd.DataFrame, dict]:
+def clean_step(path_to_dataset: str, export_path: str, backup: bool = False) -> Tuple[pd.DataFrame, dict, dict]:
     # Keep a trace of the cleaning step
     stats = defaultdict()
     stats["Dropped Columns"] = []
@@ -76,7 +77,7 @@ def clean_step(path_to_dataset: str, export_path: str, backup: bool = False) -> 
     return df, y, stats
 
 
-def normalize_step(df: pd.DataFrame, y: np.array, base_path: str, backup:bool = False, norm=True):
+def normalize_step(df: pd.DataFrame, y: np.array, base_path: str, backup: bool = False, norm=True):
     print(f'Processing {len(df.columns)} features')
     # Split numerical and non-numerical columns
     num_cols = df.select_dtypes(exclude=["object", "category"]).columns.tolist()
@@ -108,20 +109,26 @@ def normalize_step(df: pd.DataFrame, y: np.array, base_path: str, backup:bool = 
     print(f'Saved {compressed_fname}')
 
 
-if __name__ == '__main__':
-    # Assumes `path` points to the .mat file downloaded from http://odds.cs.stonybrook.edu/arrhythmia-dataset/ 
-    path, export_path, backup, normlize_flag = utils.parse_args()
+def main():
+    # Assumes `path` points to the .mat file downloaded from http://odds.cs.stonybrook.edu/arrhythmia-dataset/
+    path, export_path, backup = utils.parse_args()
     # 0 - Prepare folder structure
     utils.prepare(export_path)
     path_to_clean = f"{export_path}/{utils.folder_struct['clean_step']}/arrhythmia_clean.csv"
-    if os.path.isfile(path_to_clean):
-        print("Clean file exists. Skipping cleaning step.")
-        df = pd.read_csv(path_to_clean)
-    else:
-        # 1 - Clean the data (remove invalid rows and columns)
-        df, y, clean_stats = clean_step(path, export_path, backup)
-        # Save info about cleaning step
-        utils.save_stats(export_path + '/usb_ids_info.csv', clean_stats)
+
+    # 1 - Clean the data (remove invalid rows and columns)
+    df, y, clean_stats = clean_step(path, export_path, backup)
+    # Save info about cleaning step
+    utils.save_stats(export_path + '/arrhythmia_info.csv', clean_stats)
 
     # 2 - Normalize numerical values and treat categorical values
-    normalize_step(df, y, export_path,  norm=normlize_flag)
+    # normalize_step(df, y, export_path,  norm=normlize_flag)
+    X = np.concatenate((
+        df.to_numpy(),
+        np.expand_dims(y, 1)
+    ), axis=1)
+    np.savez(export_path + "/arrhythmia", X)
+
+
+if __name__ == '__main__':
+    main()

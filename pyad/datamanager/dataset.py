@@ -8,6 +8,7 @@ from torch.utils.data.dataset import T_co
 from typing import Tuple
 from sklearn.preprocessing import MinMaxScaler, StandardScaler
 from pyad.utils.utils import random_split_to_two
+from pytorch_lightning.utilities.cli import DATAMODULE_REGISTRY
 
 scaler_map = {
     "minmax": MinMaxScaler,
@@ -37,7 +38,7 @@ class AbstractDataset(Dataset):
         self.seed = seed
         if scaler is not None:
             assert scaler.lower() in set(scaler_map.keys()), "unknown scaler %s, please use %s" % (
-            scaler, scaler_map.keys())
+                scaler, scaler_map.keys())
             self.scaler = scaler_map[scaler.lower()]()
         else:
             self.scaler = None
@@ -228,13 +229,13 @@ class AbstractDataset(Dataset):
         raise NotImplementedError
 
 
+@DATAMODULE_REGISTRY
 class ArrhythmiaDataset(AbstractDataset):
+    name = "Arrhythmia"
+
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.name = "Arrhythmia"
-
-    def npz_key(self):
-        return "arrhythmia"
 
     @staticmethod
     def get_tunable_params():
@@ -244,6 +245,8 @@ class ArrhythmiaDataset(AbstractDataset):
 
 
 class IDS2017Dataset(AbstractDataset):
+    name = "IDS2017"
+
     def __init__(self, features: list = None, **kwargs):
         self.selected_features = features
         super(IDS2017Dataset, self).__init__(**kwargs)
@@ -271,6 +274,7 @@ class IDS2017Dataset(AbstractDataset):
 
 
 class IDS2018Dataset(AbstractDataset):
+    name = "IDS2018"
 
     def __init__(self, features: list = None, **kwargs):
         self.selected_features = features
@@ -396,17 +400,16 @@ class IDS2018Dataset(AbstractDataset):
         }
 
 
+@DATAMODULE_REGISTRY
 class KDD10Dataset(AbstractDataset):
     """
     This class is used to load KDD Cup 10% dataset as a pytorch Dataset
     """
+    name = "KDD10"
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.name = "KDD10"
-
-    def npz_key(self):
-        return "kdd"
 
     @staticmethod
     def get_tunable_params():
@@ -415,17 +418,16 @@ class KDD10Dataset(AbstractDataset):
         }
 
 
+@DATAMODULE_REGISTRY
 class NSLKDDDataset(AbstractDataset):
     """
     This class is used to load NSL-KDD Cup dataset as a pytorch Dataset
     """
+    name = "NSLKDD"
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.name = "NSLKDD"
-
-    def npz_key(self):
-        return "kdd"
 
     @staticmethod
     def get_tunable_params():
@@ -434,14 +436,13 @@ class NSLKDDDataset(AbstractDataset):
         }
 
 
+@DATAMODULE_REGISTRY
 class ThyroidDataset(AbstractDataset):
+    name = "Thyroid"
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.name = "Thyroid"
-
-    def npz_key(self):
-        return "thyroid"
 
     @staticmethod
     def get_tunable_params():
@@ -451,13 +452,11 @@ class ThyroidDataset(AbstractDataset):
 
 
 class USBIDSDataset(AbstractDataset):
+    name = "USBIDS"
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.name = "USBIDS"
-
-    def npz_key(self):
-        return "usbids"
 
     @staticmethod
     def get_tunable_params():
@@ -467,13 +466,11 @@ class USBIDSDataset(AbstractDataset):
 
 
 class MalMem2022Dataset(AbstractDataset):
+    name = "MalMem2022"
 
     def __init__(self, **kwargs):
         super(MalMem2022Dataset, self).__init__(**kwargs)
         self.name = "MalMem2022"
-
-    def npz_key(self):
-        return "malmem2022"
 
     @staticmethod
     def get_tunable_params():
