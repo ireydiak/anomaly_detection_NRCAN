@@ -95,8 +95,8 @@ def main():
         df.to_numpy(),
         np.expand_dims(y, 1)
     ), axis=1)
-    compressed_fname = f'{export_path}/{utils.folder_struct["minify_step"]}/thyroid.npz'
-    np.savez(compressed_fname, thyroid=X.astype(np.float64))
+    compressed_fname = f'{export_path}/{utils.folder_struct["minify_step"]}/thyroid'
+    np.save(compressed_fname, thyroid=X.astype(np.float64))
 
 
 if __name__ == '__main__':

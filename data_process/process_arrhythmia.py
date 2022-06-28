@@ -104,8 +104,8 @@ def normalize_step(df: pd.DataFrame, y: np.array, base_path: str, backup: bool =
             sep=',', encoding='utf-8', index=False
         )
         print(f'Saved {normalized_fname}')
-    compressed_fname = f'{base_path}/{utils.folder_struct["minify_step"]}/arrhythmia_normalized.npz'
-    np.savez(compressed_fname, arrhythmia=X.astype(np.float64))
+    compressed_fname = f'{base_path}/{utils.folder_struct["minify_step"]}/arrhythmia_normalized'
+    np.save(compressed_fname, arrhythmia=X.astype(np.float64))
     print(f'Saved {compressed_fname}')
 
 
@@ -127,7 +127,7 @@ def main():
         df.to_numpy(),
         np.expand_dims(y, 1)
     ), axis=1)
-    np.savez(export_path + "/arrhythmia", X)
+    np.save(export_path + "/arrhythmia", X)
 
 
 if __name__ == '__main__':

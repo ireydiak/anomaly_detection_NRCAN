@@ -205,8 +205,8 @@ def encoding_step(df: pd.DataFrame, cols: list, base_path: str, fname: str, back
     )
     del df
 
-    np.savez_compressed(f'{base_path}/{utils.folder_struct["minify_step"]}/{fname}.npz', ids2018=X, label=source_label)
-    # np.savez(f'{base_path}/{utils.folder_struct["minify_step"]}/{fname}_label.npz', ids2018=)
+    np.save_compressed(f'{base_path}/{utils.folder_struct["minify_step"]}/{fname}.npz', ids2018=X, label=source_label)
+    # np.save(f'{base_path}/{utils.folder_struct["minify_step"]}/{fname}_label.npz', ids2018=)
     print(f'Saved {base_path}/{fname}.npz')
 
 

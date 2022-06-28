@@ -97,5 +97,5 @@ if __name__ == '__main__':
     path = '{}/{}/{}.csv'.format(output_dir, folder_struct["normalize_step"], "KDD10percent_normalized")
 
     df_1.to_csv(path, sep=',', encoding='utf-8', index=False)
-    path = '{}/{}/{}.npz'.format(output_dir, folder_struct["minify_step"], "KDD10percent_minified")
-    np.savez(path, kdd=X.astype(np.float64))
+    path = '{}/{}/{}'.format(output_dir, folder_struct["minify_step"], "KDD10percent_minified")
+    np.save(path, kdd=X.astype(np.float64))

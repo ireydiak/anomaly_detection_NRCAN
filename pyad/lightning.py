@@ -1,3 +1,4 @@
+import os
 from typing import Sequence
 
 import jsonargparse.actions
@@ -21,6 +22,7 @@ from ray import tune
 from ray.tune import CLIReporter
 from ray.tune.schedulers import ASHAScheduler, PopulationBasedTraining
 from ray.tune.integration.pytorch_lightning import TuneReportCallback, TuneReportCheckpointCallback
+from pytorch_lightning import loggers as pl_loggers
 
 MODEL_REGISTRY.register_classes(pyad.lightning.transformers, pl.LightningModule)
 DATAMODULE_REGISTRY.register_classes(pyad.datamanager.dataset, AbstractDataset)
@@ -40,6 +42,7 @@ class FindRegistryAction(argparse.Action):
         self.append_str = append_str
 
     def __call__(self, parser, args, values, option_string=None):
+        values = values.replace("-", "")
         if self.append_str:
             values = values + self.append_str
         model_cls = self.registry[values]
@@ -55,6 +58,7 @@ def argparser():
     # training arguments
     train_parser = ArgumentParser()
     train_parser.add_argument("--max_epochs", type=int, default=50)
+    train_parser.add_argument("--save_dir", type=str, default="../experiments/training", help="path where logger will store files")
 
     # model-specific arguments
     # for model in MODEL_REGISTRY.classes:
@@ -70,6 +74,7 @@ def argparser():
     tuning_parser.add_argument("--max_epochs", type=int, default=50)
     tuning_parser.add_argument("--scaler", choices=["standard", "minmax"], default="minmax")
     tuning_parser.add_argument("--dataset_path", type=str)
+    tuning_parser.add_argument("--save_dir", type=str, default="../experiments/tuning", help="path where ray stores tuning files")
 
     # add subcommands
     subcommands = parser.add_subcommands()
@@ -81,8 +86,8 @@ def argparser():
 
 def prepare_kdd(model_cls):
     model_name = model_cls.__name__.lower()
-    data_path = "../data/KDD10/kdd10percent.npz"
-    dataset = KDD10Dataset(path=data_path)
+    data_path = "../data/KDD10/kdd10.npy"
+    dataset = KDD10Dataset(path=data_path, scaler="minmax")
     weight_decay = 1e-4
 
     if model_name == "litautoencoder":
@@ -172,20 +177,6 @@ def prepare_thyroid(model_cls):
         )
     elif model_name == "litgoad":
         batch_size = 32
-        # model = LitGOAD(
-        #     in_features=dataset.in_features,
-        #     lr=1e-3,
-        #     weight_decay=1e-4,
-        #     n_transforms=256,
-        #     feature_dim=32,
-        #     num_hidden_nodes=8,
-        #     batch_size=batch_size,
-        #     n_layers=1,
-        #     eps=0,
-        #     lamb=0.1,
-        #     margin=1,
-        #     threshold=95.18882565959649,
-        # )
         model = LitGOAD(
             in_features=dataset.in_features,
             lr=4.8e-3,
@@ -208,8 +199,8 @@ def prepare_thyroid(model_cls):
 
 def prepare_nslkdd(model_cls):
     model_name = model_cls.__name__.lower()
-    data_path = "../data/NSL-KDD/NSL-KDD_minified.npz"
-    dataset = NSLKDDDataset(path=data_path)
+    data_path = "../data/NSL-KDD/nsl-kdd.npy"
+    dataset = NSLKDDDataset(path=data_path, scaler="minmax")
 
     if model_name == "litmemae":
         batch_size = 128
@@ -248,8 +239,8 @@ def prepare_nslkdd(model_cls):
 
 def prepare_arrhythmia(model_cls):
     model_name = model_cls.__name__.lower()
-    data_path = "../data/Arrhythmia/arrhythmia.npz"
-    dataset = ArrhythmiaDataset(path=data_path)
+    data_path = "../data/Arrhythmia/arrhythmia.npy"
+    dataset = ArrhythmiaDataset(path=data_path, scaler="standard")
     batch_size = 32
     n_epochs = 200
 
@@ -286,17 +277,18 @@ def prepare_arrhythmia(model_cls):
             weight_decay=1e-4
         )
     elif model_name == "litgoad":
+        batch_size = 64
         model = LitGOAD(
             in_features=dataset.in_features,
-            lr=1e-4,
-            weight_decay=1e-4,
-            n_transforms=256,
-            feature_dim=32,
+            lr=0.00166,
+            weight_decay=0,
+            n_transforms=64,
+            feature_dim=128,
             num_hidden_nodes=8,
             batch_size=batch_size,
-            n_layers=0,
+            n_layers=1,
             eps=0,
-            lamb=0.1,
+            lamb=0.8325,
             margin=1
         )
     else:
@@ -321,6 +313,7 @@ def train_tune(
     )
     # loaders
     train_ldr, test_ldr, _ = dataset.loaders(batch_size=config["batch_size"])
+
 
     # trainer
     trainer = pl.Trainer(
@@ -349,7 +342,7 @@ def train_tune(
     )
 
 
-def tune_asha(model_cls, dataset_cls, args):
+def tune_asha(args, model_cls, dataset_cls):
     dataset = dataset_cls(path=args.dataset_path, scaler=args.scaler)
 
     config = model_cls.get_ray_config(
@@ -365,7 +358,7 @@ def tune_asha(model_cls, dataset_cls, args):
 
     reporter = CLIReporter(
         parameter_columns=list(config.keys()),
-        metric_columns=["loss", "aupr", "f1-score", "training_iteration"]
+        metric_columns=["loss", "aupr", "f1-score"]
     )
 
     train_fn_with_parameters = tune.with_parameters(
@@ -385,16 +378,29 @@ def tune_asha(model_cls, dataset_cls, args):
                         num_samples=args.num_samples,
                         scheduler=scheduler,
                         progress_reporter=reporter,
-                        name="tune_%s_asha" % dataset.name)
-
+                        name="%s_%s" % (dataset.name.lower(), model_cls.__name__.lower()),
+                        local_dir=args.save_dir
+                        )
     print("Best hyperparameters found were: ", analysis.best_config)
 
 
-def train(model_cls, dataset_cls, args):
-    dataset_name = dataset_cls.name
-    max_epochs = args.max_epochs
+def train(args, model_cls, dataset_cls):
+    dataset_name = dataset_cls.name.lower()
+
+    # logger
+    tb_logger = pl_loggers.TensorBoardLogger(
+        save_dir=args.save_dir,
+        name=os.path.join(dataset_name, model_cls.__name__)
+    )
+
     # trainer
-    trainer = pl.Trainer(precision=16, accelerator="gpu", devices=1, max_epochs=max_epochs)
+    trainer = pl.Trainer(
+        precision=16,
+        accelerator="gpu",
+        devices=1,
+        max_epochs=args.max_epochs,
+        logger=tb_logger
+    )
 
     if dataset_name == "arrhythmia":
         model, train_ldr, test_ldr = prepare_arrhythmia(model_cls)
@@ -410,7 +416,7 @@ def train(model_cls, dataset_cls, args):
     # learn
     trainer.fit(
         model=model,
-        train_dataloaders=train_ldr,
+        train_dataloaders=train_ldr
     )
     # inference (predict)
     res = trainer.test(
@@ -427,9 +433,9 @@ available_subcommands = ["tune", "train"]
 
 def main(args):
     if args.subcommand == "tune":
-        tune_asha(args.model, args.dataset, args.tune)
+        tune_asha(args.tune, args.model, args.dataset)
     elif args.subcommand == "train":
-        train(args.model, args.dataset, args.train)
+        train(args.train, args.model, args.dataset)
     else:
         raise Exception("unknown subcommand %s, please choose between %s", (args.subcommand, available_subcommands))
 

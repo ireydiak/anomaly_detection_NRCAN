@@ -94,8 +94,8 @@ def main():
 
     export_stats(output_directory, stats_0, stats_1)
 
-    path = '{}/{}/{}.npz'.format(output_directory, utils.folder_struct["minify_step"], "NSL-KDD_minified")
-    np.savez(
+    path = '{}/{}/{}'.format(output_directory, utils.folder_struct["minify_step"], "nsl-kdd")
+    np.save(
         path,
         X.astype(np.float64)
     )

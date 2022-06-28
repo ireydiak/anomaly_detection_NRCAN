@@ -94,7 +94,7 @@ class AbstractDataset(Dataset):
 
     def _load_data(self, path: str):
         if path.endswith(".npz"):
-            data = np.load(path)[self.npz_key()]
+            data = np.load(path, allow_pickle=True)
         elif path.endswith(".npy"):
             data = np.load(path)
         elif path.endswith(".mat"):

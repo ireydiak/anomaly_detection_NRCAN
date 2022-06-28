@@ -90,8 +90,8 @@ def main():
 
     export_stats(output_dir, dict(**stats_0, **stats_1))
 
-    path = '{}/{}/{}.npz'.format(output_dir, folder_struct["minify_step"], "kdd10percent")
-    np.savez(path, X.astype(np.float64))
+    path = '{}/{}/{}'.format(output_dir, folder_struct["minify_step"], "kdd10percent")
+    np.save(path, X.astype(np.float64))
 
 
 if __name__ == '__main__':

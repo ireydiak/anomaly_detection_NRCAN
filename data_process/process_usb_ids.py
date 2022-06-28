@@ -194,8 +194,8 @@ def encoding_step(df: pd.DataFrame, cols: list, base_path: str, fname: str, back
         )
         print(f'Saved {normalized_fname}')
         del df
-    compressed_fname = f'{base_path}/{utils.folder_struct["minify_step"]}/{fname}.npz'
-    np.savez(compressed_fname, usbids=X.astype(np.float64))
+    compressed_fname = f'{base_path}/{utils.folder_struct["minify_step"]}/{fname}'
+    np.save(compressed_fname, usbids=X.astype(np.float64))
     print(f'Saved {compressed_fname}')
 
 
