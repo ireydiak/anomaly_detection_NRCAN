@@ -1,7 +1,6 @@
 import os
 from typing import Sequence
 
-import jsonargparse.actions
 import math
 
 from pytorch_lightning.loggers import TensorBoardLogger
@@ -10,18 +9,15 @@ from pyad.lightning.reconstruction import LitAutoEncoder, LitMemAE
 from pyad.datamanager.dataset import ThyroidDataset, ArrhythmiaDataset, KDD10Dataset, NSLKDDDataset, AbstractDataset
 import pyad.lightning.transformers
 from pyad.lightning.transformers import LitGOAD, LitNeuTraLAD
-# import pyad.datamanager.data_module
-# from pyad.datamanager.data_module import BaseDataset
 import pytorch_lightning as pl
-from pytorch_lightning.utilities.cli import MODEL_REGISTRY, DATAMODULE_REGISTRY, LightningCLI
-from pytorch_lightning.utilities.cli import MODEL_REGISTRY, DATAMODULE_REGISTRY
+from pytorch_lightning.utilities.cli import LightningCLI, MODEL_REGISTRY, DATAMODULE_REGISTRY
 from jsonargparse import ArgumentParser
 import argparse
 
 from ray import tune
 from ray.tune import CLIReporter
 from ray.tune.schedulers import ASHAScheduler, PopulationBasedTraining
-from ray.tune.integration.pytorch_lightning import TuneReportCallback, TuneReportCheckpointCallback
+from ray.tune.integration.pytorch_lightning import TuneReportCallback
 from pytorch_lightning import loggers as pl_loggers
 
 MODEL_REGISTRY.register_classes(pyad.lightning.transformers, pl.LightningModule)
@@ -292,7 +288,7 @@ def prepare_arrhythmia(model_cls):
             margin=1
         )
     else:
-        raise Exception("unkown model %s" % model_name)
+        raise Exception("unknown model %s" % model_name)
     train_ldr, test_ldr, _ = dataset.loaders(batch_size=batch_size)
 
     return model, train_ldr, test_ldr
