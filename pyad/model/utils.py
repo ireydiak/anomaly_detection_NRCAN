@@ -2,10 +2,12 @@ import torch
 from typing import List
 from torch import nn
 
-activation_mapper = {
+activation_map = {
     "relu": nn.ReLU(),
     "tanh": nn.Tanh(),
-    "sigmoid": nn.Sigmoid()
+    "sigmoid": nn.Sigmoid(),
+    "leakyrelu": nn.LeakyReLU(),
+    "gelu": nn.GELU()
 }
 
 

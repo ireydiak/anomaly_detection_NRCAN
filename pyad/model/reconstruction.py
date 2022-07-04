@@ -12,7 +12,7 @@ from pyad.model.base import BaseModel
 from pyad.model.GMM import GMM
 from pyad.model.memory_module import MemoryUnit
 from pyad.model import utils
-from pyad.model.utils import activation_mapper
+from pyad.model.utils import activation_map
 from torch import nn
 import pytorch_lightning as pl
 from typing import List, Any
@@ -36,7 +36,7 @@ def create_net_layers(in_dim, out_dim, hidden_dims, activation="relu", bias=True
             nn.Linear(in_dim, hidden_dims[i], bias=bias)
         )
         layers.append(
-            activation_mapper[activation]
+            activation_map[activation]
         )
         in_dim = hidden_dims[i]
     layers.append(
@@ -64,7 +64,7 @@ class AutoEncoder(BaseModel):
             **kwargs):
         super(AutoEncoder, self).__init__(**kwargs)
         self.latent_dim = latent_dim
-        self.act_fn = activation_mapper[act_fn]
+        self.act_fn = activation_map[act_fn]
         self.n_layers = n_layers
         self.compression_factor = compression_factor
         self.encoder, self.decoder = None, None
@@ -180,7 +180,7 @@ class DAGMM(BaseModel):
         self.ae_n_layers = n_layers
         self.ae_compression_factor = compression_factor
         self.ae_act_fn = ae_act_fn
-        self.gmm_act_fn = activation_mapper[gmm_act_fn]
+        self.gmm_act_fn = activation_map[gmm_act_fn]
         self.cosim = nn.CosineSimilarity()
         self.softmax = nn.Softmax(dim=-1)
         self.ae = None
@@ -624,7 +624,7 @@ class MemAutoEncoder(BaseModel):
         super(MemAutoEncoder, self).__init__(**kwargs)
         self.alpha = alpha
         self.latent_dim = latent_dim
-        self.act_fn = activation_mapper[act_fn]
+        self.act_fn = activation_map[act_fn]
         self.shrink_thres = shrink_thres
         self.n_layers = n_layers
         self.compression_factor = compression_factor
