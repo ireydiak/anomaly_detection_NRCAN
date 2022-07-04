@@ -1,20 +1,13 @@
-import numpy as np
 import torch
 from pytorch_lightning.utilities.cli import MODEL_REGISTRY
 from pytorch_lightning.utilities.types import STEP_OUTPUT
 from torch.optim.lr_scheduler import StepLR
 from pyad.lightning.base import BaseLightningModel
 from pyad.loss.EntropyLoss import EntropyLoss
-from pyad.model.base import create_net_layers
+from pyad.lightning.base import create_net_layers
 from pyad.model.memory_module import MemoryUnit
-from pyad.model.utils import activation_map
 from torch import nn
-import pytorch_lightning as pl
 from typing import List, Any
-from pyad.utils import metrics
-
-
-
 
 
 @MODEL_REGISTRY

@@ -40,3 +40,7 @@ def create_network(layers: List[List]):
         if act_fn:
             net_layers.append(act_fn)
     return nn.Sequential(*net_layers)
+
+
+def relative_euclidean_dist(X, X_hat):
+    return (X - X_hat).norm(2, dim=1) / X.norm(2, dim=1)

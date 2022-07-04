@@ -3,6 +3,30 @@ import torch
 import numpy as np
 from pyad.utils import metrics
 from ray import tune
+from torch import nn
+from typing import List
+from pyad.model.utils import activation_map
+
+
+def create_net_layers(in_dim, out_dim, hidden_dims, activation="relu", bias=True, dropout=0.):
+    layers = []
+    assert 0. <= dropout <= 1., "`dropout` must be inclusively between 0 and 1"
+    for i in range(len(hidden_dims)):
+        layers.append(
+            nn.Linear(in_dim, hidden_dims[i], bias=bias)
+        )
+        if dropout > 0.:
+            layers.append(
+                nn.Dropout(dropout)
+            )
+        layers.append(
+            activation_map[activation]
+        )
+        in_dim = hidden_dims[i]
+    layers.append(
+        nn.Linear(hidden_dims[-1], out_dim, bias=bias)
+    )
+    return layers
 
 
 class BaseLightningModel(pl.LightningModule):
@@ -63,3 +87,73 @@ class BaseLightningModel(pl.LightningModule):
             "y_true": y_true,
             "labels": labels
         }
+
+
+class SimpleMLP(nn.Module):
+    def __init__(
+            self,
+            in_features: int,
+            out_features: int,
+            hidden_dims: List[int],
+            activation: str = "relu"
+    ):
+        super(SimpleMLP).__init__()
+        self.in_features = in_features
+        self.out_features = out_features
+        self.hidden_dims = hidden_dims
+        self.activation = activation
+        self._build_network()
+
+    def _build_network(self):
+        self.net = nn.Sequential(
+            *create_net_layers(
+                in_dim=self.in_features,
+                out_dim=self.out_features,
+                hidden_dims=self.hidden_dims,
+                activation=self.activation
+            )
+        )
+
+    def forward(self, X: torch.Tensor):
+        return self.net(X)
+
+
+class AutoEncoder(nn.Module):
+    def __init__(
+            self,
+            in_features: int,
+            hidden_dims: List[int],
+            latent_dim: int = 1,
+            reg: float = 0.5,
+            activation: str = "relu"
+    ):
+        super(AutoEncoder, self).__init__()
+        self.in_features = in_features
+        self.hidden_dims = hidden_dims
+        self.latent_dim = latent_dim
+        self.reg = reg
+        self.activation = activation
+        self._build_network()
+
+    def _build_network(self):
+        self.encoder = nn.Sequential(
+            *create_net_layers(
+                in_dim=self.in_features,
+                out_dim=self.latent_dim,
+                hidden_dims=self.hidden_dims,
+                activation=self.activation
+            )
+        )
+        self.decoder = nn.Sequential(
+            *create_net_layers(
+                in_dim=self.latent_dim,
+                out_dim=self.in_features,
+                hidden_dims=list(reversed(self.hidden_dims)),
+                activation=self.activation
+            )
+        )
+
+    def forward(self, X: torch.Tensor):
+        emb = self.encoder(X)
+        X_hat = self.decoder(emb)
+        return emb, X_hat

@@ -112,9 +112,13 @@ class BaseDataModule(pl.LightningDataModule):
         )
 
     def train_dataloader(self):
+        if not self.trainset:
+            self.setup()
         return self.trainset
 
     def test_dataloader(self):
+        if not self.testset:
+            self.setup()
         return self.testset
 
 
@@ -125,4 +129,9 @@ class ThyroidDataModule(BaseDataModule):
 
 @DATAMODULE_REGISTRY
 class ArrhythmiaDataModule(BaseDataModule):
+    pass
+
+
+@DATAMODULE_REGISTRY
+class NSLKDDDataModule(BaseDataModule):
     pass

@@ -5,6 +5,7 @@ import math
 
 from pytorch_lightning.loggers import TensorBoardLogger
 
+from pyad.lightning.density import LitDAGMM
 from pyad.lightning.reconstruction import LitAutoEncoder, LitMemAE
 from pyad.datamanager.dataset import ThyroidDataset, ArrhythmiaDataset, KDD10Dataset, NSLKDDDataset, AbstractDataset
 import pyad.lightning.transformers
@@ -166,7 +167,7 @@ def prepare_kdd(model_cls):
 def prepare_thyroid(model_cls):
     model_name = model_cls.__name__.lower()
     data_path = "../data/Thyroid/thyroid.mat"
-    dataset = ThyroidDataset(path=data_path, scaler="minmax")
+    dataset = ThyroidDataset(path=data_path, scaler="standard")
     batch_size = 128
 
     if model_name == "litautoencoder":
@@ -217,6 +218,24 @@ def prepare_thyroid(model_cls):
             lamb=0.6121,
             margin=1
         )
+    elif model_name == "litdagmm":
+        batch_size = 1024
+        model = LitDAGMM(
+            in_features=dataset.in_features,
+            n_instances=dataset.n_instances,
+            n_mixtures=2,
+            gmm_hidden_dims=[10],
+            gmm_activation="tanh",
+            latent_dim=1,
+            ae_hidden_dims=[12, 4],
+            ae_activation="tanh",
+            dropout_rate=0.5,
+            lamb_1=0.1,
+            lamb_2=0.005,
+            reg_covar=1e-10,
+            weight_decay=1e-4,
+            lr=1e-4
+        )
     else:
         raise Exception("unknown model %s" % model_name)
 
@@ -256,6 +275,24 @@ def prepare_nslkdd(model_cls):
             eps=0,
             lamb=0.1,
             margin=1
+        )
+    elif model_name == "litdagmm":
+        batch_size = 1024
+        model = LitDAGMM(
+            in_features=dataset.in_features,
+            n_instances=dataset.n_instances,
+            n_mixtures=2,
+            gmm_hidden_dims=[10],
+            gmm_activation="tanh",
+            latent_dim=1,
+            ae_hidden_dims=[60, 30, 10],
+            ae_activation="tanh",
+            dropout_rate=0.5,
+            lamb_1=0.1,
+            lamb_2=0.005,
+            reg_covar=1e-10,
+            weight_decay=1e-4,
+            lr=1e-4
         )
     else:
         raise Exception("unknown model %s" % model_name)
@@ -319,8 +356,24 @@ def prepare_arrhythmia(model_cls):
             margin=1,
             threshold=(1 - dataset.anomaly_ratio) * 100
         )
-    elif model_name == "litdsebm":
-        pass
+    elif model_name == "litdagmm":
+        batch_size = 128
+        model = LitDAGMM(
+            in_features=dataset.in_features,
+            n_instances=dataset.n_instances,
+            n_mixtures=2,
+            gmm_hidden_dims=[10],
+            gmm_activation="tanh",
+            latent_dim=2,
+            ae_hidden_dims=[10],
+            ae_activation="tanh",
+            dropout_rate=0.5,
+            lamb_1=0.1,
+            lamb_2=0.005,
+            reg_covar=1e-10,
+            weight_decay=1e-4,
+            lr=1e-4
+        )
     else:
         raise Exception("unknown model %s" % model_name)
     train_ldr, test_ldr, _ = dataset.loaders(batch_size=batch_size)
@@ -470,23 +523,42 @@ def main(args):
 
 
 def main_litcli(cli):
-    trainer = cli.trainer
-    model = cli.model
+    dataset_name = cli.datamodule.__class__.__name__.lower().replace("datamodule", "")
     datamodule = cli.datamodule
+    model = cli.model
 
-    # fit on training set
-    trainer.fit(
-        model=cli.model,
-        datamodule=cli.datamodule
-        # train_dataloaders=train_ldr
+    # logger
+    tb_logger = pl_loggers.TensorBoardLogger(
+        save_dir="../experiments/training",# todo: add to argparse args.save_dir,
+        name=os.path.join(dataset_name, cli.model.__class__.__name__)
     )
-    # test optimized model on test set
+
+    # trainer
+    # trainer = pl.Trainer(
+    #     precision=16,
+    #     accelerator="gpu",
+    #     devices=1,
+    #     max_epochs=cli.trainer.max_epochs,
+    #     logger=tb_logger
+    # )
+    trainer = pl.Trainer(
+        accelerator="cpu",
+        max_epochs=cli.trainer.max_epochs,
+        logger=tb_logger,
+    )
+
+    # learn
+    trainer.fit(
+        model=model,
+        train_dataloaders=datamodule.train_dataloader()
+    )
+    # inference (predict)
     res = trainer.test(
-        model=cli.model,
-        datamodule=cli.datamodule
-        # dataloaders=test_ldr
+        model=model,
+        dataloaders=datamodule.test_dataloader()
     )[0]
     # store_results()
+    a = 1
 
 
 from pyad.trainer_override import Trainer as PyADTrainer
@@ -494,9 +566,8 @@ from pyad.trainer_override import Trainer as PyADTrainer
 # LightningArgumentParser
 if __name__ == "__main__":
     # main_litcli(
-    #     MyLightningCLI(run=True)
+    #     MyLightningCLI(run=False)
     # )#, trainer_class=PyADTrainer)
-    a = 1
     main(
         argparser()
     )
