@@ -1,5 +1,5 @@
 import os
-from typing import Sequence
+from typing import Sequence, Dict, Set
 
 import math
 
@@ -10,8 +10,8 @@ from pyad.datamanager.dataset import ThyroidDataset, ArrhythmiaDataset, KDD10Dat
 import pyad.lightning.transformers
 from pyad.lightning.transformers import LitGOAD, LitNeuTraLAD
 import pytorch_lightning as pl
-from pytorch_lightning.utilities.cli import LightningCLI, MODEL_REGISTRY, DATAMODULE_REGISTRY
-from jsonargparse import ArgumentParser
+from pytorch_lightning.utilities.cli import LightningCLI, MODEL_REGISTRY, DATAMODULE_REGISTRY, _get_short_description
+from jsonargparse import ArgumentParser, class_from_function
 import argparse
 
 from ray import tune
@@ -24,11 +24,38 @@ MODEL_REGISTRY.register_classes(pyad.lightning.transformers, pl.LightningModule)
 DATAMODULE_REGISTRY.register_classes(pyad.datamanager.dataset, AbstractDataset)
 
 
+# DATAMODULE_REGISTRY.register_classes(pyad.datamanager.datamodule, pl.LightningDataModule)
+
+
 class MyLightningCLI(LightningCLI):
     def add_arguments_to_parser(self, parser):
         # parser.add_class_arguments(BaseDataset, "dataset")
         parser.link_arguments("data.in_features", "model.init_args.in_features", apply_on="instantiate")
         parser.link_arguments("data.n_instances", "model.init_args.n_instances", apply_on="instantiate")
+        # subcommands
+        # trainer_class = (
+        #     self.trainer_class if isinstance(self.trainer_class, type) else class_from_function(self.trainer_class)
+        # )
+        # parser_subcommands = parser.add_subcommands()
+        # # register all subcommands in separate subcommand parsers under the main parser
+        # for subcommand in self.subcommands():
+        #     subcommand_parser = ArgumentParser()
+        #     #self._prepare_subcommand_parser(trainer_class, subcommand)# **kwargs.get(subcommand, {}))
+        #     fn = getattr(trainer_class, subcommand)
+        #     # extract the first line description in the docstring for the subcommand help message
+        #     description = _get_short_description(fn)
+        #     parser_subcommands.add_subcommand(subcommand, subcommand_parser, help=description)
+
+    @staticmethod
+    def subcommands() -> Dict[str, Set[str]]:
+        """Defines the list of available subcommands and the arguments to skip."""
+        parent_subcommands = LightningCLI.subcommands()
+        # commands = dict(
+        #     **parent_subcommands,
+        #     **{"fit_test": {"train_dataloaders", "model", "test_dataloaders"}}
+        # )
+        commands = {"fit": parent_subcommands["fit"], "tune": parent_subcommands["tune"]}
+        return commands
 
 
 class FindRegistryAction(argparse.Action):
@@ -48,13 +75,13 @@ class FindRegistryAction(argparse.Action):
 def argparser():
     # general parser with generic arguments
     parser = ArgumentParser(prog="")
-    parser.add_argument("--dataset", action=FindRegistryAction, registry=DATAMODULE_REGISTRY, append_str="Dataset")
-    parser.add_argument("--model", action=FindRegistryAction, registry=MODEL_REGISTRY)
 
     # training arguments
     train_parser = ArgumentParser()
     train_parser.add_argument("--max_epochs", type=int, default=50)
-    train_parser.add_argument("--save_dir", type=str, default="../experiments/training", help="path where logger will store files")
+    train_parser.add_argument("--save_dir", type=str, default="../experiments/training",
+                              help="path where logger will store files")
+    train_parser.add_argument("--scaler", choices=["standard", "minmax"], default="minmax")
 
     # model-specific arguments
     # for model in MODEL_REGISTRY.classes:
@@ -70,12 +97,16 @@ def argparser():
     tuning_parser.add_argument("--max_epochs", type=int, default=50)
     tuning_parser.add_argument("--scaler", choices=["standard", "minmax"], default="minmax")
     tuning_parser.add_argument("--dataset_path", type=str)
-    tuning_parser.add_argument("--save_dir", type=str, default="../experiments/tuning", help="path where ray stores tuning files")
+    tuning_parser.add_argument("--save_dir", type=str, default="../experiments/tuning",
+                               help="path where ray stores tuning files")
 
     # add subcommands
     subcommands = parser.add_subcommands()
     subcommands.add_subcommand("train", train_parser)
     subcommands.add_subcommand("tune", tuning_parser)
+
+    parser.add_argument("--dataset", action=FindRegistryAction, registry=DATAMODULE_REGISTRY, append_str="Dataset")
+    parser.add_argument("--model", action=FindRegistryAction, registry=MODEL_REGISTRY)
 
     return parser.parse_args()
 
@@ -135,7 +166,7 @@ def prepare_kdd(model_cls):
 def prepare_thyroid(model_cls):
     model_name = model_cls.__name__.lower()
     data_path = "../data/Thyroid/thyroid.mat"
-    dataset = ThyroidDataset(path=data_path, scaler="standard")
+    dataset = ThyroidDataset(path=data_path, scaler="minmax")
     batch_size = 128
 
     if model_name == "litautoencoder":
@@ -285,8 +316,11 @@ def prepare_arrhythmia(model_cls):
             n_layers=1,
             eps=0,
             lamb=0.8325,
-            margin=1
+            margin=1,
+            threshold=(1 - dataset.anomaly_ratio) * 100
         )
+    elif model_name == "litdsebm":
+        pass
     else:
         raise Exception("unknown model %s" % model_name)
     train_ldr, test_ldr, _ = dataset.loaders(batch_size=batch_size)
@@ -309,7 +343,6 @@ def train_tune(
     )
     # loaders
     train_ldr, test_ldr, _ = dataset.loaders(batch_size=config["batch_size"])
-
 
     # trainer
     trainer = pl.Trainer(
@@ -436,9 +469,34 @@ def main(args):
         raise Exception("unknown subcommand %s, please choose between %s", (args.subcommand, available_subcommands))
 
 
+def main_litcli(cli):
+    trainer = cli.trainer
+    model = cli.model
+    datamodule = cli.datamodule
+
+    # fit on training set
+    trainer.fit(
+        model=cli.model,
+        datamodule=cli.datamodule
+        # train_dataloaders=train_ldr
+    )
+    # test optimized model on test set
+    res = trainer.test(
+        model=cli.model,
+        datamodule=cli.datamodule
+        # dataloaders=test_ldr
+    )[0]
+    # store_results()
+
+
+from pyad.trainer_override import Trainer as PyADTrainer
+
 # LightningArgumentParser
 if __name__ == "__main__":
-    # cli = MyLightningCLI()
+    # main_litcli(
+    #     MyLightningCLI(run=True)
+    # )#, trainer_class=PyADTrainer)
+    a = 1
     main(
         argparser()
     )

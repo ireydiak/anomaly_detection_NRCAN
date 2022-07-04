@@ -19,10 +19,12 @@ scaler_map = {
 
 
 class SimpleDataset(Dataset):
-    def __init__(self, X, y, labels):
+    def __init__(self, X, y, labels=None):
         self.X = X
         self.y = y
         self.labels = labels
+        if self.labels is None:
+            self.labels = y
 
     def __len__(self):
         return len(self.X)
@@ -38,7 +40,7 @@ class AbstractDataset(Dataset):
         self.seed = seed
         if scaler is not None:
             assert scaler.lower() in set(scaler_map.keys()), "unknown scaler %s, please use %s" % (
-                scaler, scaler_map.keys())
+            scaler, scaler_map.keys())
             self.scaler = scaler_map[scaler.lower()]()
         else:
             self.scaler = None
@@ -107,57 +109,128 @@ class AbstractDataset(Dataset):
     def get_data_index_by_label(self, label):
         return np.where(self.y == label)[0]
 
-    def loaders(self,
-                test_pct: float = 0.5,
-                label: int = 0,
-                holdout: float = 0.0,
-                contamination_rate: float = 0.0,
-                validation_ratio: float = 0.,
-                batch_size: int = 128,
-                num_workers: int = 0,
-                seed: int = None,
-                drop_last_batch: bool = False) -> (DataLoader, DataLoader, DataLoader):
+    def split_train_test_legacy(self,
+                                batch_size,
+                                test_pct: float = 0.5,
+                                label: int = 0,
+                                holdout: float = 0.0,
+                                contamination_rate: float = 0.0,
+                                validation_ratio: float = 0.,
+                                num_workers: int = 0,
+                                seed: int = None,
+                                drop_last_batch: bool = False) -> (DataLoader, DataLoader, DataLoader):
 
-        train_set, test_set, val_set = self.split_train_test(test_pct=test_pct,
-                                                             label=label,
-                                                             holdout=holdout,
-                                                             contamination_rate=contamination_rate,
-                                                             validation_ratio=validation_ratio,
-                                                             seed=seed)
-        if self.scaler:
-            train_set, test_set, val_set = self.normalize(train_set, test_set, val_set)
-        train_ldr = DataLoader(dataset=train_set, batch_size=batch_size, num_workers=num_workers,
-                               drop_last=drop_last_batch, pin_memory=True)
+        train_set, test_set, val_set = self.split_train_test_legacy(test_pct=test_pct,
+                                                                    label=label,
+                                                                    holdout=holdout,
+                                                                    contamination_rate=contamination_rate,
+                                                                    validation_ratio=validation_ratio,
+                                                                    seed=seed)
+        train_ldr = DataLoader(
+            dataset=train_set,
+            batch_size=batch_size,
+            num_workers=num_workers,
+            pin_memory=True
+        )
 
         val_ldr = DataLoader(dataset=val_set, batch_size=batch_size, num_workers=num_workers,
                              drop_last=drop_last_batch)
 
-        test_ldr = DataLoader(dataset=test_set, batch_size=batch_size, num_workers=num_workers,
-                              drop_last=drop_last_batch)
+        test_ldr = DataLoader(
+            dataset=test_set,
+            batch_size=batch_size,
+            num_workers=num_workers,
+            drop_last=drop_last_batch
+        )
         return train_ldr, test_ldr, val_ldr
 
+    def loaders(self,
+                batch_size,
+                test_size: float = 0.5,
+                normal_label: int = 0,
+                num_workers: int = 0,
+                ) -> (DataLoader, DataLoader):
+        train_set, test_set = self.train_test_split(test_size=test_size, normal_label=normal_label)
+        if self.scaler:
+            train_set, test_set, _ = self.normalize(train_set, test_set)
+        train_ldr = DataLoader(
+            dataset=train_set,
+            batch_size=batch_size,
+            num_workers=num_workers,
+            pin_memory=True
+        )
+
+        test_ldr = DataLoader(
+            dataset=test_set,
+            batch_size=batch_size,
+            num_workers=num_workers,
+            pin_memory=True
+        )
+        return train_ldr, test_ldr, None
+
     def normalize(self, train_set, test_set, val_set=None):
-        train_data = train_set.dataset.X[train_set.indices]
-        train_y, train_labels = train_set.dataset.y[train_set.indices], train_set.dataset.labels[train_set.indices]
-        test_data = test_set.dataset.X[test_set.indices]
-        test_y, test_labels = test_set.dataset.y[test_set.indices], test_set.dataset.labels[test_set.indices]
+        # if train_set is a Subset
+        if hasattr(train_set, "indices"):
+            train_data = train_set.dataset.X[train_set.indices]
+            train_y, train_labels = train_set.dataset.y[train_set.indices], train_set.dataset.labels[train_set.indices]
+            test_data = test_set.dataset.X[test_set.indices]
+            test_y, test_labels = test_set.dataset.y[test_set.indices], test_set.dataset.labels[test_set.indices]
+        else:
+            train_data = train_set.X
+            train_y, train_labels = train_set.y, train_set.labels
+            test_data = test_set.X
+            test_y, test_labels = test_set.y, test_set.labels
+        # with with data leak to evaluate difference
+        #self.scaler.fit(np.concatenate((train_data, train_data)))
+        # fit scaler on train set only (to avoid data leaks)
         self.scaler.fit(train_data)
+        # transform the data
         train_set = SimpleDataset(X=self.scaler.transform(train_data), y=train_y, labels=train_labels)
         test_set = SimpleDataset(X=self.scaler.transform(test_data), y=test_y, labels=test_labels)
+        # optionally transform the validation set
         if val_set is not None and len(val_set) > 0:
+            # TODO: handle the case where validation set is not a Subset
             val_data = val_set.dataset.X[val_set.indices]
             val_y, val_labels = val_set.dataset.y[val_set.indices], val_set.dataset.labels[val_set.indices]
             val_set = SimpleDataset(X=self.scaler.transform(val_data), y=val_y, labels=val_labels)
         return train_set, test_set, val_set
 
-    def split_train_test(self,
-                         test_pct: float = .5,
-                         label: int = 0,
-                         holdout=0.00,
-                         contamination_rate=0.,
-                         validation_ratio: float = 0.,
-                         seed=None,
-                         debug=False) -> Tuple[Subset, Subset, Subset]:
+    def train_test_split(self, test_size: float = 0.5, normal_label: int = 0) -> Tuple[Subset, Subset]:
+        anomaly_label = int(1 - normal_label)
+
+        # split between normal and abnormal samples
+        normal_idx = np.where(self.y == normal_label)[0]
+        abnormal_idx = np.where(self.y == anomaly_label)[0]
+
+        # shuffle normal indexes for more randomness
+        np.random.shuffle(normal_idx)
+
+        # select training data
+        n_train_normal = int(len(normal_idx) * (1 - test_size))
+        train_X = self.X[normal_idx[:n_train_normal]]
+        train_y = self.y[normal_idx[:n_train_normal]]
+        train_dataset = SimpleDataset(X=train_X, y=train_y)  # Subset(self, normal_idx[:n_train_normal])
+
+        # select test data
+        test_normal_idx = normal_idx[n_train_normal:]
+        test_idx = np.concatenate((
+            test_normal_idx,
+            abnormal_idx
+        ))
+        test_dataset = SimpleDataset(X=self.X[test_idx], y=self.y[test_idx])  # Subset(self, test_idx)
+
+        assert (train_dataset.y == anomaly_label).sum() == 0, "found anomalies in the training set, aborting"
+        assert (test_dataset.y == anomaly_label).sum() > 0, "no anomalies found in test set, aborting"
+        return train_dataset, test_dataset
+
+    def split_train_test_legacy(self,
+                                test_pct: float = .5,
+                                label: int = 0,
+                                holdout=0.00,
+                                contamination_rate=0.,
+                                validation_ratio: float = 0.,
+                                seed=None,
+                                debug=False) -> Tuple[Subset, Subset, Subset]:
         assert (label == 0 or label == 1)
         assert 1 > holdout
         assert 0 <= contamination_rate <= 1
