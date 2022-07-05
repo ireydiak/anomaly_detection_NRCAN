@@ -40,6 +40,21 @@ class BaseLightningModel(pl.LightningModule):
             n_instances: int = -1,
             threshold: float = None
     ):
+        """
+
+        Parameters
+        ----------
+        weight_decay: float
+            L2 penalty
+        lr: float
+            learning rate
+        in_features: int
+            number of features in the dataset
+        n_instances: int
+            number of instances/samples in the dataset
+        threshold: float
+            anomaly ratio in the dataset
+        """
         super(BaseLightningModel, self).__init__()
         if threshold:
             assert 0. <= threshold <= 100., "`threshold` must be inclusively between 0 and 1"

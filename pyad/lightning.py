@@ -6,7 +6,7 @@ import math
 from pytorch_lightning.loggers import TensorBoardLogger
 
 from pyad.lightning.density import LitDSEBM, LitDAGMM
-from pyad.lightning.one_class import LitDeepSVDD
+from pyad.lightning.one_class import LitDeepSVDD, LitDROCC
 from pyad.lightning.reconstruction import LitAutoEncoder, LitMemAE
 from pyad.datamanager.dataset import ThyroidDataset, ArrhythmiaDataset, KDD10Dataset, NSLKDDDataset, AbstractDataset
 import pyad.lightning
@@ -248,6 +248,21 @@ def prepare_thyroid(model_cls):
             weight_decay=1e-4,
             lr=1e-4
         )
+    elif model_name == "litdrocc":
+        batch_size = 128
+        model = LitDROCC(
+            in_features=dataset.in_features,
+            lr=1e-4,
+            weight_decay=1e-4,
+            lamb=1.,
+            radius=0.5,
+            gamma=2.,
+            n_classes=1,
+            n_hidden_nodes=20,
+            only_ce_epochs=50,
+            ascent_step_size=0.01,
+            ascent_num_steps=50
+        )
     else:
         raise Exception("unknown model %s" % model_name)
 
@@ -408,6 +423,21 @@ def prepare_arrhythmia(model_cls):
             lr=1e-4,
             weight_decay=1e-6
         )
+    elif model_name == "litdrocc":
+        batch_size = 128
+        model = LitDROCC(
+            in_features=dataset.in_features,
+            lr=1e-3,
+            weight_decay=1e-4,
+            lamb=1.,
+            radius=16.,
+            gamma=2.,
+            n_classes=1,
+            n_hidden_nodes=20,
+            only_ce_epochs=50,
+            ascent_step_size=0.01,
+            ascent_num_steps=50
+        )
     else:
         raise Exception("unknown model %s" % model_name)
     train_ldr, test_ldr, _ = dataset.loaders(batch_size=batch_size)
@@ -565,7 +595,7 @@ def main_litcli(cli):
 
     # logger
     tb_logger = pl_loggers.TensorBoardLogger(
-        save_dir="../experiments/training",# todo: add to argparse args.save_dir,
+        save_dir="../experiments/training",  # todo: add to argparse args.save_dir,
         name=os.path.join(dataset_name, cli.model.__class__.__name__)
     )
 
