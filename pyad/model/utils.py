@@ -2,10 +2,12 @@ import torch
 from typing import List
 from torch import nn
 
-activation_mapper = {
+activation_map = {
     "relu": nn.ReLU(),
     "tanh": nn.Tanh(),
-    "sigmoid": nn.Sigmoid()
+    "sigmoid": nn.Sigmoid(),
+    "leakyrelu": nn.LeakyReLU(),
+    "gelu": nn.GELU()
 }
 
 
@@ -38,3 +40,7 @@ def create_network(layers: List[List]):
         if act_fn:
             net_layers.append(act_fn)
     return nn.Sequential(*net_layers)
+
+
+def relative_euclidean_dist(X, X_hat):
+    return (X - X_hat).norm(2, dim=1) / X.norm(2, dim=1)

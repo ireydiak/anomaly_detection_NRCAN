@@ -3,7 +3,7 @@ import torch
 import torch.nn as nn
 from torch import Tensor
 from pyad.model.base import BaseModel
-from pyad.model.utils import activation_mapper, create_network
+from pyad.model.utils import activation_map, create_network
 
 
 class DeepSVDD(BaseModel):
@@ -14,7 +14,7 @@ class DeepSVDD(BaseModel):
         self.n_layers = n_layers
         self.compression_factor = compression_factor
         self.rep_dim = None
-        self.act_fn = activation_mapper[act_fn]
+        self.act_fn = activation_map[act_fn]
         self._build_network()
 
     @staticmethod

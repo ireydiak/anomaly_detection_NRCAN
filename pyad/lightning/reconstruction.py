@@ -1,32 +1,13 @@
-import numpy as np
 import torch
 from pytorch_lightning.utilities.cli import MODEL_REGISTRY
 from pytorch_lightning.utilities.types import STEP_OUTPUT
 from torch.optim.lr_scheduler import StepLR
 from pyad.lightning.base import BaseLightningModel
 from pyad.loss.EntropyLoss import EntropyLoss
+from pyad.lightning.base import create_net_layers
 from pyad.model.memory_module import MemoryUnit
-from pyad.model.utils import activation_mapper
 from torch import nn
-import pytorch_lightning as pl
 from typing import List, Any
-from pyad.utils import metrics
-
-
-def create_net_layers(in_dim, out_dim, hidden_dims, activation="relu", bias=True):
-    layers = []
-    for i in range(len(hidden_dims)):
-        layers.append(
-            nn.Linear(in_dim, hidden_dims[i], bias=bias)
-        )
-        layers.append(
-            activation_mapper[activation]
-        )
-        in_dim = hidden_dims[i]
-    layers.append(
-        nn.Linear(hidden_dims[-1], out_dim, bias=bias)
-    )
-    return layers
 
 
 @MODEL_REGISTRY
@@ -168,13 +149,17 @@ class LitAutoEncoder(BaseLightningModel):
         X_hat = self.decoder(emb)
         return ((X - X_hat) ** 2).sum(axis=-1)
 
+    def compute_loss(self, X: torch.Tensor, X_hat: torch.Tensor, emb: torch.Tensor):
+        l2_emb = emb.norm(2, dim=1).mean()
+        loss = ((X - X_hat) ** 2).sum(axis=-1).mean() + self.hparams.reg * l2_emb
+        return loss
+
     def training_step(self, batch, batch_idx) -> STEP_OUTPUT:
         X, _, _ = batch
         X = X.float()
         emb = self.encoder(X)
         X_hat = self.decoder(emb)
-        l2_emb = emb.norm(2, dim=1).mean()
-        loss = ((X - X_hat) ** 2).sum(axis=-1).mean() + self.hparams.reg * l2_emb
+        loss = self.compute_loss(X, X_hat, emb)
         return loss
 
     def configure_optimizers(self):
