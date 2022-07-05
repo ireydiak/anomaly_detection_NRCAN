@@ -6,6 +6,7 @@ import math
 from pytorch_lightning.loggers import TensorBoardLogger
 
 from pyad.lightning.density import LitDSEBM, LitDAGMM
+from pyad.lightning.one_class import LitDeepSVDD
 from pyad.lightning.reconstruction import LitAutoEncoder, LitMemAE
 from pyad.datamanager.dataset import ThyroidDataset, ArrhythmiaDataset, KDD10Dataset, NSLKDDDataset, AbstractDataset
 import pyad.lightning
@@ -396,6 +397,17 @@ def prepare_arrhythmia(model_cls):
             weight_decay=1e-4,
             lr=1e-4
         )
+    elif model_name == "litdeepsvdd" or model_name == "litdsvdd":
+        batch_size = 128
+        model = LitDeepSVDD(
+            in_features=dataset.in_features,
+            feature_dim=1024,
+            hidden_dims=[256, 512],
+            activation="relu",
+            eps=0.1,
+            lr=1e-4,
+            weight_decay=1e-6
+        )
     else:
         raise Exception("unknown model %s" % model_name)
     train_ldr, test_ldr, _ = dataset.loaders(batch_size=batch_size)
@@ -517,6 +529,8 @@ def train(args, model_cls, dataset_cls):
     else:
         model, train_ldr, test_ldr = prepare_thyroid(model_cls)
 
+    model.before_train(train_ldr)
+
     # learn
     trainer.fit(
         model=model,
@@ -556,15 +570,10 @@ def main_litcli(cli):
     )
 
     # trainer
-    # trainer = pl.Trainer(
-    #     precision=16,
-    #     accelerator="gpu",
-    #     devices=1,
-    #     max_epochs=cli.trainer.max_epochs,
-    #     logger=tb_logger
-    # )
     trainer = pl.Trainer(
-        accelerator="cpu",
+        precision=16,
+        accelerator="gpu",
+        devices=1,
         max_epochs=cli.trainer.max_epochs,
         logger=tb_logger,
     )

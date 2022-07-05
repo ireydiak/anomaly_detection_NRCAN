@@ -1,6 +1,7 @@
 import pytorch_lightning as pl
 import torch
 import numpy as np
+from torch.utils.data import DataLoader
 from pyad.utils import metrics
 from ray import tune
 from torch import nn
@@ -52,6 +53,12 @@ class BaseLightningModel(pl.LightningModule):
         self.save_hyperparameters(
             ignore=["in_features", "n_instances", "threshold"]
         )
+
+    def before_train(self, dataloader: DataLoader):
+        """
+        Optional hook to pretrain model or estimate parameters before training
+        """
+        pass
 
     @staticmethod
     def get_ray_config(in_features: int, n_instances: int):
