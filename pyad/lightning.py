@@ -5,9 +5,10 @@ import math
 
 from pytorch_lightning.loggers import TensorBoardLogger
 
+from pyad.lightning.density import LitDSEBM
 from pyad.lightning.reconstruction import LitAutoEncoder, LitMemAE
 from pyad.datamanager.dataset import ThyroidDataset, ArrhythmiaDataset, KDD10Dataset, NSLKDDDataset, AbstractDataset
-import pyad.lightning.transformers
+import pyad.lightning
 from pyad.lightning.transformers import LitGOAD, LitNeuTraLAD
 import pytorch_lightning as pl
 from pytorch_lightning.utilities.cli import LightningCLI, MODEL_REGISTRY, DATAMODULE_REGISTRY, _get_short_description
@@ -20,7 +21,7 @@ from ray.tune.schedulers import ASHAScheduler, PopulationBasedTraining
 from ray.tune.integration.pytorch_lightning import TuneReportCallback
 from pytorch_lightning import loggers as pl_loggers
 
-MODEL_REGISTRY.register_classes(pyad.lightning.transformers, pl.LightningModule)
+MODEL_REGISTRY.register_classes(pyad.lightning, pl.LightningModule)
 DATAMODULE_REGISTRY.register_classes(pyad.datamanager.dataset, AbstractDataset)
 
 
@@ -217,6 +218,17 @@ def prepare_thyroid(model_cls):
             lamb=0.6121,
             margin=1
         )
+    elif model_name == "litdsebm":
+        batch_size = 128
+        model = LitDSEBM(
+            in_features=dataset.in_features,
+            fc_1_out=128,
+            fc_2_out=256,
+            lr=1e-4,
+            weight_decay=1e-4,
+            batch_size=batch_size,
+            score_metric="reconstruction"
+        )
     else:
         raise Exception("unknown model %s" % model_name)
 
@@ -256,6 +268,17 @@ def prepare_nslkdd(model_cls):
             eps=0,
             lamb=0.1,
             margin=1
+        )
+    elif model_name == "litdsebm":
+        batch_size = 128
+        model = LitDSEBM(
+            in_features=dataset.in_features,
+            fc_1_out=128,
+            fc_2_out=256,
+            lr=1e-4,
+            weight_decay=1e-4,
+            batch_size=batch_size,
+            score_metric="reconstruction"
         )
     else:
         raise Exception("unknown model %s" % model_name)
@@ -319,8 +342,6 @@ def prepare_arrhythmia(model_cls):
             margin=1,
             threshold=(1 - dataset.anomaly_ratio) * 100
         )
-    elif model_name == "litdsebm":
-        pass
     else:
         raise Exception("unknown model %s" % model_name)
     train_ldr, test_ldr, _ = dataset.loaders(batch_size=batch_size)
