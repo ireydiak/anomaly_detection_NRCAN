@@ -1,12 +1,13 @@
 import numpy as np
 import torch
 from pytorch_lightning.utilities.cli import MODEL_REGISTRY
-from pyad.lightning.base import BaseLightningModel
+from pyad.lightning.base import BaseLightningModel, layer_options_helper
 from pyad.lightning.base import AutoEncoder, create_net_layers
 from pyad.model.utils import relative_euclidean_dist
 from torch import nn
 from torch.optim.lr_scheduler import StepLR
 from typing import List, Any
+from ray import tune as ray_tune
 
 score_metrics_opts = {"reconstruction", "energy"}
 
@@ -28,7 +29,8 @@ class LitDSEBM(BaseLightningModel):
             ignore=["in_features", "n_instances", "threshold", "batch_size", "b_prime"]
         )
         # energy or reconstruction-based anomaly score function
-        assert score_metric in score_metrics_opts, "unknown `score_metric` %s, please select %s" % (score_metric, score_metrics_opts)
+        assert score_metric in score_metrics_opts, "unknown `score_metric` %s, please select %s" % (
+        score_metric, score_metrics_opts)
         self.score_metric = score_metric
         # loss function
         self.criterion = nn.BCEWithLogitsLoss()
@@ -112,7 +114,7 @@ class LitDSEBM(BaseLightningModel):
             dEn_dX = torch.autograd.grad(energy, X)[0]
             rec_errs = torch.linalg.norm(dEn_dX, 2, keepdim=False, dim=1)
             scores = rec_errs
-        return scores #energies.cpu().numpy(), rec_errs.cpu().numpy()
+        return scores  # energies.cpu().numpy(), rec_errs.cpu().numpy()
 
     def training_step(self, batch, batch_idx):
         X, _, _ = batch
@@ -133,6 +135,21 @@ class LitDSEBM(BaseLightningModel):
 
     def on_test_model_eval(self) -> None:
         torch.set_grad_enabled(True)
+
+    @staticmethod
+    def get_ray_config(in_features: int, n_instances: int) -> dict:
+        # read parent config
+        parent_cfg = BaseLightningModel.get_ray_config(in_features, n_instances)
+
+        child_cfg = {
+            "fc_1_out": ray_tune.choice([64, 128, 256]),
+            "fc_2_out": ray_tune.choice([128, 256, 512]),
+            "score_metric": ray_tune.choice(["reconstruction", "energy"])
+        }
+        return dict(
+            **parent_cfg,
+            **child_cfg
+        )
 
 
 @MODEL_REGISTRY
@@ -276,7 +293,7 @@ class LitDAGMM(BaseLightningModel):
 
         # gamma
         gamma_sum = gamma_hat.sum(dim=0)
-        #gamma_sum /= gamma_sum.sum()
+        # gamma_sum /= gamma_sum.sum()
 
         # \phi \in (n_mixtures,)
         phi = gamma_sum / N
@@ -352,3 +369,26 @@ class LitDAGMM(BaseLightningModel):
         )
         # scheduler = StepLR(optimizer, step_size=20, gamma=0.9)
         return optimizer  # [optimizer], [scheduler]
+
+    @staticmethod
+    def get_ray_config(in_features: int, n_instances: int) -> dict:
+        # read parent config
+        parent_cfg = BaseLightningModel.get_ray_config(in_features, n_instances)
+        hidden_dims_opts, latent_dim_opts = layer_options_helper(in_features)
+
+        child_cfg = {
+            "n_mixtures": ray_tune.choice([2, 4, 6, 8]),
+            "ae_hidden_dims": ray_tune.choice(hidden_dims_opts),
+            "gmm_hidden_dims": ray_tune.choice([[8], [10], [12]]),
+            "ae_activation": ray_tune.choice(["tanh", "relu"]),
+            "gmm_activation": ray_tune.choice(["tanh", "relu"]),
+            "latent_dim": ray_tune.choice(hidden_dims_opts),
+            "lamb_1": 0.1,
+            "lamb_2": 0.005,
+            "reg_covar": 1e-12,
+            "dropout_rate": ray_tune.choice([0.1, 0.2, 0.5]),
+        }
+        return dict(
+            **parent_cfg,
+            **child_cfg
+        )

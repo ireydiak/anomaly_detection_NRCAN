@@ -1,14 +1,16 @@
 from collections import OrderedDict
 
+import numpy as np
 import torch
 import torch.nn.functional as F
 from pytorch_lightning.utilities.cli import MODEL_REGISTRY
 from torch.optim.lr_scheduler import StepLR
 from torch.utils.data import DataLoader
-from pyad.lightning.base import BaseLightningModel
+from pyad.lightning.base import BaseLightningModel, layer_options_helper
 from pyad.lightning.base import create_net_layers
 from torch import nn
 from typing import List
+from ray import tune as ray_tune
 
 
 @MODEL_REGISTRY
@@ -99,6 +101,22 @@ class LitDeepSVDD(BaseLightningModel):
         )
         scheduler = StepLR(optimizer, step_size=20, gamma=0.9)
         return [optimizer], [scheduler]
+
+    @staticmethod
+    def get_ray_config(in_features: int, n_instances: int) -> dict:
+        # read parent config
+        parent_cfg = BaseLightningModel.get_ray_config(in_features, n_instances)
+
+        hidden_dims_opts, _ = layer_options_helper(in_features)
+        child_cfg = {
+            "feature_dim": ray_tune.choice([32, 64, 256, 512]),
+            "hidden_dims": ray_tune.choice(hidden_dims_opts),
+            "activation": "relu",
+        }
+        return dict(
+            **parent_cfg,
+            **child_cfg
+        )
 
 
 @MODEL_REGISTRY
@@ -264,3 +282,27 @@ class LitDROCC(BaseLightningModel):
         )
         scheduler = StepLR(optimizer, step_size=20, gamma=0.9)
         return [optimizer], [scheduler]
+
+    @staticmethod
+    def get_ray_config(in_features: int, n_instances: int) -> dict:
+        # read parent config
+        parent_cfg = BaseLightningModel.get_ray_config(in_features, n_instances)
+
+        radius_opts = [
+            min(1., np.sqrt(in_features) / 2 - 1),
+            np.sqrt(in_features) / 2,
+            np.sqrt(in_features) / 2 + 1
+        ]
+        child_cfg = {
+            "lamb": 1.,
+            "radius": ray_tune.choice(radius_opts),
+            "gamma": 2.,
+            "n_hidden_nodes": ray_tune.choice([20, 60, 120]),
+            "only_ce_epochs": ray_tune.choice([10, 50, 100]),
+            "ascent_step_size": ray_tune.loguniform(0.1, 0.01),
+            "ascent_num_steps": ray_tune.choice([50, 100])
+        }
+        return dict(
+            **parent_cfg,
+            **child_cfg
+        )

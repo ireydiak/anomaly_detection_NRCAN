@@ -1,9 +1,10 @@
 import torch
 from pytorch_lightning.utilities.cli import MODEL_REGISTRY
 from torch.autograd import Variable
-from pyad.lightning.base import BaseLightningModel
+from pyad.lightning.base import BaseLightningModel, layer_options_helper
 from torch import nn
 from pyad.model.utils import weights_init_xavier
+from ray import tune as ray_tune
 
 
 @MODEL_REGISTRY
@@ -280,11 +281,6 @@ class DiscriminatorXZ(nn.Module):
         self.fc_1x_linear = nn.Linear(self.in_features, self.out_features)
         self.fc_1x_bnorm = nn.BatchNorm1d(self.out_features)
         self.fc_1x_lrelu = nn.LeakyReLU(self.negative_slope)
-        # self.fc_1x = nn.Sequential(
-        #     nn.Linear(self.in_features, self.out_features),
-        #     nn.BatchNorm1d(self.out_features),
-        #     nn.LeakyReLU(self.negative_slope),
-        # )
         # Inference over z
         self.fc_1z = nn.Sequential(
             nn.Linear(self.latent_dim, self.out_features),
@@ -305,7 +301,7 @@ class DiscriminatorXZ(nn.Module):
         return logits, mid_layer
 
     def forward(self, X, Z):
-        x = self.fc_1x_linear(X) #self.fc_1x(X)
+        x = self.fc_1x_linear(X)
         if x.shape[0] > 1:
             x = self.fc_1x_bnorm(x)
         x = self.fc_1x_lrelu(x)
@@ -313,3 +309,18 @@ class DiscriminatorXZ(nn.Module):
         xz = torch.cat((x, z), dim=1)
         logits, mid_layer = self.forward_xz(xz)
         return logits, mid_layer
+
+    @staticmethod
+    def get_ray_config(in_features: int, n_instances: int) -> dict:
+        # read parent config
+        parent_cfg = BaseLightningModel.get_ray_config(in_features, n_instances)
+
+        hidden_dims_opts, _ = layer_options_helper(in_features)
+        child_cfg = {
+            "latent_dim": ray_tune.choice(hidden_dims_opts),
+            "out_dim": ray_tune.choice([64, 128, 256, 512]),
+        }
+        return dict(
+            **parent_cfg,
+            **child_cfg
+        )

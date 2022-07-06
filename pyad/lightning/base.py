@@ -5,7 +5,7 @@ from torch.utils.data import DataLoader
 from pyad.utils import metrics
 from ray import tune
 from torch import nn
-from typing import List
+from typing import List, Tuple
 from pyad.model.utils import activation_map
 
 
@@ -28,6 +28,24 @@ def create_net_layers(in_dim, out_dim, hidden_dims, activation="relu", bias=True
         nn.Linear(hidden_dims[-1], out_dim, bias=bias)
     )
     return layers
+
+
+def layer_options_helper(in_features: int) -> Tuple[List[List[int]], List[int]]:
+    # used to set the maximum number of layers where every consecutive layer is compressing the previous layer by
+    # a factor of 2
+    depth = int(np.floor(np.log2(in_features)))
+    # latent_dim options
+    latent_dim_opts = (2 ** np.arange(0, depth + 1)).tolist()
+    # construct the different layer options
+    hidden_dims_opts = [
+        [in_features // 2]
+    ]
+    for layer in range(1, depth):
+        last_feature_dim = hidden_dims_opts[-1][-1]
+        hidden_dims_opts.append(
+            hidden_dims_opts[-1] + [max(1, last_feature_dim // 2)]
+        )
+    return hidden_dims_opts, latent_dim_opts
 
 
 class BaseLightningModel(pl.LightningModule):

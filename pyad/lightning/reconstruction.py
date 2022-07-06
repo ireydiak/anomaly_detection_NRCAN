@@ -1,9 +1,8 @@
 import torch
-import numpy as np
 from pytorch_lightning.utilities.cli import MODEL_REGISTRY
 from pytorch_lightning.utilities.types import STEP_OUTPUT
 from torch.optim.lr_scheduler import StepLR
-from pyad.lightning.base import BaseLightningModel
+from pyad.lightning.base import BaseLightningModel, layer_options_helper
 from pyad.loss.EntropyLoss import EntropyLoss
 from pyad.lightning.base import create_net_layers
 from pyad.model.memory_module import MemoryUnit
@@ -102,6 +101,25 @@ class LitMemAE(BaseLightningModel):
         scheduler = StepLR(optimizer, step_size=20, gamma=0.9)
         return [optimizer], [scheduler]
 
+    @staticmethod
+    def get_ray_config(in_features: int, n_instances: int) -> dict:
+        # read parent config
+        parent_cfg = BaseLightningModel.get_ray_config(in_features, n_instances)
+        hidden_dims_opts, latent_dim_opts = layer_options_helper(in_features)
+        # options for this class
+        child_cfg = {
+            "enc_hidden_dims": ray_tune.choice(hidden_dims_opts),
+            "latent_dim": ray_tune.choice(latent_dim_opts),
+            "mem_dim": ray_tune.choice([50, 100, 300]),
+            "activation": "relu",
+            "shrink_thresh": ray_tune.loguniform(1 / n_instances, 3 / n_instances),
+            "alpha": ray_tune.loguniform(2e-4, 1e-1)
+        }
+        return dict(
+            **parent_cfg,
+            **child_cfg
+        )
+
 
 @MODEL_REGISTRY
 class LitAutoEncoder(BaseLightningModel):
@@ -144,20 +162,8 @@ class LitAutoEncoder(BaseLightningModel):
     def get_ray_config(in_features: int, n_instances: int) -> dict:
         # read parent config
         parent_cfg = BaseLightningModel.get_ray_config(in_features, n_instances)
-        # used to set the maximum number of layers where every consecutive layer is compressing the previous layer by
-        # a factor of 2
-        depth = int(np.floor(np.log2(in_features)))
-        # latent_dim options
-        latent_dim_opts = (2 ** np.arange(0, depth + 1)).tolist()
-        # construct the different layer options
-        hidden_dims_opts = [
-            [in_features // 2]
-        ]
-        for layer in range(1, depth):
-            last_feature_dim = hidden_dims_opts[-1][-1]
-            hidden_dims_opts.append(
-                hidden_dims_opts[-1] + [max(1, last_feature_dim // 2)]
-            )
+        hidden_dims_opts, latent_dim_opts = layer_options_helper(in_features)
+
         # options for this class
         child_cfg = {
             "hidden_dims": ray_tune.choice(hidden_dims_opts),
