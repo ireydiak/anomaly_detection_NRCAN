@@ -24,17 +24,18 @@ from ray.tune.integration.pytorch_lightning import TuneReportCallback
 from pytorch_lightning import loggers as pl_loggers
 
 MODEL_REGISTRY.register_classes(pyad.lightning, pl.LightningModule)
-DATAMODULE_REGISTRY.register_classes(pyad.datamanager.dataset, AbstractDataset)
+#DATAMODULE_REGISTRY.register_classes(pyad.datamanager.dataset, AbstractDataset)
 
-
-# DATAMODULE_REGISTRY.register_classes(pyad.datamanager.datamodule, pl.LightningDataModule)
+DATAMODULE_REGISTRY.register_classes(pyad.datamanager.datamodule, pl.LightningDataModule)
 
 
 class MyLightningCLI(LightningCLI):
     def add_arguments_to_parser(self, parser):
         # parser.add_class_arguments(BaseDataset, "dataset")
+        # parser.add_lightning_class_args(AbstractDataset, "dataset")
         parser.link_arguments("data.in_features", "model.init_args.in_features", apply_on="instantiate")
         parser.link_arguments("data.n_instances", "model.init_args.n_instances", apply_on="instantiate")
+
         # subcommands
         # trainer_class = (
         #     self.trainer_class if isinstance(self.trainer_class, type) else class_from_function(self.trainer_class)
@@ -49,17 +50,16 @@ class MyLightningCLI(LightningCLI):
         #     description = _get_short_description(fn)
         #     parser_subcommands.add_subcommand(subcommand, subcommand_parser, help=description)
 
-    @staticmethod
-    def subcommands() -> Dict[str, Set[str]]:
-        """Defines the list of available subcommands and the arguments to skip."""
-        parent_subcommands = LightningCLI.subcommands()
-        # commands = dict(
-        #     **parent_subcommands,
-        #     **{"fit_test": {"train_dataloaders", "model", "test_dataloaders"}}
-        # )
-        commands = {"fit": parent_subcommands["fit"], "tune": parent_subcommands["tune"]}
-        return commands
-
+    # @staticmethod
+    # def subcommands() -> Dict[str, Set[str]]:
+    #     """Defines the list of available subcommands and the arguments to skip."""
+    #     parent_subcommands = LightningCLI.subcommands()
+    #     # commands = dict(
+    #     #     **parent_subcommands,
+    #     #     **{"fit_test": {"train_dataloaders", "model", "test_dataloaders"}}
+    #     # )
+    #     commands = {"fit": parent_subcommands["fit"], "tune": parent_subcommands["tune"]}
+    #     return commands
 
 class FindRegistryAction(argparse.Action):
     def __init__(self, option_strings: Sequence[str], dest: str, registry, append_str=""):
@@ -629,6 +629,9 @@ def main_litcli(cli):
         logger=tb_logger,
     )
 
+    #dataset = ArrhythmiaDataset(path="../data/Arrhythmia/arrhythmia.npy", scaler="standard")
+    #train_ldr, test_ldr, _ = dataset.loaders(batch_size=128)
+
     # learn
     trainer.fit(
         model=model,
@@ -647,9 +650,9 @@ from pyad.trainer_override import Trainer as PyADTrainer
 
 # LightningArgumentParser
 if __name__ == "__main__":
-    # main_litcli(
-    #     MyLightningCLI(run=False)
-    # )#, trainer_class=PyADTrainer)
-    main(
-        argparser()
-    )
+    main_litcli(
+        MyLightningCLI(run=False)
+    )#, trainer_class=PyADTrainer)
+    # main(
+    #     argparser()
+    # )
