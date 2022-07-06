@@ -38,7 +38,8 @@ class BaseLightningModel(pl.LightningModule):
             lr: float,
             in_features: int = -1,
             n_instances: int = -1,
-            threshold: float = None
+            batch_size: int = -1,
+            threshold: float = None,
     ):
         """
 
@@ -76,11 +77,12 @@ class BaseLightningModel(pl.LightningModule):
         pass
 
     @staticmethod
-    def get_ray_config(in_features: int, n_instances: int):
+    def get_ray_config(in_features: int, n_instances: int) -> dict:
+        batch_size_opts = [bs_opt for bs_opt in [32, 64, 128, 1024] if n_instances // bs_opt > 0]
         return {
             "lr": tune.loguniform(1e-2, 1e-4),
-            "weight_decay": tune.choice([0, 1e-4]),
-            "batch_size": tune.choice([32, 64, 128])
+            "weight_decay": tune.choice([0, 1e-4, 1e-6]),
+            "batch_size": tune.choice(batch_size_opts)
         }
 
     def score(self, X: torch.Tensor, y: torch.Tensor = None):

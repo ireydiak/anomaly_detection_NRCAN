@@ -1,4 +1,5 @@
 import torch
+import numpy as np
 from pytorch_lightning.utilities.cli import MODEL_REGISTRY
 from pytorch_lightning.utilities.types import STEP_OUTPUT
 from torch.optim.lr_scheduler import StepLR
@@ -8,6 +9,7 @@ from pyad.lightning.base import create_net_layers
 from pyad.model.memory_module import MemoryUnit
 from torch import nn
 from typing import List, Any
+from ray import tune as ray_tune
 
 
 @MODEL_REGISTRY
@@ -137,6 +139,36 @@ class LitAutoEncoder(BaseLightningModel):
         parser.add_argument("--weight_decay", type=float, default=1e-4)
 
         return parent_parser
+
+    @staticmethod
+    def get_ray_config(in_features: int, n_instances: int) -> dict:
+        # read parent config
+        parent_cfg = BaseLightningModel.get_ray_config(in_features, n_instances)
+        # used to set the maximum number of layers where every consecutive layer is compressing the previous layer by
+        # a factor of 2
+        depth = int(np.floor(np.log2(in_features)))
+        # latent_dim options
+        latent_dim_opts = (2 ** np.arange(0, depth + 1)).tolist()
+        # construct the different layer options
+        hidden_dims_opts = [
+            [in_features // 2]
+        ]
+        for layer in range(1, depth):
+            last_feature_dim = hidden_dims_opts[-1][-1]
+            hidden_dims_opts.append(
+                hidden_dims_opts[-1] + [max(1, last_feature_dim // 2)]
+            )
+        # options for this class
+        child_cfg = {
+            "hidden_dims": ray_tune.choice(hidden_dims_opts),
+            "latent_dim": ray_tune.choice(latent_dim_opts),
+            "reg": ray_tune.choice([0.1, 0.25, 0.5]),
+            "activation": "relu"
+        }
+        return dict(
+            **parent_cfg,
+            **child_cfg
+        )
 
     def forward(self, X: torch.Tensor, **kwargs) -> Any:
         X, y_true, full_labels = X

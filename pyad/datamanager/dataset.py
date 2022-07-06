@@ -46,7 +46,6 @@ class AbstractDataset(Dataset):
         super(AbstractDataset, self).__init__()
         self.normal_label = normal_label
         self.anomaly_label = anomaly_label
-        self.batch_size = batch_size
         self.name = self.__class__.__name__
         self.labels = np.array([])
         self.seed = seed

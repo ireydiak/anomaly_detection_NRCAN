@@ -6,6 +6,7 @@ import pyad.datamanager.dataset
 import pyad.lightning
 import pytorch_lightning as pl
 import argparse
+import yaml
 
 from pyad.datamanager.dataset import AbstractDataset
 from pytorch_lightning.loggers import TensorBoardLogger
@@ -18,6 +19,8 @@ from ray.tune.integration.pytorch_lightning import TuneReportCallback
 
 MODEL_REGISTRY.register_classes(pyad.lightning, pl.LightningModule)
 DATAMODULE_REGISTRY.register_classes(pyad.datamanager.dataset, AbstractDataset)
+
+
 # DATAMODULE_REGISTRY.register_classes(pyad.datamanager.datamodule, pl.LightningDataModule)
 
 
@@ -38,25 +41,34 @@ class FindRegistryAction(argparse.Action):
 def argparser():
     # tuning arguments
     tuning_parser = ArgumentParser()
-    tuning_parser.add_argument("--num_samples", type=int, default=500,
-                               help="number of different tuning combinations generated")
-    tuning_parser.add_argument("--num_gpus", type=int, default=-1, help="set to `-1` to use all available gpus")
-    tuning_parser.add_argument("--model", type=str, help="name of the model to tune")
-    tuning_parser.add_argument("--scaler", choices=["standard", "minmax"], default="minmax",
-                               help="data scaling strategy")
-    tuning_parser.add_argument("--data_dir", type=str, help="path to the dataset file")
-    tuning_parser.add_argument("--save_dir", type=str, default="../experiments/tuning",
-                               help="path where ray stores tuning files")
+    tuning_parser.add_argument(
+        "--num_samples", type=int, default=500, help="number of different tuning combinations generated"
+    )
+    tuning_parser.add_argument(
+        "--num_gpus", type=int, default=-1, help="set to `-1` to use all available gpus"
+    )
+    tuning_parser.add_argument(
+        "--max_epochs", type=int, default=50, help="maximum number of training epochs"
+    )
+    tuning_parser.add_argument(
+        "--scaler", choices=["standard", "minmax"], default="minmax", help="data scaling strategy"
+    )
+    tuning_parser.add_argument(
+        "--data_dir", type=str, help="path to the dataset file"
+    )
+    tuning_parser.add_argument(
+        "--save_dir", type=str, default="../experiments/tuning", help="path where ray stores tuning files"
+    )
     # add action arguments
-    tuning_parser.add_argument("--dataset", action=FindRegistryAction, registry=DATAMODULE_REGISTRY,
-                               append_str="Dataset")
-    tuning_parser.add_argument("--model", action=FindRegistryAction, registry=MODEL_REGISTRY,
-                               help="name of the model to tune")
+    tuning_parser.add_argument(
+        "--dataset", action=FindRegistryAction, registry=DATAMODULE_REGISTRY, append_str="Dataset"
+    )
+    tuning_parser.add_argument("--model", action=FindRegistryAction, registry=MODEL_REGISTRY)
 
     return tuning_parser.parse_args()
 
 
-def train_tune(
+def run(
         config,
         model_cls: pl.LightningModule,
         dataset,
@@ -93,7 +105,7 @@ def train_tune(
         train_dataloaders=train_ldr,
     )
     # inference (predict)
-    res = trainer.test(
+    trainer.test(
         model=model,
         dataloaders=test_ldr
     )
@@ -102,7 +114,7 @@ def train_tune(
 def tune_asha(args, model_cls, dataset_cls):
     # Instantiate dataset class
     dataset = dataset_cls(
-        path=args.dataset_path, scaler=args.scaler
+        data_dir=args.data_dir, scaler=args.scaler
     )
 
     # read configuration from model class
@@ -126,7 +138,7 @@ def tune_asha(args, model_cls, dataset_cls):
 
     # setup tuning logic
     train_fn_with_parameters = tune.with_parameters(
-        train_tune,
+        run,
         num_epochs=args.max_epochs,
         num_gpus=args.num_gpus,
         dataset=dataset,
@@ -135,6 +147,7 @@ def tune_asha(args, model_cls, dataset_cls):
     resources_per_trial = {"cpu": 4, "gpu": args.num_gpus}
 
     # start tuning
+    run_name = "%s_%s" % (dataset.name.lower(), model_cls.__name__.lower())
     analysis = tune.run(train_fn_with_parameters,
                         resources_per_trial=resources_per_trial,
                         metric="aupr",
@@ -143,14 +156,28 @@ def tune_asha(args, model_cls, dataset_cls):
                         num_samples=args.num_samples,
                         scheduler=scheduler,
                         progress_reporter=reporter,
-                        name="%s_%s" % (dataset.name.lower(), model_cls.__name__.lower()),
+                        name=run_name,
                         local_dir=args.save_dir
                         )
+    # store best config in YAML and complete results in csv
+    tuning_root = os.path.join(args.save_dir, run_name)
+    store_dict(os.path.join(tuning_root, "best_config.yaml"), analysis.best_config)
+    analysis.best_result_df.sort_values(by="aupr").to_csv(
+        os.path.join(tuning_root, "best_result.csv")
+    )
     print("Best hyperparameters found were: ", analysis.best_config)
 
 
+def store_dict(fpath: str, content: dict):
+    fpath = fpath if fpath.endswith(".yaml") else fpath + ".yaml"
+    with open(fpath, 'w') as f:
+        yaml.dump(content, f)
+
+
 def main(args):
-    tune_asha(args.tune, args.model, args.dataset)
+    assert args.model, "model not specified"
+    assert args.dataset, "dataset not specified"
+    tune_asha(args, args.model, args.dataset)
 
 
 if __name__ == "__main__":
