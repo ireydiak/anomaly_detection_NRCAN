@@ -149,6 +149,7 @@ class AbstractDataset(Dataset):
                 test_size: float = 0.5,
                 normal_label: int = 0,
                 num_workers: int = 0,
+                drop_last: bool = False
                 ) -> (DataLoader, DataLoader):
         train_set, test_set = self.train_test_split(test_size=test_size, normal_label=normal_label)
         if self.scaler:
@@ -157,7 +158,8 @@ class AbstractDataset(Dataset):
             dataset=train_set,
             batch_size=batch_size,
             num_workers=num_workers,
-            pin_memory=True
+            pin_memory=True,
+            drop_last=drop_last
         )
 
         test_ldr = DataLoader(

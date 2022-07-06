@@ -5,6 +5,7 @@ import math
 
 from pytorch_lightning.loggers import TensorBoardLogger
 
+from pyad.lightning.adversarial import LitALAD
 from pyad.lightning.density import LitDSEBM, LitDAGMM
 from pyad.lightning.one_class import LitDeepSVDD, LitDROCC
 from pyad.lightning.reconstruction import LitAutoEncoder, LitMemAE
@@ -263,6 +264,16 @@ def prepare_thyroid(model_cls):
             ascent_step_size=0.01,
             ascent_num_steps=50
         )
+    elif model_name == "litalad":
+        batch_size = 128
+        model = LitALAD(
+            in_features=dataset.in_features,
+            weight_decay=1e-4,
+            lr=1e-4,
+            latent_dim=32,
+            out_dim=128,
+            negative_slope=0.2,
+        )
     else:
         raise Exception("unknown model %s" % model_name)
 
@@ -437,6 +448,16 @@ def prepare_arrhythmia(model_cls):
             only_ce_epochs=50,
             ascent_step_size=0.01,
             ascent_num_steps=50
+        )
+    elif model_name == "litalad":
+        batch_size = 128
+        model = LitALAD(
+            in_features=dataset.in_features,
+            weight_decay=1e-6,
+            lr=1e-4,
+            latent_dim=64,
+            out_dim=128,
+            negative_slope=0.2,
         )
     else:
         raise Exception("unknown model %s" % model_name)
