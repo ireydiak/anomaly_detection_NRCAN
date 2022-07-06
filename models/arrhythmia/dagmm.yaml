@@ -23,6 +23,7 @@ data:
   class_path: pyad.datamanager.datamodule.ArrhythmiaDataModule
   init_args:
     batch_size: 128
-    data_dir: ../data/Arrhythmia/arrhythmia.mat
+    data_dir: ../data/Arrhythmia/arrhythmia.npy
+    scaler: standard
 
 

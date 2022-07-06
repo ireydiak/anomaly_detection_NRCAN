@@ -34,19 +34,30 @@ class SimpleDataset(Dataset):
 
 
 class AbstractDataset(Dataset):
-    def __init__(self, path: str, normal_size: float = 1.0, seed=None, scaler=None, **kwargs):
+    def __init__(
+        self,
+        data_dir: str,
+        normal_size: float = 1.0,
+        seed=None,
+        scaler=None,
+        normal_label: int = 0,
+        anomaly_label: int = 1,
+    ):
+        super(AbstractDataset, self).__init__()
+        self.normal_label = normal_label
+        self.anomaly_label = anomaly_label
+        self.batch_size = batch_size
         self.name = self.__class__.__name__
         self.labels = np.array([])
         self.seed = seed
         if scaler is not None:
-            assert scaler.lower() in set(scaler_map.keys()), "unknown scaler %s, please use %s" % (
-            scaler, scaler_map.keys())
+            assert scaler.lower() in set(scaler_map.keys()), "unknown scaler %s, please use %s" % (scaler, scaler_map.keys())
             self.scaler = scaler_map[scaler.lower()]()
         else:
             self.scaler = None
-        data = self._load_data(path)
+        data = self._load_data(data_dir)
         if normal_size < 1.:
-            self.X, self.y = self.select_data_subset(normal_size, data, **kwargs)
+            self.X, self.y = self.select_data_subset(normal_size, data)
         else:
             self.X = data[:, :-1]
             self.y = data[:, -1]
@@ -58,13 +69,10 @@ class AbstractDataset(Dataset):
         self.n_instances = self.X.shape[0]
         self.in_features = self.X.shape[1]
 
-    def select_data_subset(self, normal_size, data, **kwargs):
-        anomaly_label = kwargs.get('anomaly_label', 1)
-        normal_label = kwargs.get('normal_label', 0)
-
+    def select_data_subset(self, normal_size, data):
         # Keeps `normal_size` percent of normal labels
-        normal_idx = np.where(data[:, -1] == normal_label)[0]
-        anomaly_idx = np.where(data[:, -1] == anomaly_label)[0]
+        normal_idx = np.where(data[:, -1] == self.normal_label)[0]
+        anomaly_idx = np.where(data[:, -1] == self.anomaly_label)[0]
 
         if self.seed:
             np.random.seed(self.seed)
@@ -154,6 +162,7 @@ class AbstractDataset(Dataset):
         train_set, test_set = self.train_test_split(test_size=test_size, normal_label=normal_label)
         if self.scaler:
             train_set, test_set, _ = self.normalize(train_set, test_set)
+
         train_ldr = DataLoader(
             dataset=train_set,
             batch_size=batch_size,
