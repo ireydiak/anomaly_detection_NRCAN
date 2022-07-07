@@ -6,7 +6,9 @@ from pyad.utils import metrics
 from ray import tune
 from torch import nn
 from typing import List, Tuple
-from pyad.model.utils import activation_map
+from pyad.lightning.utils import activation_map
+
+from pyad.utils.utils import ids_misclf_per_label
 
 
 def create_net_layers(in_dim, out_dim, hidden_dims, activation="relu", bias=True, dropout=0.):
@@ -87,6 +89,9 @@ class BaseLightningModel(pl.LightningModule):
         self.save_hyperparameters(
             ignore=["in_features", "n_instances", "threshold"]
         )
+        # Performance metrics placeholder
+        self.results = None
+        self.per_class_accuracy = None
 
     def before_train(self, dataloader: DataLoader):
         """
@@ -112,7 +117,12 @@ class BaseLightningModel(pl.LightningModule):
             scores = np.append(scores, output["scores"].cpu().detach().numpy())
             y_true = np.append(y_true, output["y_true"].cpu().detach().numpy())
             labels = np.append(labels, output["labels"].cpu().detach().numpy())
-        results, _ = metrics.score_recall_precision_w_threshold(scores, y_true, threshold=self.threshold)
+
+        results, y_pred = metrics.score_recall_precision_w_threshold(scores, y_true, threshold=self.threshold)
+        if len(np.unique(labels)) > 2:
+            misclf_df = ids_misclf_per_label(y_pred, y_true, labels)
+            misclf_df = misclf_df.sort_values("Misclassified ratio", ascending=False)
+            self.per_class_accuracy = misclf_df
         self.results = results
         self.log_dict(results)
 
@@ -128,6 +138,50 @@ class BaseLightningModel(pl.LightningModule):
             "scores": scores,
             "y_true": y_true,
             "labels": labels
+        }
+
+    def inspect_gradient_wrt_input(self, dataloader, all_labels):
+        # TODO: complete and test
+        self.model.eval()
+        y_true, scores, labels = [], [], []
+        y_grad_wrt_X, label_grad_wrt_X, = {0: [], 1: []}, {label: [] for label in all_labels}
+        losses = []
+        for row in dataloader:
+            X, y, label = row
+            X = X.float()
+            # TODO: put in dataloader
+            label = np.array(label)
+            X = X.to(self.device).float()
+            X.requires_grad = True
+            self.optimizer.zero_grad()
+
+            loss = self.train_iter(X)
+            loss.backward()
+
+            for y_c in [0, 1]:
+                dsdx = X.grad[y == y_c].mean(dim=0).cpu().numpy()
+                if len(X.grad[y == y_c]) > 0:
+                    y_grad_wrt_X[y_c].append(dsdx)
+
+            for y_c in all_labels:
+                dsdx = X.grad[label == y_c].cpu().numpy()
+                if len(X.grad[label == y_c]) > 0:
+                    label_grad_wrt_X[y_c].append(dsdx)
+
+            losses.append(loss.item())
+            y_true.extend(y.cpu().tolist())
+            labels.extend(list(label))
+        self.model.train()
+        y_grad_wrt_X[0], y_grad_wrt_X[1] = np.asarray(y_grad_wrt_X[0]), np.asarray(y_grad_wrt_X[1])
+        for y_c in all_labels:
+            label_grad_wrt_X[y_c] = np.concatenate(label_grad_wrt_X[y_c])
+
+        return {
+            "y_true": np.array(y_true),
+            "labels": np.array(labels),
+            "y_grad_wrt_X": y_grad_wrt_X,
+            "label_grad_wrt_X": label_grad_wrt_X,
+            "losses": np.asarray(losses),
         }
 
 

@@ -3,7 +3,7 @@ from pytorch_lightning.utilities.cli import MODEL_REGISTRY
 from torch.autograd import Variable
 from pyad.lightning.base import BaseLightningModel, layer_options_helper
 from torch import nn
-from pyad.model.utils import weights_init_xavier
+from pyad.lightning.utils import weights_init_xavier
 from ray import tune as ray_tune
 
 

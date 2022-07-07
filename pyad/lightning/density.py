@@ -3,7 +3,7 @@ import torch
 from pytorch_lightning.utilities.cli import MODEL_REGISTRY
 from pyad.lightning.base import BaseLightningModel, layer_options_helper
 from pyad.lightning.base import AutoEncoder, create_net_layers
-from pyad.model.utils import relative_euclidean_dist
+from pyad.lightning.utils import relative_euclidean_dist
 from torch import nn
 from torch.optim.lr_scheduler import StepLR
 from typing import List, Any
