@@ -1,4 +1,5 @@
 from random import shuffle
+from typing import Tuple
 
 import numpy as np
 from sklearn import metrics as sk_metrics
@@ -83,7 +84,7 @@ def estimate_optimal_threshold_legacy(test_score, y_test, pos_label=1, nq=100):
     }
 
 
-def score_recall_precision_w_threshold(scores, y_true, threshold=None, pos_label=1):
+def score_recall_precision_w_threshold(scores, y_true, threshold=None, pos_label=1) -> Tuple[dict, np.ndarray]:
     anomaly_ratio = (y_true == pos_label).sum() / len(y_true)
     threshold = threshold or int(np.ceil((1 - anomaly_ratio) * 100))
     thresh = np.percentile(scores, threshold)
@@ -92,7 +93,6 @@ def score_recall_precision_w_threshold(scores, y_true, threshold=None, pos_label
     y_pred = (scores >= thresh).astype(int)
     y_true = y_true.astype(int)
 
-    # accuracy = sk_metrics.accuracy_score(y_true, y_pred)
     precision, recall, f_score, _ = sk_metrics.precision_recall_fscore_support(
         y_true, y_pred, average='binary', pos_label=pos_label
     )
