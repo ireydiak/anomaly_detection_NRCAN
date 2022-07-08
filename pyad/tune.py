@@ -99,6 +99,10 @@ def run(
                 },
                 on="test_end")
         ])
+
+    # pre-train if needed
+    model.before_train(train_ldr)
+
     # learn & evaluate
     trainer.fit(
         model=model,

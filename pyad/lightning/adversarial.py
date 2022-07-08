@@ -133,8 +133,8 @@ class LitALAD(BaseLightningModel):
 
         # log both losses
         self.log_dict({
-            "g_loss": loss_g,
-            "d_loss": loss_d
+            "g_loss": loss_g.item(),
+            "d_loss": loss_d.item()
         })
 
     def configure_optimizers(self):
@@ -150,6 +150,22 @@ class LitALAD(BaseLightningModel):
             betas=(0.5, 0.999)
         )
         return [optim_ge, optim_d]
+
+    @staticmethod
+    def get_ray_config(in_features: int, n_instances: int) -> dict:
+        # TODO: ALAD can't be tuned directly using RayTune, probably because of manual optimization
+        # read parent config
+        parent_cfg = BaseLightningModel.get_ray_config(in_features, n_instances)
+        _, latent_dim_opts = layer_options_helper(in_features)
+
+        child_cfg = {
+            "latent_dim": ray_tune.choice(latent_dim_opts),
+            "out_dim": ray_tune.choice([64, 128, 256, 512])
+        }
+        return dict(
+            **parent_cfg,
+            **child_cfg
+        )
 
 
 class Encoder(nn.Module):

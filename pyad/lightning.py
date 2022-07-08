@@ -639,6 +639,8 @@ def main_litcli(cli):
         logger=tb_logger,
     )
 
+    model.before_train(datamodule.train_dataloader())
+
     # train
     trainer.fit(
         model=model,

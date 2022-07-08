@@ -382,7 +382,7 @@ class LitDAGMM(BaseLightningModel):
             "gmm_hidden_dims": ray_tune.choice([[8], [10], [12]]),
             "ae_activation": ray_tune.choice(["tanh", "relu"]),
             "gmm_activation": ray_tune.choice(["tanh", "relu"]),
-            "latent_dim": ray_tune.choice(hidden_dims_opts),
+            "latent_dim": ray_tune.choice(latent_dim_opts),
             "lamb_1": 0.1,
             "lamb_2": 0.005,
             "reg_covar": 1e-12,
