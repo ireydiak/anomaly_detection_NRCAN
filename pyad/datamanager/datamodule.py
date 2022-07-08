@@ -7,16 +7,26 @@ import scipy.io as scio
 from torch.utils.data import DataLoader, Dataset, Subset
 import numpy as np
 from torch.utils.data.dataloader import T_co
-
 from pyad.datamanager.dataset import SimpleDataset, scaler_map
 
 
 class BaseDataset(Dataset):
-    def __init__(self, root: str, label_col: str = None):
+    def __init__(
+            self,
+            data_dir: str,
+            label_col: str = None,
+            normal_size: float = 1.,
+            anomaly_label: int = 1
+    ):
         super(BaseDataset, self).__init__()
-        self.root = root
+        assert anomaly_label == 0 or anomaly_label == 1, "`anomaly_label` must be either `1` or `0`"
+        assert 0 <= normal_size <= 1., "`normal_size` must be inclusively between 0 and 1"
+        self.data_dir = data_dir
         self.labels = None
-        data = self._load_data(self.root, label_col)
+        self.normal_size = normal_size
+        self.normal_label = int(not bool(anomaly_label))
+        self.anomaly_label = anomaly_label
+        data = self._load_data(self.data_dir, label_col)
         self.X = data[:, :-1]
         self.y = data[:, -1]
         assert np.isnan(self.X).sum() == 0, "detected nan values"
@@ -31,12 +41,10 @@ class BaseDataset(Dataset):
     def __len__(self):
         return len(self.X)
 
-    def train_test_split(self, test_size: float = 0.5, normal_label: int = 0) -> Tuple[Subset, Subset]:
-        anomaly_label = int(1 - normal_label)
-
+    def train_test_split(self, test_size: float = 0.5) -> Tuple[Subset, Subset]:
         # split between normal and abnormal samples
-        normal_idx = np.where(self.y == normal_label)[0]
-        abnormal_idx = np.where(self.y == anomaly_label)[0]
+        normal_idx = np.where(self.y == self.normal_label)[0]
+        abnormal_idx = np.where(self.y == self.anomaly_label)[0]
 
         # shuffle normal indexes for more randomness
         np.random.shuffle(normal_idx)
@@ -65,14 +73,18 @@ class BaseDataset(Dataset):
             data = np.concatenate((data['X'], data['y']), axis=1)
         elif path.endswith(".csv"):
             df = pd.read_csv(path)
+            if self.normal_size < 1.:
+                # Select `normal_size` percent of normal samples
+                normal_df = df[df.Label == self.normal_label].sample(frac=self.normal_size)
+                df = pd.concat((
+                    normal_df, df[df.Label == self.anomaly_label]
+                ))
             if label_col:
                 self.labels = df[label_col].to_numpy()
-                data = df.drop(["Category"], axis=1).astype(np.float32).to_numpy()
-            else:
-                self.labels = None
-                data = df.astype(np.float32).to_numpy()
+                df = df.drop(["Category"], axis=1)
+            data = df.astype(np.float32).to_numpy()
         else:
-            raise RuntimeError(f"Could not open {path}. Dataset can only read .npz and .mat files.")
+            raise RuntimeError(f"Could not open {path}. Dataset can only read .npy, .csv and .mat files.")
         return data
 
 
@@ -83,13 +95,20 @@ class BaseDataModule(pl.LightningDataModule):
             batch_size: int,
             scaler: str = None,
             num_workers: int = 0,
-            label_col: str = None
+            label_col: str = None,
+            normal_size: float = 1.,
+            anomaly_label: int = 1
     ):
         super(BaseDataModule, self).__init__()
         self.data_dir = data_dir
         self.batch_size = batch_size
         self.num_workers = num_workers
-        self.dataset = BaseDataset(self.data_dir, label_col=label_col)
+        self.label_col = label_col
+        self.dataset = BaseDataset(
+            self.data_dir,
+            label_col=label_col, normal_size=normal_size, anomaly_label=anomaly_label
+        )
+        self.normal_size = normal_size
         self.sanity_check()
         self.in_features = self.dataset.in_features
         self.n_instances = self.dataset.n_instances
@@ -102,7 +121,7 @@ class BaseDataModule(pl.LightningDataModule):
         Optional hook to run sanity checks (e.g. look for NaNs, INF and other invalid values)
         prior to train any model
         """
-        pass
+        assert np.isnan(self.dataset.X).sum() == 0, "detected nan values"
 
     def normalize(self, train_set, test_set):
         # extract training/testing data and labels
@@ -129,13 +148,11 @@ class BaseDataModule(pl.LightningDataModule):
         )
 
     def train_dataloader(self):
-        if not self.trainset:
-            self.setup()
+        assert self.trainset is not None, "`self.trainset` is None, don't forget to call `datamodule.setup()` before trying to load the train loader"
         return self.trainset
 
     def test_dataloader(self):
-        if not self.testset:
-            self.setup()
+        assert self.testset is not None, "`self.testset` is None, don't forget to call `datamodule.setup()` before trying to load the test loader"
         return self.testset
 
 

@@ -26,5 +26,6 @@ data:
   init_args:
     batch_size: 1024
     data_dir: ../data/KDD10/kdd10.npy
+    anomaly_label: 0
 
 

@@ -2,10 +2,9 @@ import torch
 from pytorch_lightning.utilities.cli import MODEL_REGISTRY
 from pytorch_lightning.utilities.types import STEP_OUTPUT
 from torch.optim.lr_scheduler import StepLR
-from pyad.lightning.base import BaseLightningModel, layer_options_helper
 from pyad.loss.EntropyLoss import EntropyLoss
-from pyad.lightning.base import create_net_layers
-from pyad.model.memory_module import MemoryUnit
+from pyad.lightning.base import BaseLightningModel, layer_options_helper, create_net_layers
+from pyad.lightning.memory_module import MemoryUnit
 from torch import nn
 from typing import List, Any
 from ray import tune as ray_tune

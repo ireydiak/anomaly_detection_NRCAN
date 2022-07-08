@@ -148,17 +148,19 @@ def tune_asha(args, model_cls, dataset_cls):
 
     # start tuning
     run_name = "%s_%s" % (dataset.name.lower(), model_cls.__name__.lower())
-    analysis = tune.run(train_fn_with_parameters,
-                        resources_per_trial=resources_per_trial,
-                        metric="aupr",
-                        mode="max",
-                        config=config,
-                        num_samples=args.num_samples,
-                        scheduler=scheduler,
-                        progress_reporter=reporter,
-                        name=run_name,
-                        local_dir=args.save_dir
-                        )
+    analysis = tune.run(
+        train_fn_with_parameters,
+        resources_per_trial=resources_per_trial,
+        metric="aupr",
+        mode="max",
+        config=config,
+        num_samples=args.num_samples,
+        scheduler=scheduler,
+        progress_reporter=reporter,
+        name=run_name,
+        local_dir=args.save_dir,
+        fail_fast=True # can leak resources
+    )
     # store best config in YAML and complete results in csv
     tuning_root = os.path.join(args.save_dir, run_name)
     store_dict(os.path.join(tuning_root, "best_config.yaml"), analysis.best_config)

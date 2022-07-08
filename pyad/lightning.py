@@ -35,6 +35,7 @@ class MyLightningCLI(LightningCLI):
         # parser.add_lightning_class_args(AbstractDataset, "dataset")
         parser.link_arguments("data.in_features", "model.init_args.in_features", apply_on="instantiate")
         parser.link_arguments("data.n_instances", "model.init_args.n_instances", apply_on="instantiate")
+        parser.add_argument("--save_dir", type=str, default="../experiments/training")
 
         # subcommands
         # trainer_class = (
@@ -60,6 +61,7 @@ class MyLightningCLI(LightningCLI):
     #     # )
     #     commands = {"fit": parent_subcommands["fit"], "tune": parent_subcommands["tune"]}
     #     return commands
+
 
 class FindRegistryAction(argparse.Action):
     def __init__(self, option_strings: Sequence[str], dest: str, registry, append_str=""):
@@ -553,11 +555,12 @@ def tune_asha(args, model_cls, dataset_cls):
 
 def train(args, model_cls, dataset_cls):
     dataset_name = dataset_cls.name.lower()
+    exp_fname = os.path.join(dataset_name, model_cls.__name__)
 
     # logger
     tb_logger = pl_loggers.TensorBoardLogger(
         save_dir=args.save_dir,
-        name=os.path.join(dataset_name, model_cls.__name__)
+        name=exp_fname
     )
 
     # trainer
@@ -610,15 +613,22 @@ def main(args):
 
 
 def main_litcli(cli):
+    # todo: handle multiple runs
     dataset_name = cli.datamodule.__class__.__name__.lower().replace("datamodule", "")
     datamodule = cli.datamodule
     model = cli.model
+    model_name = model.__class__.__name__
+    exp_fname = os.path.join(dataset_name, model_name)
+    base_path = os.path.join(cli.config.save_dir, exp_fname)
 
     # logger
     tb_logger = pl_loggers.TensorBoardLogger(
-        save_dir="../experiments/training",  # todo: add to argparse args.save_dir,
-        name=os.path.join(dataset_name, cli.model.__class__.__name__)
+        save_dir=cli.config.save_dir,
+        name=exp_fname
     )
+
+    # create train and test set
+    datamodule.setup()
 
     # trainer
     trainer = pl.Trainer(
@@ -629,21 +639,21 @@ def main_litcli(cli):
         logger=tb_logger,
     )
 
-    #dataset = ArrhythmiaDataset(path="../data/Arrhythmia/arrhythmia.npy", scaler="standard")
-    #train_ldr, test_ldr, _ = dataset.loaders(batch_size=128)
-
-    # learn
+    # train
     trainer.fit(
         model=model,
         train_dataloaders=datamodule.train_dataloader()
     )
-    # inference (predict)
+    # test
     res = trainer.test(
         model=model,
         dataloaders=datamodule.test_dataloader()
-    )[0]
-    # store_results()
-    a = 1
+    )[0] # todo store results in CSV file
+    # store results
+    if model.per_class_accuracy is not None:
+        model.per_class_accuracy.to_csv(
+            os.path.join(base_path, "{}_misclassifications.csv".format(model_name.lower()))
+        )
 
 
 from pyad.trainer_override import Trainer as PyADTrainer

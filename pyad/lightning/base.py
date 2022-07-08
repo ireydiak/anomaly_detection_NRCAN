@@ -113,11 +113,11 @@ class BaseLightningModel(pl.LightningModule):
 
     def test_epoch_end(self, outputs) -> None:
         scores, y_true, labels = np.array([]), np.array([]), np.array([])
+        # TODO: fix bottleneck with labels
         for output in outputs:
-            scores = np.append(scores, output["scores"].cpu().detach().numpy())
-            y_true = np.append(y_true, output["y_true"].cpu().detach().numpy())
-            labels = np.append(labels, output["labels"].cpu().detach().numpy())
-
+            scores = np.append(scores, output["scores"])
+            y_true = np.append(y_true, output["y_true"])
+            labels = np.append(labels, output["labels"])
         results, y_pred = metrics.score_recall_precision_w_threshold(scores, y_true, threshold=self.threshold)
         if len(np.unique(labels)) > 2:
             misclf_df = ids_misclf_per_label(y_pred, y_true, labels)
@@ -134,9 +134,14 @@ class BaseLightningModel(pl.LightningModule):
         X = X.float()
         scores = self.score(X)
 
+        if type(labels) == torch.Tensor:
+            labels = labels.cpu().detach().numpy()
+        else:
+            labels = np.array(labels)
+
         return {
-            "scores": scores,
-            "y_true": y_true,
+            "scores": scores.cpu().detach().numpy(),
+            "y_true": y_true.cpu().detach().numpy(),
             "labels": labels
         }
 
