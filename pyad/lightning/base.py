@@ -123,6 +123,8 @@ class BaseLightningModel(pl.LightningModule):
             misclf_df = ids_misclf_per_label(y_pred, y_true, labels)
             misclf_df = misclf_df.sort_values("Misclassified ratio", ascending=False)
             self.per_class_accuracy = misclf_df
+            for i, row in misclf_df.iterrows():
+                results[i] = row["Accuracy"]
         self.results = results
         self.log_dict(results)
 

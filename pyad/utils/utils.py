@@ -6,6 +6,7 @@ import torch
 import torch.nn.functional as F
 import pandas as pd
 from typing import Type, Callable
+from datetime import datetime as dt
 
 
 def predict_proba(scores):
@@ -125,3 +126,16 @@ def random_split_to_two(table, ratio=0):
     t2 = table[shuffle_idx[n1:]]
 
     return t1, t2
+
+
+def store_results(
+        results: dict,
+        results_fname: str
+):
+    with open(results_fname, 'a') as f:
+        hdr = "Experiments on {}\n".format(dt.now().strftime("%d/%m/%Y %H:%M:%S"))
+        f.write(hdr)
+        f.write("-".join("" for _ in range(len(hdr))) + "\n")
+#        f.write(", ".join([f"{param_name}={param_val}" for param_name, param_val in params.items()]) + "\n")
+        f.write("\n".join([f"{met_name}: {res}" for met_name, res in results.items()]) + "\n")
+        f.write("-".join("" for _ in range(len(hdr))) + "\n")

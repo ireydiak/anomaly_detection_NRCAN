@@ -123,7 +123,7 @@ class BaseDataModule(pl.LightningDataModule):
         """
         assert np.isnan(self.dataset.X).sum() == 0, "detected nan values"
 
-    def normalize(self, train_set, test_set):
+    def normalize(self, train_set, test_set) -> Tuple[SimpleDataset, SimpleDataset]:
         # extract training/testing data and labels
         train_data = train_set.dataset.X[train_set.indices]
         train_y, train_labels = train_set.dataset.y[train_set.indices], train_set.dataset.labels[train_set.indices]
@@ -136,7 +136,7 @@ class BaseDataModule(pl.LightningDataModule):
         test_set = SimpleDataset(X=self.scaler.transform(test_data), y=test_y, labels=test_labels)
         return train_set, test_set
 
-    def setup(self, stage: Optional[str] = None):
+    def setup(self, stage: Optional[str] = None) -> None:
         trainset, testset = self.dataset.train_test_split()
         if self.scaler:
             trainset, testset = self.normalize(trainset, testset)
@@ -147,11 +147,11 @@ class BaseDataModule(pl.LightningDataModule):
             testset, batch_size=self.batch_size, num_workers=self.num_workers, pin_memory=True
         )
 
-    def train_dataloader(self):
+    def train_dataloader(self) -> DataLoader:
         assert self.trainset is not None, "`self.trainset` is None, don't forget to call `datamodule.setup()` before trying to load the train loader"
         return self.trainset
 
-    def test_dataloader(self):
+    def test_dataloader(self) -> DataLoader:
         assert self.testset is not None, "`self.testset` is None, don't forget to call `datamodule.setup()` before trying to load the test loader"
         return self.testset
 
@@ -170,6 +170,7 @@ class ArrhythmiaDataModule(BaseDataModule):
 class KDD10DataModule(BaseDataModule):
     def sanity_check(self):
         X = self.dataset.X
+        super(KDD10DataModule, self).sanity_check()
         assert X[X < 0].sum() == 0, "detected negative values"
 
 
@@ -177,6 +178,7 @@ class KDD10DataModule(BaseDataModule):
 class NSLKDDDataModule(BaseDataModule):
     def sanity_check(self):
         X = self.dataset.X
+        super(NSLKDDDataModule, self).sanity_check()
         assert X[X < 0].sum() == 0, "detected negative values"
 
 
@@ -184,6 +186,7 @@ class NSLKDDDataModule(BaseDataModule):
 class IDS2017DataModule(BaseDataModule):
     def sanity_check(self):
         X = self.dataset.X
+        super(IDS2017DataModule, self).sanity_check()
         assert X[X < 0].sum() == 0, "detected negative values"
 
 
@@ -191,4 +194,5 @@ class IDS2017DataModule(BaseDataModule):
 class IDS2018DataModule(BaseDataModule):
     def sanity_check(self):
         X = self.dataset.X
+        super(IDS2018DataModule, self).sanity_check()
         assert X[X < 0].sum() == 0, "detected negative values"
