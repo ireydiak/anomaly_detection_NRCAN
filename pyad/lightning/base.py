@@ -32,10 +32,12 @@ def create_net_layers(in_dim, out_dim, hidden_dims, activation="relu", bias=True
     return layers
 
 
-def layer_options_helper(in_features: int) -> Tuple[List[List[int]], List[int]]:
+def layer_options_helper(in_features: int, max_layers: int = 4) -> Tuple[List[List[int]], List[int]]:
     # used to set the maximum number of layers where every consecutive layer is compressing the previous layer by
     # a factor of 2
     depth = int(np.floor(np.log2(in_features)))
+    if max_layers > 0:
+        depth = min(depth, max_layers)
     # latent_dim options
     latent_dim_opts = (2 ** np.arange(0, depth + 1)).tolist()
     # construct the different layer options

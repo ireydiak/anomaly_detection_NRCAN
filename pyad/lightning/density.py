@@ -175,7 +175,7 @@ class LitDAGMM(BaseLightningModel):
         self.cov_mat = None
         self.covs = None
         self.cosim = nn.CosineSimilarity().to(self.device)
-        self.softmax = nn.Softmax().to(self.device)
+        self.softmax = nn.Softmax(dim=1).to(self.device)
         self._build_network()
 
     def _build_network(self):
@@ -380,8 +380,8 @@ class LitDAGMM(BaseLightningModel):
             "n_mixtures": ray_tune.choice([2, 4, 6, 8]),
             "ae_hidden_dims": ray_tune.choice(hidden_dims_opts),
             "gmm_hidden_dims": ray_tune.choice([[8], [10], [12]]),
-            "ae_activation": ray_tune.choice(["tanh", "relu"]),
-            "gmm_activation": ray_tune.choice(["tanh", "relu"]),
+            "ae_activation": "tanh", #ray_tune.choice(["tanh", "relu"]),
+            "gmm_activation": "tanh", #ray_tune.choice(["tanh", "relu"]),
             "latent_dim": ray_tune.choice(latent_dim_opts),
             "lamb_1": 0.1,
             "lamb_2": 0.005,

@@ -63,6 +63,9 @@ def argparser():
     tuning_parser.add_argument(
         "--dataset", action=FindRegistryAction, registry=DATAMODULE_REGISTRY, append_str="Dataset"
     )
+    tuning_parser.add_argument(
+        "--fail_fast", action="store_true"
+    )
     tuning_parser.add_argument("--model", action=FindRegistryAction, registry=MODEL_REGISTRY)
 
     return tuning_parser.parse_args()
@@ -115,7 +118,7 @@ def run(
     )
 
 
-def tune_asha(args, model_cls, dataset_cls):
+def tune_asha(args, model_cls, dataset_cls, fail_fast=False):
     # Instantiate dataset class
     dataset = dataset_cls(
         data_dir=args.data_dir, scaler=args.scaler
@@ -163,7 +166,7 @@ def tune_asha(args, model_cls, dataset_cls):
         progress_reporter=reporter,
         name=run_name,
         local_dir=args.save_dir,
-        fail_fast=True # can leak resources
+        fail_fast=fail_fast # can leak resources
     )
     # store best config in YAML and complete results in csv
     tuning_root = os.path.join(args.save_dir, run_name)
@@ -183,7 +186,7 @@ def store_dict(fpath: str, content: dict):
 def main(args):
     assert args.model, "model not specified"
     assert args.dataset, "dataset not specified"
-    tune_asha(args, args.model, args.dataset)
+    tune_asha(args, args.model, args.dataset, args.fail_fast)
 
 
 if __name__ == "__main__":
