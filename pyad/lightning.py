@@ -12,6 +12,10 @@ from pyad.utils.utils import store_results
 MODEL_REGISTRY.register_classes(pyad.lightning, pl.LightningModule)
 DATAMODULE_REGISTRY.register_classes(pyad.datamanager.datamodule, pl.LightningDataModule)
 
+import warnings
+
+warnings.filterwarnings("ignore", ".*does not have many workers.*")
+
 
 class MyLightningCLI(LightningCLI):
     def add_arguments_to_parser(self, parser):

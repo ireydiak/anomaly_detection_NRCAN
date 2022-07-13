@@ -7,6 +7,7 @@ import pyad.lightning
 import pytorch_lightning as pl
 import argparse
 import yaml
+import warnings
 
 from pyad.datamanager.dataset import AbstractDataset
 from pytorch_lightning.loggers import TensorBoardLogger
@@ -20,8 +21,8 @@ from ray.tune.integration.pytorch_lightning import TuneReportCallback
 MODEL_REGISTRY.register_classes(pyad.lightning, pl.LightningModule)
 DATAMODULE_REGISTRY.register_classes(pyad.datamanager.dataset, AbstractDataset)
 
-
-# DATAMODULE_REGISTRY.register_classes(pyad.datamanager.datamodule, pl.LightningDataModule)
+warnings.filterwarnings("ignore", ".*does not have many workers.*")
+warnings.filterwarnings("ignore", ".*hook was deprecated.*")
 
 
 class FindRegistryAction(argparse.Action):
@@ -166,7 +167,7 @@ def tune_asha(args, model_cls, dataset_cls, fail_fast=False):
         progress_reporter=reporter,
         name=run_name,
         local_dir=args.save_dir,
-        fail_fast=fail_fast # can leak resources
+        fail_fast=fail_fast  # can leak resources
     )
     # store best config in YAML and complete results in csv
     tuning_root = os.path.join(args.save_dir, run_name)
