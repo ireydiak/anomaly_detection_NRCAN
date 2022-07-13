@@ -16,11 +16,13 @@ class BaseDataset(Dataset):
             data_dir: str,
             label_col: str = None,
             normal_size: float = 1.,
-            anomaly_label: int = 1
+            anomaly_label: int = 1,
+            seed: int = 42
     ):
         super(BaseDataset, self).__init__()
         assert anomaly_label == 0 or anomaly_label == 1, "`anomaly_label` must be either `1` or `0`"
         assert 0 <= normal_size <= 1., "`normal_size` must be inclusively between 0 and 1"
+        self.seed = seed
         self.data_dir = data_dir
         self.labels = None
         self.normal_size = normal_size
@@ -75,7 +77,7 @@ class BaseDataset(Dataset):
             df = pd.read_csv(path)
             if self.normal_size < 1.:
                 # Select `normal_size` percent of normal samples
-                normal_df = df[df.Label == self.normal_label].sample(frac=self.normal_size)
+                normal_df = df[df.Label == self.normal_label].sample(frac=self.normal_size, random_state=self.seed)
                 df = pd.concat((
                     normal_df, df[df.Label == self.anomaly_label]
                 ))
@@ -97,16 +99,18 @@ class BaseDataModule(pl.LightningDataModule):
             num_workers: int = 0,
             label_col: str = None,
             normal_size: float = 1.,
-            anomaly_label: int = 1
+            anomaly_label: int = 1,
+            seed: int = 42
     ):
         super(BaseDataModule, self).__init__()
         self.data_dir = data_dir
         self.batch_size = batch_size
         self.num_workers = num_workers
         self.label_col = label_col
+        self.seed = seed
         self.dataset = BaseDataset(
             self.data_dir,
-            label_col=label_col, normal_size=normal_size, anomaly_label=anomaly_label
+            label_col=label_col, normal_size=normal_size, anomaly_label=anomaly_label, seed=seed
         )
         self.normal_size = normal_size
         self.sanity_check()

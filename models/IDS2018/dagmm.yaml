@@ -1,0 +1,32 @@
+model:
+  class_path: pyad.lightning.density.LitDAGMM
+  init_args:
+    n_mixtures: 2
+    gmm_hidden_dims:
+    - 10
+    latent_dim: 1
+    ae_hidden_dims:
+    - 40
+    - 20
+    dropout_rate: 0.5
+    ae_activation: tanh
+    gmm_activation: tanh
+    lamb_1: 0.1
+    lamb_2: 0.005
+    reg_covar: 1e-12
+    weight_decay: 1e-6
+    lr: 1e-4
+trainer:
+  accelerator: gpu
+  devices: 1
+  max_epochs: 200
+data:
+  class_path: pyad.datamanager.datamodule.IDS2018DataModule
+  init_args:
+    batch_size: 1024
+    data_dir: ./data/IDS2018/ids2018.csv
+    anomaly_label: 0
+    normal_size: 0.5
+    seed: 42
+
+
