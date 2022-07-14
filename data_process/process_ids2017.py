@@ -13,7 +13,6 @@ ANORMAL_LABEL = 1
 
 
 def merge_step(path_to_files: str) -> Tuple[pd.DataFrame, dict]:
-    total_rows = deleted_rows = 0
     chunks, chunk = [], None
     stats = defaultdict()
     df = pd.DataFrame()
@@ -30,10 +29,10 @@ def merge_step(path_to_files: str) -> Tuple[pd.DataFrame, dict]:
     stats["n_features"] = df.shape[1] - 1
     stats["anomaly_ratio"] = "{:2.4f}".format((df["Label"] != "BENIGN").sum() / len(df))
 
-    return pd.concat(chunks), stats
+    return df, stats
 
 
-def clean_step(df: pd.DataFrame, stats: dict):
+def uniformize_labels(df: pd.DataFrame) -> pd.DataFrame:
     # Group DoS attacks
     mask = df["Label"].str.startswith("DoS")
     df.loc[mask, "Label"] = "DoS"
@@ -50,7 +49,10 @@ def clean_step(df: pd.DataFrame, stats: dict):
     # Rename SSH-Patator to SSH-Bruteforce
     mask = df["Label"].str.match("SSH-Patator")
     df.loc[mask, "Label"] = "SSH-Bruteforce"
+    return df
 
+
+def clean_uniq(df: pd.DataFrame, stats: dict) -> Tuple[pd.DataFrame, dict]:
     # unique values
     uniq_cols = df.columns[df.nunique() <= 1].tolist()
     stats["n_unique_cols"] = len(uniq_cols)
@@ -62,7 +64,10 @@ def clean_step(df: pd.DataFrame, stats: dict):
         uniq_cols = df.columns[df.nunique() <= 1].tolist()
     assert len(uniq_cols) == 0, "Found {} columns with unique values: {}".format(len(uniq_cols), uniq_cols)
     print("Columns are valid with more than one distinct value")
+    return df, stats
 
+
+def clean_invalid(df: pd.DataFrame, stats: dict) -> Tuple[pd.DataFrame, dict]:
     # nan values
     # Replacing INF values with NaN
     df = df.replace([-np.inf, np.inf], np.nan)
@@ -79,64 +84,76 @@ def clean_step(df: pd.DataFrame, stats: dict):
     remaining_nans = df.isna().sum().sum()
     assert remaining_nans == 0, "There are still {} NaN values".format(remaining_nans)
 
-    # negative values
-    num_cols = df.select_dtypes(exclude="object").columns
-    mask = (df[num_cols] < 0).sum() > 0
-    neg_cols = df[num_cols].columns[mask]
-    stats["n_negative_cols"] = len(neg_cols)
-    stats["negative_cols"] = ", ".join(neg_cols)
-    print("Found {} columns with negative values: {}".format(len(neg_cols), neg_cols))
-    neg_df = pd.DataFrame(
-        pd.concat((
-            (df[neg_cols] < 0).sum(),
-            (df[neg_cols] < 0).sum() / len(df)
-        ), axis=1)
-    )
-    neg_df.columns = ["Count", "Ratio"]
-    neg_df = neg_df.sort_values("Count", ascending=False)
+    return df, stats
 
+
+def clean_negative(df: pd.DataFrame, stats: dict) -> Tuple[pd.DataFrame, dict]:
+    n_anom_before = (df["Label"] != "Benign").sum()
+    # select numerical columns
     num_cols = df.select_dtypes(exclude="object").columns
+    # create mask for negative values on numerical columns
     mask = (df[num_cols] < 0).sum() > 0
+    # select the numerical columns with negative values
     neg_cols = df[num_cols].columns[mask]
     stats["n_negative_cols"] = len(neg_cols)
     stats["negative_cols"] = ", ".join(neg_cols)
     print("Found {} columns with negative values: {}".format(len(neg_cols), neg_cols))
     # Drop `Init_Win_bytes_forward` and `Init_Win_bytes_backward` because too many of their values are equal to -1 which makes no sense.
-    to_drop = neg_df[neg_df["Ratio"] > 0.01].index.tolist()
-    df = df.drop(to_drop, axis=1)
-    stats["n_dropped_cols"] += len(to_drop)
-    stats["dropped_cols"] = stats["dropped_cols"] + ", ".join(to_drop)
-    num_cols = df.select_dtypes(include=np.number).columns
-    print("Dropped {} columns: {}".format(len(to_drop), to_drop))
+    # to_drop = ["Init_Win_bytes_forward", "Init_Win_bytes_backward"]
+    # stats["n_dropped_cols"] += len(to_drop)
+    # stats["dropped_cols"] = stats["dropped_cols"] + ", ".join(to_drop)
+    # df = df.drop(to_drop, axis=1)
+    # print("Dropped {} columns (negative values): {}".format(len(to_drop), to_drop))
     # When Flow Duration < 0, multiple columns are negative. Since these rows are only associated with BENIGN flows, we can drop them.
-    n_dropped = (df["Flow Duration"] < 0).sum()
-    stats["n_dropped_rows"] += n_dropped
-    df = df[df["Flow Duration"] >= 0]
-    print("Dropped {} rows".format(n_dropped))
+    # n_dropped = (df["Flow Duration"] < 0).sum()
+    # stats["n_dropped_rows"] += n_dropped
+    # df = df[df["Flow Duration"] >= 0]
+    # print("Dropped {} rows (negative values)".format(n_dropped))
+    # remove columns with negative values and associated with attacks
+    num_cols = df.select_dtypes(exclude="object").columns
     neg_cols_when_anomalies = df[num_cols].columns[
-        (df[num_cols][((df[num_cols]).any(1)) & (df["Label"] != "BENIGN")] < 0).sum() > 0]
-    t = neg_cols_when_anomalies
+        (df[num_cols][((df[num_cols]).any(1)) & (df["Label"] != "Benign")] < 0).sum() > 0
+    ]
     to_drop = list(neg_cols_when_anomalies)
     stats["n_dropped_cols"] += len(neg_cols_when_anomalies)
     stats["dropped_cols"] = stats["dropped_cols"] + ", ".join(to_drop)
     df = df.drop(to_drop, axis=1)
-    print("Dropped {} columns {}".format(len(to_drop), to_drop))
-
-    #
+    print("Dropped {} columns {} (negative values)".format(len(to_drop), to_drop))
+    # remove remaining negative rows exclusively associated with `Benign` traffic
+    df = df.reset_index()
     num_cols = df.select_dtypes(include=np.number).columns
-    neg_cols_labels = df[(df[num_cols] < 0).any(1)]["Label"].unique()
-    assert len(neg_cols_labels) == 1 and neg_cols_labels[0] == "BENIGN"
     idx_to_drop = df[(df[num_cols] < 0).any(1)].index
+    # weird hack to go around an annoying index behavior from pandas
+    # selecting the index from the subset `num_cols` includes anomalies on the complete dataframe
+    # hence, to avoid deleting attacks, we compute the intersection between normal data and remaining negative values
+    idx_to_drop = list(set(df[(df.Label == "Benign")].index) & set(idx_to_drop))
     n_dropped = len(idx_to_drop)
     stats["n_dropped_rows"] += n_dropped
     df = df.drop(idx_to_drop, axis=0)
     print("Dropped {} rows".format(n_dropped))
     assert (df[num_cols] < 0).any(1).sum() == 0, "There are still negative values"
     print("There are no more negative values")
+    n_anom_after = (df["Label"] != "Benign").sum()
+    assert n_anom_before == n_anom_after, "dropped {} anomalies, aborting".format(n_anom_before - n_anom_after)
+    return df, stats
 
-    # Drop categorical attributes
+
+def clean_step(df: pd.DataFrame, stats: dict):
+    # 1- uniformize anomaly labels
+    df = uniformize_labels(df)
+    # 2- drop categorical attributes
     df = df.drop(["Destination Port"], axis=1)
+    # 3- remove columns with unique values
+    df, stats = clean_uniq(df, stats)
+    # 4- manage NaN/INF and other invalid values
+    df, stats = clean_invalid(df, stats)
+
+    # negative values
+    df, stats = clean_negative(df, stats)
+
+    # Keep the full-labels aside before "binarizing" them
     df["Category"] = df["Label"]
+    # Convert labels to binary labels
     df.loc[df["Label"] == "BENIGN", "Label"] = 0
     df.loc[df["Label"] != 0, "Label"] = 1
 
@@ -148,14 +165,19 @@ def main():
     # `path` must only contain CSV files and not other file types such as folders.
     path, export_path, _ = utils.parse_args()
 
-    # 1 - Clean the data (remove invalid rows and columns)
+    # 1- Merge the different CSV files into one dataframe
     df, stats = merge_step(path)
+    # 2- Clean the data (remove invalid rows and columns, etc.)
     df, stats = clean_step(df, stats)
 
     # Save info about cleaning step
-    utils.save_stats(export_path + "/cicids2018_info.csv", stats)
+    utils.save_stats(
+        os.path.join(export_path, "cicids2018_info.csv"), stats
+    )
     # Save final dataframe
-    df.to_csv(export_path + "/ids2017.csv")
+    df.to_csv(
+        os.path.join(export_path, "ids2017.csv")
+    )
 
 
 if __name__ == '__main__':
