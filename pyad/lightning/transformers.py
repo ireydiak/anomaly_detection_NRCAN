@@ -72,9 +72,9 @@ class LitNeuTraLAD(BaseLightningModel):
         enc_dim = in_features // 2 if in_features > 10 else in_features * 3
         latent_dim = enc_dim // 2 if in_features > 10 else in_features
         enc_hidden_dims_choices = [
-            [enc_dim, enc_dim, enc_dim, enc_dim, latent_dim], # 5 layers
-            [enc_dim, enc_dim, latent_dim], # 3 layers
-            [enc_dim, latent_dim] # 2 layers
+            [enc_dim, enc_dim, enc_dim, enc_dim, latent_dim],  # 5 layers
+            [enc_dim, enc_dim, latent_dim],  # 3 layers
+            [enc_dim, latent_dim]  # 2 layers
         ]
         trans_hidden_dims_choices = [
             [100],
@@ -195,6 +195,7 @@ class LitNeuTraLAD(BaseLightningModel):
         return X_t_s
 
 
+@MODEL_REGISTRY
 class LitGOAD(BaseLightningModel):
     def __init__(self,
                  n_transforms: int,
