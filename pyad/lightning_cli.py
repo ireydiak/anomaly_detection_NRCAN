@@ -9,12 +9,12 @@ from pytorch_lightning.utilities.cli import LightningCLI, MODEL_REGISTRY, DATAMO
 from pytorch_lightning import loggers as pl_loggers
 from pyad.utils.utils import store_results
 
-MODEL_REGISTRY.register_classes(pyad.lightning, pl.LightningModule)
-DATAMODULE_REGISTRY.register_classes(pyad.datamanager.datamodule, pl.LightningDataModule)
-
 import warnings
 
 warnings.filterwarnings("ignore", ".*does not have many workers.*")
+
+MODEL_REGISTRY.register_classes(pyad.lightning, pl.LightningModule)
+DATAMODULE_REGISTRY.register_classes(pyad.datamanager.datamodule, pl.LightningDataModule)
 
 
 class MyLightningCLI(LightningCLI):

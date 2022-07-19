@@ -31,8 +31,6 @@ def create_network(
 
 @MODEL_REGISTRY
 class LitNeuTraLAD(BaseLightningModel):
-    name = "LITNeuTraLAD"
-
     def __init__(
             self,
             n_transforms: int,
@@ -310,8 +308,8 @@ class LitGOAD(BaseLightningModel):
         logits = self.head(tc)
         return tc, logits
 
-    def score(self, sample: torch.Tensor):
-        diffs = ((sample.unsqueeze(2) - self.centers) ** 2).sum(-1)
+    def score(self, X: torch.Tensor, y: torch.Tensor = None):
+        diffs = ((X.unsqueeze(2) - self.centers) ** 2).sum(-1)
         diffs_eps = self.hparams.eps * torch.ones_like(diffs)
         diffs = torch.max(diffs, diffs_eps)
         logp_sz = torch.nn.functional.log_softmax(-diffs, dim=2)
@@ -332,8 +330,8 @@ class LitGOAD(BaseLightningModel):
         scores = self.score(zs)
         # val_probs_rots[idx] = -torch.diagonal(score, 0, 1, 2).cpu().data.numpy()
         return {
-            "scores": scores,
-            "y_true": y_true,
+            "scores": scores.cpu().detach().numpy(),
+            "y_true": y_true.cpu().detach().numpy(),
             "labels": labels
         }
 

@@ -36,6 +36,7 @@ class BaseDataset(Dataset):
             self.labels = self.y
         self.n_instances = self.X.shape[0]
         self.in_features = self.X.shape[1]
+        self.anomaly_ratio = (self.y == self.anomaly_label) / len(self.X)
 
     def __getitem__(self, index) -> T_co:
         return self.X[index], self.y[index], self.labels[index]
@@ -119,6 +120,7 @@ class BaseDataModule(pl.LightningDataModule):
         self.trainset = None
         self.testset = None
         self.scaler = scaler_map[scaler]() if scaler else None
+        self.anomaly_ratio = self.dataset.anomaly_ratio
 
     def sanity_check(self) -> None:
         """
