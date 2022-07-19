@@ -16,15 +16,3 @@ model:
     reg_covar: 1e-12
     weight_decay: 1e-6
     lr: 1e-4
-trainer:
-  accelerator: gpu
-  devices: 1
-  max_epochs: 200
-data:
-  class_path: pyad.datamanager.datamodule.IDS2018DataModule
-  init_args:
-    batch_size: 1024
-    data_dir: ./data/IDS2018/ids2018.csv
-    normal_size: 0.5
-    seed: 42
-    label_col: Category

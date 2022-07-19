@@ -6,15 +6,3 @@ model:
     latent_dim: 64
     out_dim: 128
     negative_slope: 0.2
-trainer:
-  accelerator: gpu
-  devices: 1
-  max_epochs: 200
-data:
-  class_path: pyad.datamanager.datamodule.IDS2017DataModule
-  init_args:
-    batch_size: 1024
-    data_dir: ../data/IDS2017/ids2017.csv
-    scaler: minmax
-    label_col: Category
-

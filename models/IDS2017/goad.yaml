@@ -6,17 +6,9 @@ model:
     n_transforms: 64
     feature_dim: 128
     num_hidden_nodes: 128
-    batch_size: 1024
+    batch_size: 128
     n_layers: 5
-trainer:
-  accelerator: gpu
-  devices: 1
-  max_epochs: 200
 data:
   class_path: pyad.datamanager.datamodule.IDS2017DataModule
   init_args:
-    batch_size: 1024
-    data_dir: ../data/IDS2017/ids2017.csv
-    scaler: minmax
-    label_col: Category
-
+    batch_size: 128
