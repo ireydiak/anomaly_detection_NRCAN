@@ -9,6 +9,7 @@ from collections import defaultdict
 warnings.filterwarnings('ignore')
 
 NORMAL_LABEL = 0
+NORMAL_CAT = "Benign"
 ANORMAL_LABEL = 1
 
 
@@ -27,7 +28,9 @@ def merge_step(path_to_files: str) -> Tuple[pd.DataFrame, dict]:
     stats["n_dropped_rows"] = 0
     stats["n_instances"] = len(df)
     stats["n_features"] = df.shape[1] - 1
-    stats["anomaly_ratio"] = "{:2.4f}".format((df["Label"] != "BENIGN").sum() / len(df))
+    stats["anomaly_ratio"] = "{:2.4f}".format(
+        (df["Label"] != "BENIGN").sum() / len(df)
+    )
 
     return df, stats
 
@@ -42,7 +45,7 @@ def uniformize_labels(df: pd.DataFrame) -> pd.DataFrame:
     # Rename attacks to match the labels of IDS2018
     # Rename BENIGN to Benign
     mask = df["Label"].str.match("BENIGN")
-    df.loc[mask, "Label"] = "Benign"
+    df.loc[mask, "Label"] = NORMAL_CAT
     # Rename FTP-Patator to FTP-BruteForce
     mask = df["Label"].str.match("FTP-Patator")
     df.loc[mask, "Label"] = "FTP-BruteForce"
@@ -88,7 +91,7 @@ def clean_invalid(df: pd.DataFrame, stats: dict) -> Tuple[pd.DataFrame, dict]:
 
 
 def clean_negative(df: pd.DataFrame, stats: dict) -> Tuple[pd.DataFrame, dict]:
-    n_anom_before = (df["Label"] != "Benign").sum()
+    n_anom_before = (df["Label"] != NORMAL_CAT).sum()
     # select numerical columns
     num_cols = df.select_dtypes(exclude="object").columns
     # create mask for negative values on numerical columns
@@ -112,7 +115,7 @@ def clean_negative(df: pd.DataFrame, stats: dict) -> Tuple[pd.DataFrame, dict]:
     # remove columns with negative values and associated with attacks
     num_cols = df.select_dtypes(exclude="object").columns
     neg_cols_when_anomalies = df[num_cols].columns[
-        (df[num_cols][((df[num_cols]).any(1)) & (df["Label"] != "Benign")] < 0).sum() > 0
+        (df[num_cols][((df[num_cols]).any(1)) & (df["Label"] != NORMAL_CAT)] < 0).sum() > 0
     ]
     to_drop = list(neg_cols_when_anomalies)
     stats["n_dropped_cols"] += len(neg_cols_when_anomalies)
@@ -126,14 +129,14 @@ def clean_negative(df: pd.DataFrame, stats: dict) -> Tuple[pd.DataFrame, dict]:
     # weird hack to go around an annoying index behavior from pandas
     # selecting the index from the subset `num_cols` includes anomalies on the complete dataframe
     # hence, to avoid deleting attacks, we compute the intersection between normal data and remaining negative values
-    idx_to_drop = list(set(df[(df.Label == "Benign")].index) & set(idx_to_drop))
+    idx_to_drop = list(set(df[(df.Label == NORMAL_CAT)].index) & set(idx_to_drop))
     n_dropped = len(idx_to_drop)
     stats["n_dropped_rows"] += n_dropped
     df = df.drop(idx_to_drop, axis=0)
     print("Dropped {} rows".format(n_dropped))
     assert (df[num_cols] < 0).any(1).sum() == 0, "There are still negative values"
     print("There are no more negative values")
-    n_anom_after = (df["Label"] != "Benign").sum()
+    n_anom_after = (df["Label"] != NORMAL_CAT).sum()
     assert n_anom_before == n_anom_after, "dropped {} anomalies, aborting".format(n_anom_before - n_anom_after)
     return df, stats
 
@@ -154,7 +157,7 @@ def clean_step(df: pd.DataFrame, stats: dict):
     # Keep the full-labels aside before "binarizing" them
     df["Category"] = df["Label"]
     # Convert labels to binary labels
-    df.loc[df["Label"] == "BENIGN", "Label"] = 0
+    df.loc[df["Label"] == NORMAL_CAT, "Label"] = 0
     df.loc[df["Label"] != 0, "Label"] = 1
 
     return df, stats
@@ -172,7 +175,7 @@ def main():
 
     # Save info about cleaning step
     utils.save_stats(
-        os.path.join(export_path, "cicids2018_info.csv"), stats
+        os.path.join(export_path, "ids2017_info.csv"), stats
     )
     # Save final dataframe
     df.to_csv(
