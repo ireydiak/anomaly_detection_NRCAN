@@ -1,14 +1,10 @@
 import os
+from collections import defaultdict
 
 import pandas as pd
 import numpy as np
 import argparse
 import utils
-
-folder_struct = {
-    'clean_step': '1_clean',
-    'minify_step': '2_minified'
-}
 
 os.chdir(os.path.dirname(__file__))
 parser = argparse.ArgumentParser()
@@ -16,7 +12,7 @@ parser.add_argument('-o', '--output-directory', type=str, default='../data/')
 
 NORMAL_LABEL = 0
 ANORMAL_LABEL = 1
-
+NORMAL_CAT = "normal."
 
 def export_stats(output_dir: str, stats: dict):
     with open(f'{output_dir}/kdd10percent_infos.csv', 'w') as f:
@@ -31,7 +27,7 @@ def df_stats(df: pd.DataFrame):
         'n_instances': df.shape[0],
         'in_features': df.shape[1],
         'Numerical Columns': len(num_cols),
-        'Categorical Columns': len(cat_cols)
+        'Categorical Columns': len(cat_cols),
     }
 
 
@@ -47,51 +43,55 @@ def import_data():
     return pd.read_csv(url_data, names=colnames, index_col=False, dtype=dict(zip(colnames, coltypes)))
 
 
-def preprocess(df: pd.DataFrame):
+def uniq_step(df: pd.DataFrame):
     # Dropping columns with unique values
     cols_uniq_vals = df.columns[df.nunique() <= 1]
+    print("Dropped {} columns: {} (unique values)".format(len(cols_uniq_vals), cols_uniq_vals))
     df = df.drop(cols_uniq_vals, axis=1)
+    return df, cols_uniq_vals
 
+def preprocess(df: pd.DataFrame, stats):
+    # Drop columns with unique values
+    df, dropped_cols = uniq_step(df)
+    stats["uniq_cols"] = list(dropped_cols)
+
+    # keep labels aside to avoid one-hot encoding them
+    labels = df.label
     # One-hot encode the seven categorical attributes (except labels)
     # Assumes dtypes were previously assigned
-    one_hot = pd.get_dummies(df.iloc[:, :-1])
-
-    # Extract and simplify labels (normal data is 0, attacks are labelled as 1)
-    y = np.where(df.label == "normal.", ANORMAL_LABEL, NORMAL_LABEL)
+    df = pd.get_dummies(df.iloc[:, :-1])
+    df["label"] = labels
+    # Keep the full labels aside before "binarizing" them
+    df["Category"] = labels
+    # Convert labels to binary labels
+    df.loc[df["label"] == NORMAL_CAT, "label"] = 1
+    df.loc[df["label"] != 1, "label"] = 0
 
     # We know the anomaly ration should be around 20%
-    assert np.isclose((y == ANORMAL_LABEL).sum() / len(y), .20, rtol=1.)
-
-    X = np.concatenate(
-        (one_hot.values, y.reshape(-1, 1)),
-        axis=1
+    assert np.isclose(
+        (df["label"] == ANORMAL_LABEL).sum() / len(df), .20,
+        rtol=1.
     )
-    assert np.isnan(X).sum() == 0, "found nan values, aborting"
 
-    return X, df, cols_uniq_vals.to_list()
+    assert df.isna().any(1).sum() == 0, "found nan values, aborting"
+
+    return df, stats
 
 
 def main():
     _, output_dir, _ = utils.parse_args()
-    df_0 = import_data()
-    stats_0 = df_stats(df_0)
+    df = import_data()
+    stats = df_stats(df)
 
-    X, df_1, cols_dropped = preprocess(df_0)
-    stats_0['Normal Instances'] = (df_1['label'] == NORMAL_LABEL).sum()
-    stats_0['Anormal Instances'] = (df_1['label'] == ANORMAL_LABEL).sum()
-    stats_0['Anomaly Ratio'] = stats_0['Anormal Instances'] / len(df_1)
-    stats_1 = {'Final n_instances': len(X), 'Final n_features': X.shape[1] - 1}
-    stats_1['N Dropped Columns'] = len(cols_dropped)
-    stats_1['Dropped Columns'] = [' '.join(cols_dropped)]
-    stats_1['NaN values'] = int(np.isnan(X).sum())
+    df, stats = preprocess(df, stats)
+    stats["Final n_instances"] = len(df)
+    stats["Final n_features"] = df.shape[1] - 2
+    stats["Anomaly Ratio"] = (df.label == 1).sum() / len(df)
 
-    # prepare the output directory
-    utils.prepare(output_dir)
+    export_stats(output_dir, stats)
 
-    export_stats(output_dir, dict(**stats_0, **stats_1))
-
-    path = '{}/{}/{}'.format(output_dir, folder_struct["minify_step"], "kdd10percent")
-    np.save(path, X.astype(np.float64))
+    path = os.path.join(output_dir, "kdd10percent.csv")
+    df.to_csv(path)
 
 
 if __name__ == '__main__':
