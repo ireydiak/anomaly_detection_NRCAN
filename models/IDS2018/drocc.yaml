@@ -2,6 +2,7 @@ model:
   class_path: pyad.lightning.one_class.LitDROCC
   init_args:
     lamb: 1.
+    radius: 3.
     gamma: 2.
     n_classes: 1
     n_hidden_nodes: 20
