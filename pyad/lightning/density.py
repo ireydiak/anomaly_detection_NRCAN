@@ -29,8 +29,7 @@ class LitDSEBM(BaseLightningModel):
             ignore=["in_features", "n_instances", "threshold", "batch_size", "b_prime"]
         )
         # energy or reconstruction-based anomaly score function
-        assert score_metric in score_metrics_opts, "unknown `score_metric` %s, please select %s" % (
-        score_metric, score_metrics_opts)
+        assert score_metric in score_metrics_opts, "unknown `score_metric` %s, please select %s" % (score_metric, score_metrics_opts)
         self.score_metric = score_metric
         # loss function
         self.criterion = nn.BCEWithLogitsLoss()
@@ -244,8 +243,8 @@ class LitDAGMM(BaseLightningModel):
             energy: torch.Tensor,
             pen_cov_mat: torch.Tensor
     ):
-        rec_err = ((X - X_hat) ** 2).mean()
-        loss = rec_err + self.hparams.lamb_1 * energy + self.hparams.lamb_2 * pen_cov_mat
+        rec_err = (X - X_hat) ** 2
+        loss = rec_err.mean() + (self.hparams.lamb_1 / self.n_instances) * energy + self.hparams.lamb_2 * pen_cov_mat
         return loss
 
     def weighted_log_sum_exp(self, x, weights, dim):
