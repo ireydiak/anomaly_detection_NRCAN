@@ -1,0 +1,7 @@
+data:
+  class_path: pyad.datamanager.datamodule.NSLKDDDataModule
+  init_args:
+    batch_size: 1024
+    data_dir: ./data/NSL-KDD/nsl-kdd.csv
+    scaler: minmax
+    label_col: Category

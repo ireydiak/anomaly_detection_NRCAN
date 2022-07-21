@@ -36,7 +36,8 @@ class BaseDataset(Dataset):
             self.labels = self.y
         self.n_instances = self.X.shape[0]
         self.in_features = self.X.shape[1]
-        self.anomaly_ratio = (self.y == self.anomaly_label) / len(self.X)
+        self.anomaly_ratio = (self.y == self.anomaly_label).sum() / len(self.X)
+        assert self.anomaly_ratio <= 0.50, "anomaly ratio should be below 50%, did you select the right anomaly label?"
 
     def __getitem__(self, index) -> T_co:
         return self.X[index], self.y[index], self.labels[index]
