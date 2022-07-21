@@ -5,16 +5,14 @@ model:
     weight_decay: 1e-4
     lr: 1e-4
     n_transforms: 11
-    trans_type: mul
+    trans_type: res
     temperature: 0.1
     trans_hidden_dims:
-      - 200
-      - 121
+      - 24
+      - 6
     enc_hidden_dims:
-      - 32
-      - 32
-      - 32
-      - 32
-      - 16
-max_epochs:
-  n_epochs: 10
+      - 24
+      - 24
+      - 24
+      - 24
+      - 24

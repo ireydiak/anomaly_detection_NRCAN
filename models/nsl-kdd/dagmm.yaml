@@ -17,13 +17,3 @@ model:
     reg_covar: 1e-12
     weight_decay: 1e-4
     lr: 1e-4
-trainer:
-  accelerator: gpu
-  devices: 1
-  max_epochs: 200
-data:
-  class_path: pyad.datamanager.datamodule.NSLKDDDataModule
-  init_args:
-    batch_size: 1024
-    data_dir: ../data/NSL-KDD/nsl-kdd.csv
-    label_col: Category

@@ -11,10 +11,10 @@ model:
       - 200
       - 121
     enc_hidden_dims:
+      - 64
+      - 64
+      - 64
+      - 64
       - 32
-      - 32
-      - 32
-      - 32
-      - 16
 max_epochs:
   n_epochs: 10
