@@ -15,7 +15,3 @@ model:
     reg_covar: 1e-12
     weight_decay: 1e-6
     lr: 1e-4
-trainer:
-  accelerator: gpu
-  devices: 1
-  max_epochs: 200

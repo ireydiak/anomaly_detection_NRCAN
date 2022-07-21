@@ -124,7 +124,7 @@ class LitDROCC(BaseLightningModel):
     def __init__(
             self,
             lamb: float = 1.,
-            radius: float = 3.,
+            radius: float = None,
             gamma: float = 2.,
             n_classes: int = 1,
             n_hidden_nodes: int = 20,
@@ -158,6 +158,7 @@ class LitDROCC(BaseLightningModel):
         kwargs
         """
         super(LitDROCC, self).__init__(**kwargs)
+        self.hparams.radius = radius or np.sqrt(self.in_features) / 2
         self._build_network()
 
     def _build_network(self):

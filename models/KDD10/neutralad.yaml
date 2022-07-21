@@ -1,0 +1,20 @@
+model:
+  class_path: pyad.lightning.transformers.LitNeuTraLAD
+  init_args:
+    activation: relu
+    weight_decay: 1e-4
+    lr: 1e-4
+    n_transforms: 11
+    trans_type: mul
+    temperature: 0.1
+    trans_hidden_dims:
+      - 200
+      - 121
+    enc_hidden_dims:
+      - 64
+      - 64
+      - 64
+      - 64
+      - 32
+max_epochs:
+  n_epochs: 10

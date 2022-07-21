@@ -1,0 +1,12 @@
+model:
+  class_path: pyad.lightning.reconstruction.LitMemAE
+  init_args:
+    mem_dim: 50
+    latent_dim: 2
+    enc_hidden_dims:
+      - 10
+    shrink_thresh: 0.0025
+    alpha: 2e-4
+    activation: relu
+    weight_decay: 1e-4
+    lr: 1e-4

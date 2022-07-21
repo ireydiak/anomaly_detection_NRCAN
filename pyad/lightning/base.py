@@ -137,6 +137,7 @@ class BaseLightningModel(pl.LightningModule):
         X, y_true, labels = batch
         X = X.float()
         scores = self.score(X)
+        assert torch.isnan(scores).any().item() is False, "found NaN values in the final scores, aborting evaluation"
 
         if type(labels) == torch.Tensor:
             labels = labels.cpu().detach().numpy()

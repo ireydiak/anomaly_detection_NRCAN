@@ -1,0 +1,11 @@
+model:
+  class_path: pyad.lightning.reconstruction.LitAutoEncoder
+  init_args:
+    latent_dim: 1
+    hidden_dims:
+      - 12
+      - 4
+    activation: relu
+    reg: 0.5
+    weight_decay: 1e-4
+    lr: 1e-4

@@ -1,0 +1,10 @@
+model:
+  class_path: pyad.lightning.one_class.LitDeepSVDD
+  init_args:
+    feature_dim: 512
+    hidden_dims:
+      - 256
+    activation: relu
+    eps: 0.1
+    weight_decay: 1e-4
+    lr: 1e-4

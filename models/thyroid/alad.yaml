@@ -6,13 +6,3 @@ model:
     latent_dim: 32
     out_dim: 128
     negative_slope: 0.2
-trainer:
-  accelerator: gpu
-  devices: 1
-  max_epochs: 200
-data:
-  class_path: pyad.datamanager.datamodule.ThyroidDataModule
-  init_args:
-    batch_size: 128
-    data_dir: ../data/Thyroid/thyroid.mat
-    scaler: standard
