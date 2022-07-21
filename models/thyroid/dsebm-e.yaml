@@ -1,0 +1,9 @@
+model:
+  class_path: pyad.lightning.density.LitDSEBM
+  init_args:
+    fc_1_out: 64
+    fc_2_out: 128
+    batch_size: 1024
+    score_metric: energy
+    weight_decay: 1e-4
+    lr: 1e-4
