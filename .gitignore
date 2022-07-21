@@ -1,8 +1,8 @@
 # datasets
-data/**/*.csv
-data/**/*.npz
-data/**/*.npy
-data/**/*.mat
+data/IDS*/*.csv
+#data/**/*.npz
+#data/**/*.npy
+#data/**/*.mat
 # editor configuration
 .idea/
 .vscode/
