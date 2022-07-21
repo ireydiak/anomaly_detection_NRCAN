@@ -4,7 +4,7 @@ model:
     n_mixtures: 2
     gmm_hidden_dims:
     - 10
-    latent_dim: 1
+    latent_dim: 10
     ae_hidden_dims:
     - 40
     - 20
