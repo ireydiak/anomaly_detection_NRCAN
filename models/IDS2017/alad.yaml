@@ -3,6 +3,6 @@ model:
   init_args:
     weight_decay: 1e-6
     lr: 1e-4
-    latent_dim: 10
+    latent_dim: 32
     out_dim: 128
     negative_slope: 0.2
