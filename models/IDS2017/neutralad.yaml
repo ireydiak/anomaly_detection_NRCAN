@@ -1,0 +1,11 @@
+model:
+  class_path: pyad.lightning.transformers.LitNeuTraLAD
+  init_args:
+    n_transforms: 256
+    trans_type: mul
+    temperature: 0.1
+    trans_hidden_dims:
+      -
+    enc_hidden_dims:
+      - 40
+      - 20
