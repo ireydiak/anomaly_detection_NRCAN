@@ -50,7 +50,7 @@ def uniq_step(df: pd.DataFrame):
     df = df.drop(cols_uniq_vals, axis=1)
     return df, cols_uniq_vals
 
-def preprocess(df: pd.DataFrame, stats):
+def preprocess(df: pd.DataFrame, stats: dict):
     # Drop columns with unique values
     df, dropped_cols = uniq_step(df)
     stats["uniq_cols"] = list(dropped_cols)

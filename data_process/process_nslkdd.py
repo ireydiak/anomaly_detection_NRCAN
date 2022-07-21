@@ -2,9 +2,7 @@ import pandas as pd
 import numpy as np
 import utils
 import argparse
-from sklearn.preprocessing import MinMaxScaler
-
-# from src.utils import check_dir
+import os
 
 parser = argparse.ArgumentParser()
 parser.add_argument('-d', '--dataset-path', type=str)
@@ -15,12 +13,11 @@ TEST_FILENAME = 'KDDTest+.txt'
 
 NORMAL_LABEL = 0
 ANORMAL_LABEL = 1
+NORMAL_CAT = "normal"
 
 
-def export_stats(output_dir: str, before_stats: dict, after_stats: dict):
-    after_stats = {f'{key} Prime': val for key, val in after_stats.items()}
-    stats = dict(**before_stats, **after_stats)
-    with open(f'{output_dir}/nsl-kdd_infos.csv', 'w') as f:
+def export_stats(output_dir: str, stats: dict):
+    with open(f'{output_dir}/kdd10percent_infos.csv', 'w') as f:
         f.write(','.join(stats.keys()) + '\n')
         f.write(','.join([str(val) for val in stats.values()]))
 
@@ -52,53 +49,60 @@ def import_data(base_path: str):
     return pd.concat([df_train, df_test], ignore_index=True, sort=False)
 
 
-def preprocess(df: pd.DataFrame):
+def uniq_step(df: pd.DataFrame):
     # Dropping columns with unique values
     cols_uniq_vals = df.columns[df.nunique() <= 1]
+    print("Dropped {} columns: {} (unique values)".format(len(cols_uniq_vals), cols_uniq_vals))
     df = df.drop(cols_uniq_vals, axis=1)
+    return df, cols_uniq_vals
 
+
+def preprocess(df: pd.DataFrame, stats: dict):
+    # Dropping columns with unique values
+    df, dropped_cols = uniq_step(df)
+    stats["uniq_cols"] = list(dropped_cols)
+
+    # keep labels aside to avoid one-hot encoding them
+    labels = df.label
     # One-hot encode the seven categorical attributes (except labels)
     # Assumes dtypes were previously assigned
-    one_hot = pd.get_dummies(df.iloc[:, :-1])
+    df = pd.get_dummies(df.iloc[:, :-1])
+    df["label"] = labels
+    # Keep the full labels aside before "binarizing" them
+    df["Category"] = labels
+    # Convert labels to binary labels
+    df.loc[df["label"] == NORMAL_CAT, "label"] = 0
+    df.loc[df["label"] != 0, "label"] = 1
 
-    # Extract and simplify labels (normal data is 1, attacks are labelled as 0)
-    y = np.where(df.label == "normal", NORMAL_LABEL, ANORMAL_LABEL)
-    df['label'] = y
-
-    X = np.concatenate(
-        (one_hot.values, y.reshape(-1, 1)),
-        axis=1
+    # We know the anomaly ration should be around 20%
+    assert np.isclose(
+        (df["label"] == ANORMAL_LABEL).sum() / len(df), .48,
+        rtol=1.
     )
-    assert np.isnan(X).sum() == 0, "found nan values, aborting"
 
-    return X, df, len(cols_uniq_vals)
+    assert df.isna().any(1).sum() == 0, "found nan values, aborting"
+
+    return df, stats
 
 
 def main():
     dataset_path, output_directory, _ = utils.parse_args()
 
-    df_0 = import_data(dataset_path)
-    stats_0 = df_stats(df_0)
+    df = import_data(dataset_path)
+    stats = df_stats(df)
 
-    X, df_1, n_cols_dropped = preprocess(df_0)
+    df, stats = preprocess(df, stats)
 
-    stats_0['Normal Instances'] = (df_1['label'] == NORMAL_LABEL).sum()
-    stats_0['Anormal Instances'] = (df_1['label'] == ANORMAL_LABEL).sum()
-    stats_0['Anomaly Ratio'] = stats_0['Anormal Instances'] / len(df_1)
-    stats_1 = {'Final n_instances': len(X), 'Final n_features': X.shape[1] - 1}
-    stats_1['Dropped Columns'] = n_cols_dropped
-    stats_1['NaN values'] = int(np.isnan(X).sum())
+    stats['Normal Instances'] = (df['label'] == NORMAL_LABEL).sum()
+    stats['Anormal Instances'] = (df['label'] == ANORMAL_LABEL).sum()
+    stats['Anomaly Ratio'] = stats['Anormal Instances'] / len(df)
+    stats['Final n_instances'] = len(df)
+    stats['Final n_features'] = df.shape[1] - 2
+    stats['NaN values'] = int(df.isna().any(1).sum())
 
-    # prepare the output directory
-    utils.prepare(output_directory)
-
-    export_stats(output_directory, stats_0, stats_1)
-
-    path = '{}/{}/{}'.format(output_directory, utils.folder_struct["minify_step"], "nsl-kdd")
-    np.save(
-        path,
-        X.astype(np.float64)
-    )
+    path = os.path.join(output_directory, "nsl-kdd.csv")
+    export_stats(output_directory, stats)
+    df.to_csv(path)
 
 
 if __name__ == '__main__':

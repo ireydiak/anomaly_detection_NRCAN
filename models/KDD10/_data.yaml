@@ -2,6 +2,6 @@ data:
   class_path: pyad.datamanager.datamodule.KDD10DataModule
   init_args:
     batch_size: 1024
-    data_dir: ./data/KDD10/kdd10percent.npy
-    scaler: standard
+    data_dir: ./data/KDD10/kdd10percent.csv
+    scaler: minmax
     label_col: Category
