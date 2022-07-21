@@ -1,4 +1,4 @@
 trainer:
   accelerator: gpu
   devices: 1
-  max_epochs: 1
+  max_epochs: 200

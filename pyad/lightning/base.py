@@ -120,7 +120,7 @@ class BaseLightningModel(pl.LightningModule):
             scores = np.append(scores, output["scores"])
             y_true = np.append(y_true, output["y_true"])
             labels = np.append(labels, output["labels"])
-        results, y_pred = metrics.score_recall_precision_w_threshold(scores, y_true, threshold=self.threshold)
+        results, y_pred = metrics.estimate_optimal_threshold(scores, y_true)
         if len(np.unique(labels)) > 2:
             misclf_df = ids_misclf_per_label(y_pred, y_true, labels)
             misclf_df = misclf_df.sort_values("Misclassified ratio", ascending=False)
