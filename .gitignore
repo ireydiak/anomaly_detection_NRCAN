@@ -1,5 +1,6 @@
 # datasets
-data/IDS*/*.csv
+data/IDS2017/**/*.csv
+data/IDS2018/**/*.csv
 #data/**/*.npz
 #data/**/*.npy
 #data/**/*.mat

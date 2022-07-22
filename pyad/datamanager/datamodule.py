@@ -114,6 +114,8 @@ class BaseDataModule(pl.LightningDataModule):
             self.data_dir,
             label_col=label_col, normal_size=normal_size, anomaly_label=anomaly_label, seed=seed
         )
+        self.anomaly_label = anomaly_label
+        self.normal_label = int(not anomaly_label)
         self.normal_size = normal_size
         self.sanity_check()
         self.in_features = self.dataset.in_features
@@ -145,6 +147,7 @@ class BaseDataModule(pl.LightningDataModule):
 
     def setup(self, stage: Optional[str] = None) -> None:
         trainset, testset = self.dataset.train_test_split()
+        assert trainset.dataset.y[trainset.indices].sum() == 0, "found anomalies in training data"
         if self.scaler:
             trainset, testset = self.normalize(trainset, testset)
         self.trainset = DataLoader(

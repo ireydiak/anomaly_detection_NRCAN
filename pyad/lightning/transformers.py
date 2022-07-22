@@ -1,9 +1,10 @@
-from typing import List
-from pytorch_lightning.utilities.cli import MODEL_REGISTRY
-
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import numpy as np
+
+from typing import List
+from pytorch_lightning.utilities.cli import MODEL_REGISTRY
 from torch.optim.lr_scheduler import StepLR
 from pyad.loss.TripletCenterLoss import TripletCenterLoss
 from pyad.lightning.base import BaseLightningModel
@@ -328,6 +329,12 @@ class LitGOAD(BaseLightningModel):
         zs = zs.permute(0, 2, 1)
         # Compute anomaly score
         scores = self.score(zs)
+
+        if type(labels) == torch.Tensor:
+            labels = labels.cpu().detach().numpy()
+        else:
+            labels = np.array(labels)
+
         # val_probs_rots[idx] = -torch.diagonal(score, 0, 1, 2).cpu().data.numpy()
         return {
             "scores": scores.cpu().detach().numpy(),

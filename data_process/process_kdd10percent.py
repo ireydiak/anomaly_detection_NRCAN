@@ -14,6 +14,7 @@ NORMAL_LABEL = 0
 ANORMAL_LABEL = 1
 NORMAL_CAT = "normal."
 
+
 def export_stats(output_dir: str, stats: dict):
     with open(f'{output_dir}/kdd10percent_infos.csv', 'w') as f:
         f.write(','.join(stats.keys()) + '\n')
@@ -49,6 +50,7 @@ def uniq_step(df: pd.DataFrame):
     print("Dropped {} columns: {} (unique values)".format(len(cols_uniq_vals), cols_uniq_vals))
     df = df.drop(cols_uniq_vals, axis=1)
     return df, cols_uniq_vals
+
 
 def preprocess(df: pd.DataFrame, stats: dict):
     # Drop columns with unique values

@@ -110,7 +110,10 @@ def main(cli):
             all_results = {k: [v] for k, v in res.items()}
         else:
             for k, v in res.items():
-                all_results[k].append(v)
+                if k in all_results.keys():
+                    all_results[k].append(v)
+                else:
+                    all_results[k] = [v]
     # aggregate results (mean and std)
     all_results = {k: "{:2.4f} ({:2.4f})".format(np.mean(v), np.std(v)) for k, v in all_results.items()}
     print(all_results)
