@@ -11,5 +11,3 @@ model:
     eps: 0
     lamb: 0.1
     margin: 1
-max_epochs:
-  n_epochs: 1
