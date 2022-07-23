@@ -15,5 +15,3 @@ model:
       - 32
       - 32
       - 16
-max_epochs:
-  n_epochs: 10

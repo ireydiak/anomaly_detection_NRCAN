@@ -15,5 +15,5 @@ model:
       - 64
       - 64
       - 32
-max_epochs:
-  n_epochs: 10
+trainer:
+  max_epochs: 10
