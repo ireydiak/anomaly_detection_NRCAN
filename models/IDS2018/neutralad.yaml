@@ -1,7 +1,7 @@
 model:
   class_path: pyad.lightning.transformers.LitNeuTraLAD
   init_args:
-    weight_decay: 1e-4
+    weight_decay: 1e-6
     lr: 1e-4
     n_transforms: 11
     trans_type: mul

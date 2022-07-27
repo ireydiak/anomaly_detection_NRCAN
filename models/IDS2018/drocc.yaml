@@ -9,5 +9,5 @@ model:
     only_ce_epochs: 50
     ascent_step_size: 0.01
     ascent_num_steps: 50
-    weight_decay: 1e-4
+    weight_decay: 1e-6
     lr: 1e-4

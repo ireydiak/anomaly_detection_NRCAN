@@ -1,4 +1,4 @@
-conda activate anomaly_detection &&
+conda activate nrcan &&
 cd .. &&
 python -m pyad.lightning_cli --config models/IDS2017/_data.yaml --config models/IDS2017/_trainer.yaml --config models/IDS2017/alad.yaml --save_dir experiments/training --n_runs 20 &&
 python -m pyad.lightning_cli --config models/IDS2017/_data.yaml --config models/IDS2017/_trainer.yaml --config models/IDS2017/autoencoder.yaml --save_dir experiments/training --n_runs 20 &&

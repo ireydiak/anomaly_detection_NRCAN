@@ -2,6 +2,6 @@ data:
   class_path: pyad.datamanager.datamodule.IDS2018DataModule
   init_args:
     batch_size: 1024
-    data_dir: ../data/IDS2017/ids2018.csv
+    data_dir: ./data/IDS2018/ids2018.csv
     scaler: minmax
     label_col: Category
