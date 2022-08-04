@@ -27,4 +27,4 @@ notebooks/**/train/**/*.pt
 notebooks/sandbox/*
 # experiments checkpoints
 experiments/tuning/*
-experiments/training/**/version_*
+experiments/training/*
