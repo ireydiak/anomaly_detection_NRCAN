@@ -13,5 +13,5 @@ model:
     lamb_1: 0.1
     lamb_2: 0.005
     reg_covar: 1e-12
-    weight_decay: 1e-4
+    weight_decay: 0.0
     lr: 1e-4

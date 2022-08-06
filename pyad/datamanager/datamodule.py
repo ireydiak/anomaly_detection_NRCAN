@@ -122,7 +122,10 @@ class BaseDataModule(pl.LightningDataModule):
         self.n_instances = self.dataset.n_instances
         self.trainset = None
         self.testset = None
-        self.scaler = scaler_map[scaler]() if scaler else None
+        if scaler is not None and scaler != "none":
+            self.scaler = scaler_map[scaler]()
+        else:
+            self.scaler = None
         self.anomaly_ratio = self.dataset.anomaly_ratio
 
     def sanity_check(self) -> None:

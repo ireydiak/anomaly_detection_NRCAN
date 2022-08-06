@@ -2,5 +2,5 @@ data:
   class_path: pyad.datamanager.datamodule.ThyroidDataModule
   init_args:
     batch_size: 1024
-    data_dir: ../data/Thyroid/thyroid.mat
+    data_dir: ./data/Thyroid/thyroid.mat
     scaler: standard

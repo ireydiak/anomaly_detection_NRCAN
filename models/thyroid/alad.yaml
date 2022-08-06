@@ -6,3 +6,6 @@ model:
     latent_dim: 32
     out_dim: 128
     negative_slope: 0.2
+data:
+  init_args:
+    batch_size: 32

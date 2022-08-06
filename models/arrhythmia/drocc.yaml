@@ -4,9 +4,9 @@ model:
     lamb: 1.
     gamma: 2.
     n_classes: 1
-    n_hidden_nodes: 20
+    n_hidden_nodes: 128
     only_ce_epochs: 50
     ascent_step_size: 0.01
     ascent_num_steps: 50
-    weight_decay: 1e-4
-    lr: 1e-4
+    weight_decay: 0.0
+    lr: 1e-3

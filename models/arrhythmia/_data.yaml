@@ -3,4 +3,4 @@ data:
   init_args:
     batch_size: 128
     data_dir: ../data/Arrhythmia/arrhythmia.npy
-    scaler: standard
+    scaler: minmax

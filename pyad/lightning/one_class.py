@@ -298,7 +298,7 @@ class LitDROCC(BaseLightningModel):
             "lamb": 1.,
             "radius": ray_tune.choice(radius_opts),
             "gamma": 2.,
-            "n_hidden_nodes": ray_tune.choice([20, 60, 120]),
+            "n_hidden_nodes": ray_tune.choice([64, 128, 512]),
             "only_ce_epochs": ray_tune.choice([10, 50, 100]),
             "ascent_step_size": ray_tune.loguniform(0.1, 0.01),
             "ascent_num_steps": ray_tune.choice([50, 100])

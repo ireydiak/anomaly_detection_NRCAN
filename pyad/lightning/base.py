@@ -56,8 +56,8 @@ class BaseLightningModel(pl.LightningModule):
 
     def __init__(
             self,
-            weight_decay: float,
             lr: float,
+            weight_decay: float = 0.0,
             in_features: int = -1,
             n_instances: int = -1,
             batch_size: int = -1,
@@ -120,13 +120,16 @@ class BaseLightningModel(pl.LightningModule):
             scores = np.append(scores, output["scores"])
             y_true = np.append(y_true, output["y_true"])
             labels = np.append(labels, output["labels"])
+        # compute binary classification results
         results, y_pred = metrics.estimate_optimal_threshold(scores, y_true)
+        # evaluate multi-class if labels contain over two distinct values
         if len(np.unique(labels)) > 2:
             misclf_df = ids_misclf_per_label(y_pred, y_true, labels)
             misclf_df = misclf_df.sort_values("Misclassified ratio", ascending=False)
             self.per_class_accuracy = misclf_df
             for i, row in misclf_df.iterrows():
                 results[i] = row["Accuracy"]
+        # log results
         self.results = results
         self.log_dict(results)
 
@@ -137,6 +140,8 @@ class BaseLightningModel(pl.LightningModule):
         X, y_true, labels = batch
         X = X.float()
         scores = self.score(X)
+        if torch.isnan(scores).any().item() is False:
+            debug = 1
         assert torch.isnan(scores).any().item() is False, "found NaN values in the final scores, aborting evaluation"
 
         if type(labels) == torch.Tensor:

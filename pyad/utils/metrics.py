@@ -51,11 +51,11 @@ def estimate_optimal_threshold(test_score, y_test, pos_label=1, nq=100):
         precision, recall, f_score, roc, avgpr, y_pred = compute_metrics(test_score, y_test, thresh, pos_label)
 
         # print(f"qi:{qi:.3f} ==> p:{precision:.3f}  r:{recall:.3f}  f1:{f_score:.3f}")
-        f1[i] = f_score
-        r[i] = recall
-        p[i] = precision
-        auc[i] = roc
-        aupr[i] = avgpr
+        f1[i] = f_score * 100
+        r[i] = recall * 100
+        p[i] = precision * 100
+        auc[i] = roc * 100
+        aupr[i] = avgpr * 100
         qis[i] = qi
 
     arm = np.argmax(f1)
@@ -85,10 +85,10 @@ def score_recall_precision_w_threshold(scores, y_true, threshold=None, pos_label
         y_true, y_pred, average='binary', pos_label=pos_label
     )
 
-    return {"Precision": precision,
-            "Recall": recall,
-            "F1-Score": f_score,
-            "AUROC": sk_metrics.roc_auc_score(y_true, scores),
-            "AUPR": sk_metrics.average_precision_score(y_true, scores),
+    return {"Precision": precision * 100,
+            "Recall": recall * 100,
+            "F1-Score": f_score * 100,
+            "AUROC": sk_metrics.roc_auc_score(y_true, scores) * 100,
+            "AUPR": sk_metrics.average_precision_score(y_true, scores) * 100,
             "Thresh": thresh
             }, y_pred
