@@ -1,6 +1,8 @@
 import numpy as np
 import torch
 from pytorch_lightning.utilities.cli import MODEL_REGISTRY
+from torch.utils.data import DataLoader
+
 from pyad.lightning.base import BaseLightningModel, layer_options_helper
 from pyad.lightning.base import AutoEncoder, create_net_layers
 from pyad.lightning.utils import relative_euclidean_dist
@@ -8,8 +10,17 @@ from torch import nn
 from torch.optim.lr_scheduler import StepLR
 from typing import List, Any
 from ray import tune as ray_tune
+from minisom import MiniSom
 
 score_metrics_opts = {"reconstruction", "energy"}
+default_som_args = {
+    "x": 32,
+    "y": 32,
+    "lr": 0.6,
+    "neighborhood_function": "bubble",
+    "n_epoch": 500,
+    "n_som": 1
+}
 
 
 @MODEL_REGISTRY
@@ -29,7 +40,8 @@ class LitDSEBM(BaseLightningModel):
             ignore=["in_features", "n_instances", "threshold", "batch_size", "b_prime"]
         )
         # energy or reconstruction-based anomaly score function
-        assert score_metric in score_metrics_opts, "unknown `score_metric` %s, please select %s" % (score_metric, score_metrics_opts)
+        assert score_metric in score_metrics_opts, "unknown `score_metric` %s, please select %s" % (
+            score_metric, score_metrics_opts)
         self.score_metric = score_metric
         # loss function
         self.criterion = nn.BCEWithLogitsLoss()
@@ -197,7 +209,7 @@ class LitDAGMM(BaseLightningModel):
             hidden_dims=self.hparams.ae_hidden_dims
         )
 
-    def forward(self, X: torch.Tensor):
+    def forward(self, X: torch.Tensor, return_gamma_hat=True, return_cosim=False):
         # computes the z vector of the original paper (p.4), that is
         # :math:`z = [z_c, z_r]` with
         #   - :math:`z_c = h(x; \theta_e)`
@@ -205,16 +217,27 @@ class LitDAGMM(BaseLightningModel):
         emb, X_hat = self.ae_net(X)
         rel_euc_dist = relative_euclidean_dist(X, X_hat)
         cosim = self.cosim(X, X_hat)
-        z = torch.cat(
-            [emb, rel_euc_dist.unsqueeze(-1), cosim.unsqueeze(-1)],
-            dim=1
-        ).to(self.device)
-        # compute gmm net output, that is
-        #   - p = MLP(z, \theta_m) and
-        #   - \gamma_hat = softmax(p)
-        gamma_hat = self.gmm_net(z)
-        gamma_hat = self.softmax(gamma_hat)
+        if return_cosim is False:
+            z = torch.cat(
+                [emb, rel_euc_dist.unsqueeze(-1), cosim.unsqueeze(-1)],
+                dim=1
+            ).to(self.device)
+        else:
+            z = cosim
+        if return_gamma_hat:
+            # compute gmm net output, that is
+            #   - p = MLP(z, \theta_m) and
+            #   - \gamma_hat = softmax(p)
+            gamma_hat = self.gmm_net(z)
+            gamma_hat = self.softmax(gamma_hat)
+        else:
+            gamma_hat = None
         return emb, X_hat, z, gamma_hat
+
+    def forward_estimation_net(self, Z: torch.Tensor):
+        gamma_hat = self.gmm_net(Z)
+        gamma_hat = self.softmax(gamma_hat)
+        return gamma_hat
 
     def training_step(self, batch, batch_idx):
         X, _, _ = batch
@@ -366,8 +389,7 @@ class LitDAGMM(BaseLightningModel):
             self.parameters(),
             lr=self.hparams.lr
         )
-        # scheduler = StepLR(optimizer, step_size=20, gamma=0.9)
-        return optimizer  # [optimizer], [scheduler]
+        return optimizer
 
     @staticmethod
     def get_ray_config(in_features: int, n_instances: int) -> dict:
@@ -379,8 +401,8 @@ class LitDAGMM(BaseLightningModel):
             "n_mixtures": ray_tune.choice([2, 4, 6, 8]),
             "ae_hidden_dims": ray_tune.choice(hidden_dims_opts),
             "gmm_hidden_dims": ray_tune.choice([[8], [10], [12]]),
-            "ae_activation": "tanh", #ray_tune.choice(["tanh", "relu"]),
-            "gmm_activation": "tanh", #ray_tune.choice(["tanh", "relu"]),
+            "ae_activation": "tanh",  # ray_tune.choice(["tanh", "relu"]),
+            "gmm_activation": "tanh",  # ray_tune.choice(["tanh", "relu"]),
             "latent_dim": ray_tune.choice(latent_dim_opts),
             "lamb_1": 0.1,
             "lamb_2": 0.005,
@@ -391,3 +413,146 @@ class LitDAGMM(BaseLightningModel):
             **parent_cfg,
             **child_cfg
         )
+
+
+@MODEL_REGISTRY
+class LitSOMDAGMM(BaseLightningModel):
+
+    def __init__(
+            self,
+            n_soms: int,
+            n_mixtures: int,
+            ae_hidden_dims: List[int],
+            gmm_hidden_dims: List[int],
+            ae_activation: str = "relu",
+            gmm_activation: str = "tanh",
+            latent_dim: int = 1,
+            lamb_1: float = 0.1,
+            lamb_2: float = 0.005,
+            reg_covar: float = 1e-12,
+            dropout_rate: float = 0.5,
+            **kwargs: Any
+    ):
+        super(LitSOMDAGMM, self).__init__(**kwargs)
+        self.phi = None
+        self.mu = None
+        self.cov_mat = None
+        self.covs = None
+        self.cosim = nn.CosineSimilarity().to(self.device)
+        self.softmax = nn.Softmax(dim=1).to(self.device)
+        self._build_network()
+
+    def _build_network(self):
+        # set these values according to the used dataset
+        # Use 0.6 for KDD; 0.8 for IDS2018 with babel as neighborhood function as suggested in the paper.
+        grid_length = int(np.sqrt(5 * np.sqrt(self.n_instances))) // 2
+        grid_length = 32 if grid_length > 32 else grid_length
+        self.som_args = {
+            "x": grid_length,
+            "y": grid_length,
+            "lr": 0.6,
+            "neighborhood_function": "bubble",
+            "n_epoch": 8000,
+            "n_soms": self.hparams.n_soms
+        }
+
+        self.soms = [MiniSom(
+            self.som_args['x'],
+            self.som_args['y'],
+            self.in_features,
+            neighborhood_function=self.som_args['neighborhood_function'],
+            learning_rate=self.som_args['lr']
+        )] * self.som_args.get('n_som', 1)
+
+        # DAGMM
+        self.dagmm = LitDAGMM(
+            n_mixtures=self.hparams.n_mixtures,
+            ae_hidden_dims=self.hparams.ae_hidden_dims,
+            gmm_hidden_dims=self.hparams.gmm_hidden_dims,
+            ae_activation=self.hparams.ae_activation,
+            gmm_activation=self.hparams.gmm_activation,
+            latent_dim=self.hparams.latent_dim,
+            lamb_1=self.hparams.lamb_1,
+            lamb_2=self.hparams.lamb_2,
+            reg_covar=self.hparams.reg_covar,
+            dropout_rate=self.hparams.dropout_rate,
+            lr=self.hparams.lr,
+            in_features=self.in_features,
+            n_instances=self.n_instances
+        )
+        # Replace DAGMM's GMM network
+        gmm_layers = create_net_layers(
+            in_dim=self.hparams.n_soms * 2 + self.hparams.latent_dim + 2,
+            out_dim=self.hparams.n_mixtures,
+            activation=self.hparams.gmm_activation,
+            hidden_dims=self.hparams.gmm_hidden_dims,
+            dropout=self.hparams.dropout_rate
+        )
+        self.dagmm.gmm_net = nn.Sequential(
+            *gmm_layers
+        )
+
+    def before_train(self, dataloader: DataLoader):
+        self.train_som(
+            dataloader.dataset.X
+        )
+
+    def train_som(self, X: torch.Tensor):
+        # SOM-generated low-dimensional representation
+        for i in range(len(self.soms)):
+            self.soms[i].train(X, self.som_args["n_epoch"])
+
+    def forward(self, X: torch.Tensor):
+        # DAGMM's latent feature, the reconstruction error and gamma
+        emb, X_hat, z, _ = self.dagmm.forward(X, return_gamma_hat=False)
+
+        # Concatenate SOM's features with DAGMM's
+        z_r_s = []
+        for i in range(len(self.soms)):
+            z_s_i = [self.soms[i].winner(x) for x in X.cpu()]
+            z_s_i = [[x, y] for x, y in z_s_i]
+            z_s_i = torch.from_numpy(np.array(z_s_i)).to(self.device)  # / (default_som_args.get('x')+1)
+            z_r_s.append(z_s_i)
+        z_r_s.append(z)
+        Z = torch.cat(z_r_s, dim=1)
+
+        # estimation network
+        gamma_hat = self.dagmm.forward_estimation_net(Z)
+
+        return emb, X_hat, Z, gamma_hat
+
+    def training_step(self, batch, batch_idx):
+        X, _, _ = batch
+        X = X.float()
+        # SOM-generated low-dimensional representation
+        _, X_hat, Z, gamma_hat = self.forward(X)
+
+        phi, mu, Sigma = self.compute_params(Z, gamma_hat)
+        energy, penalty_term = self.estimate_sample_energy(Z, phi, mu, Sigma)
+        loss = self.compute_loss(X, X_hat, energy, penalty_term)
+        return loss
+
+    def compute_params(self, Z, gamma):
+        return self.dagmm.compute_params(Z, gamma)
+
+    def estimate_sample_energy(self, Z, phi, mu, Sigma, average_energy=True):
+        return self.dagmm.estimate_sample_energy(Z, phi, mu, Sigma, average_energy=average_energy)
+
+    def compute_loss(self, X, X_prime, energy, penalty_term):
+        rec_loss = ((X - X_prime) ** 2).mean()
+        sample_energy = self.hparams.lamb_1 * energy
+        penalty_term = self.hparams.lamb_2 * penalty_term
+
+        return rec_loss + sample_energy + penalty_term
+
+    def score(self, X: torch.Tensor, y: torch.Tensor = None):
+        _, _, z, _ = self.forward(X)
+        energy, _ = self.dagmm.estimate_sample_energy(z, average_energy=False)
+        return energy
+
+    def configure_optimizers(self):
+        optimizer = torch.optim.Adam(
+            self.parameters(),
+            lr=self.hparams.lr
+        )
+        return optimizer

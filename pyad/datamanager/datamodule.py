@@ -155,10 +155,10 @@ class BaseDataModule(pl.LightningDataModule):
 
     def normalize(self, train_set, test_set) -> Tuple[SimpleDataset, SimpleDataset]:
         # extract training/testing data and labels
-        train_data = train_set.dataset.X[train_set.indices]
-        train_y, train_labels = train_set.dataset.y[train_set.indices], train_set.dataset.labels[train_set.indices]
-        test_data = test_set.dataset.X[test_set.indices]
-        test_y, test_labels = test_set.dataset.y[test_set.indices], test_set.dataset.labels[test_set.indices]
+        train_data = train_set.dataset.dataset.X[train_set.indices]
+        train_y, train_labels = train_set.dataset.dataset.y[train_set.indices], train_set.dataset.dataset.labels[train_set.indices]
+        test_data = test_set.dataset.dataset.X[test_set.indices]
+        test_y, test_labels = test_set.dataset.dataset.y[test_set.indices], test_set.dataset.dataset.labels[test_set.indices]
         # fit scaler on train set only (to avoid data leaks)
         self.scaler.fit(train_data)
         # transform the data
@@ -169,7 +169,7 @@ class BaseDataModule(pl.LightningDataModule):
     def setup(self, stage: Optional[str] = None) -> None:
         train_idx, test_idx = self.dataset.train_test_split()
         trainset, testset = Subset(self, train_idx), Subset(self, test_idx)
-        assert trainset.dataset.y[trainset.indices].sum() == 0, "found anomalies in training data"
+        assert trainset.dataset.dataset.y[trainset.indices].sum() == 0, "found anomalies in training data"
         if self.scaler:
             trainset, testset = self.normalize(trainset, testset)
             self.trainset = DataLoader(

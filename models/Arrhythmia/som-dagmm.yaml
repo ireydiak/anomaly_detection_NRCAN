@@ -1,0 +1,18 @@
+model:
+  class_path: pyad.lightning.density.LitSOMDAGMM
+  init_args:
+    n_soms: 1
+    n_mixtures: 2
+    gmm_hidden_dims:
+    - 10
+    latent_dim: 2
+    ae_hidden_dims:
+    - 10
+    dropout_rate: 0.5
+    ae_activation: tanh
+    gmm_activation: tanh
+    lamb_1: 0.1
+    lamb_2: 0.005
+    reg_covar: 1e-12
+    weight_decay: 0.0
+    lr: 1e-4
