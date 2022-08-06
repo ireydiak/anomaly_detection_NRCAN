@@ -17,7 +17,8 @@ class BaseDataset(Dataset):
             label_col: str = None,
             normal_size: float = 1.,
             anomaly_label: int = 1,
-            seed: int = 42
+            seed: int = 42,
+            scaler: str = None
     ):
         super(BaseDataset, self).__init__()
         assert anomaly_label == 0 or anomaly_label == 1, "`anomaly_label` must be either `1` or `0`"
@@ -34,6 +35,11 @@ class BaseDataset(Dataset):
         assert np.isnan(self.X).sum() == 0, "detected nan values"
         if self.labels is None or self.labels.size == 0:
             self.labels = self.y
+        # set scaler
+        if scaler is not None and scaler != "none":
+            self.scaler = scaler_map[scaler]()
+        else:
+            self.scaler = None
         self.n_instances = self.X.shape[0]
         self.in_features = self.X.shape[1]
         self.anomaly_ratio = (self.y == self.anomaly_label).sum() / len(self.X)
@@ -45,7 +51,7 @@ class BaseDataset(Dataset):
     def __len__(self):
         return len(self.X)
 
-    def train_test_split(self, test_size: float = 0.5) -> Tuple[Subset, Subset]:
+    def train_test_split(self, test_size: float = 0.5) -> Tuple[np.ndarray, np.ndarray]:
         # split between normal and abnormal samples
         normal_idx = np.where(self.y == self.normal_label)[0]
         abnormal_idx = np.where(self.y == self.anomaly_label)[0]
@@ -55,7 +61,7 @@ class BaseDataset(Dataset):
 
         # select training data
         n_train_normal = int(len(normal_idx) * (1 - test_size))
-        train_idx = Subset(self, normal_idx[:n_train_normal])
+        train_idx = normal_idx[:n_train_normal]
 
         # select test data
         test_normal_idx = normal_idx[n_train_normal:]
@@ -63,9 +69,17 @@ class BaseDataset(Dataset):
             test_normal_idx,
             abnormal_idx
         ))
-        test_idx = Subset(self, test_idx)
 
         return train_idx, test_idx
+
+    def normalize(self, train_data, test_data) -> Tuple[np.ndarray, np.ndarray]:
+        if self.scaler:
+            # fit scaler on train set only (to avoid data leaks)
+            self.scaler.fit(train_data)
+            # transform data
+            train_data = self.scaler.transform(train_data)
+            test_data = self.scaler.transform(test_data)
+        return train_data, test_data
 
     def _load_data(self, path: str, label_col: str = None) -> numpy.ndarray:
         if path.endswith(".npz"):
@@ -112,7 +126,11 @@ class BaseDataModule(pl.LightningDataModule):
         self.seed = seed
         self.dataset = BaseDataset(
             self.data_dir,
-            label_col=label_col, normal_size=normal_size, anomaly_label=anomaly_label, seed=seed
+            label_col=label_col,
+            normal_size=normal_size,
+            anomaly_label=anomaly_label,
+            seed=seed,
+            scaler=scaler
         )
         self.anomaly_label = anomaly_label
         self.normal_label = int(not anomaly_label)
@@ -149,16 +167,17 @@ class BaseDataModule(pl.LightningDataModule):
         return train_set, test_set
 
     def setup(self, stage: Optional[str] = None) -> None:
-        trainset, testset = self.dataset.train_test_split()
+        train_idx, test_idx = self.dataset.train_test_split()
+        trainset, testset = Subset(self, train_idx), Subset(self, test_idx)
         assert trainset.dataset.y[trainset.indices].sum() == 0, "found anomalies in training data"
         if self.scaler:
             trainset, testset = self.normalize(trainset, testset)
-        self.trainset = DataLoader(
-            trainset, batch_size=self.batch_size, num_workers=self.num_workers, pin_memory=True
-        )
-        self.testset = DataLoader(
-            testset, batch_size=self.batch_size, num_workers=self.num_workers, pin_memory=True
-        )
+            self.trainset = DataLoader(
+                trainset, batch_size=self.batch_size, num_workers=self.num_workers, pin_memory=True
+            )
+            self.testset = DataLoader(
+                testset, batch_size=self.batch_size, num_workers=self.num_workers, pin_memory=True
+            )
 
     def train_dataloader(self) -> DataLoader:
         assert self.trainset is not None, "`self.trainset` is None, don't forget to call `datamodule.setup()` before trying to load the train loader"

@@ -1,10 +1,8 @@
 import os
-import argparse
 import numpy as np
 import pyad.lightning
 import pytorch_lightning as pl
 import pyad.datamanager.datamodule
-from typing import Sequence
 from pytorch_lightning.utilities.cli import LightningCLI, MODEL_REGISTRY, DATAMODULE_REGISTRY
 from pytorch_lightning import loggers as pl_loggers
 from pyad.utils.utils import store_results
@@ -17,29 +15,48 @@ MODEL_REGISTRY.register_classes(pyad.lightning, pl.LightningModule)
 DATAMODULE_REGISTRY.register_classes(pyad.datamanager.datamodule, pl.LightningDataModule)
 
 
+def get_default_experiment_path():
+    return os.path.join(
+        os.path.abspath(__file__), "../experiments/training"
+    )
+
+
 class MyLightningCLI(LightningCLI):
     def add_arguments_to_parser(self, parser):
         parser.link_arguments("data.in_features", "model.init_args.in_features", apply_on="instantiate")
         parser.link_arguments("data.n_instances", "model.init_args.n_instances", apply_on="instantiate")
-        parser.add_argument("--save_dir", type=str, default="../experiments/training")
+        parser.add_argument("--save_dir", type=str, default=get_default_experiment_path())
         parser.add_argument("--n_runs", type=int, default=1, help="number of times the experiments are repeated")
 
 
-class FindRegistryAction(argparse.Action):
-    def __init__(self, option_strings: Sequence[str], dest: str, registry, append_str=""):
-        super().__init__(option_strings, dest)
-        self.registry = registry
-        self.append_str = append_str
+def sk_train(cli, model):
+    datamodule = cli.datamodule
+    dataset = datamodule.dataset
 
-    def __call__(self, parser, args, values, option_string=None):
-        values = values.replace("-", "")
-        if self.append_str:
-            values = values + self.append_str
-        model_cls = self.registry[values]
-        setattr(args, self.dest, model_cls)
+    # train test split
+    train_idx, test_idx = dataset.train_test_split()
+    train_X, train_y, train_labels = dataset[train_idx]
+    test_X, test_y, test_labels = dataset[test_idx]
+
+    # sanity checks
+    # normal or abnormal data only in training and mixed labels during testing
+    assert len(np.unique(train_y)) == 1, "training set contains anomalies, aborting"
+    assert len(np.unique(test_y)) == 2, "test set should contain only 0s and 1s, aborting"
+    assert len(np.unique(test_labels)) >= 2, "test set contains less than two distinct labels, aborting"
+
+    # normalize
+    train_X, test_X = dataset.normalize(train_X, test_X)
+
+    # fit on training set
+    model.fit(train_X)
+
+    # test on testing set
+    res = model.test(test_X, test_y, test_labels)
+
+    return res
 
 
-def train(cli, model, exp_fname):
+def nn_train(cli, model, exp_fname):
     datamodule = cli.datamodule
     model_name = model.__class__.__name__
     base_path = os.path.join(cli.config.save_dir, exp_fname)
@@ -63,7 +80,9 @@ def train(cli, model, exp_fname):
     )
 
     # pre-training if needed
-    model.before_train(datamodule.train_dataloader())
+    model.before_train(
+        datamodule.train_dataloader()
+    )
 
     # train
     trainer.fit(
@@ -103,8 +122,12 @@ def main(cli):
     for run in range(1, cli.config.n_runs + 1):
         # instead of resetting the weights, we simply create a fresh instance of the model at every run
         model_instance = init_model(cli)
-        # train the model for `trainer.max_epochs` epochs
-        res = train(cli, model_instance, exp_fname)
+        if model_instance.is_nn:
+            # train neural network for `trainer.max_epochs` epochs
+            res = nn_train(cli, model_instance, exp_fname)
+        else:
+            # train sklearn (shallow) model
+            res = sk_train(cli, model_instance)
         # keep the results in a dictionary
         if all_results is None:
             all_results = {k: [v] for k, v in res.items()}
@@ -118,9 +141,12 @@ def main(cli):
     all_results = {k: "{:2.4f} ({:2.4f})".format(np.mean(v), np.std(v)) for k, v in all_results.items()}
     print(all_results)
     # store the results in a simple text file
+    save_path = os.path.join(cli.config.save_dir, exp_fname)
+    if os.path.exists(save_path) is False:
+        os.makedirs(save_path, exist_ok=False)
     store_results(
         all_results,
-        os.path.join(cli.config.save_dir, exp_fname, f"{model_name}_results.txt")
+        os.path.join(save_path, f"{model_name}_results.txt")
     )
 
 

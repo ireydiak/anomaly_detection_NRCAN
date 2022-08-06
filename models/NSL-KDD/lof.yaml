@@ -1,0 +1,4 @@
+model:
+  class_path: pyad.lightning.shallow.LOF
+  init_args:
+    n_neighbors: 20

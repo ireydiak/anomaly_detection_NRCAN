@@ -1,0 +1,9 @@
+model:
+  class_path: pyad.lightning.shallow.OCSVM
+  init_args:
+    nu: 0.05
+    kernel: rbf
+    gamma: scale
+    shrinking: False
+    verbose: True
+    threshold: 97

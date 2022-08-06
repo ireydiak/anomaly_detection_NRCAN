@@ -73,8 +73,9 @@ def estimate_optimal_threshold(test_score, y_test, pos_label=1, nq=100):
 
 
 def score_recall_precision_w_threshold(scores, y_true, threshold=None, pos_label=1) -> Tuple[dict, np.ndarray]:
-    anomaly_ratio = (y_true == pos_label).sum() / len(y_true)
-    threshold = threshold or int(np.ceil((1 - anomaly_ratio) * 100))
+    if threshold is None:
+        anomaly_ratio = (y_true == pos_label).sum() / len(y_true)
+        threshold = threshold or int(np.ceil((1 - anomaly_ratio) * 100))
     thresh = np.percentile(scores, threshold)
 
     # Prediction using the threshold value

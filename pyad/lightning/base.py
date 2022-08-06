@@ -53,6 +53,7 @@ def layer_options_helper(in_features: int, max_layers: int = 4) -> Tuple[List[Li
 
 
 class BaseLightningModel(pl.LightningModule):
+    is_nn = True
 
     def __init__(
             self,
@@ -140,8 +141,6 @@ class BaseLightningModel(pl.LightningModule):
         X, y_true, labels = batch
         X = X.float()
         scores = self.score(X)
-        if torch.isnan(scores).any().item() is False:
-            debug = 1
         assert torch.isnan(scores).any().item() is False, "found NaN values in the final scores, aborting evaluation"
 
         if type(labels) == torch.Tensor:
