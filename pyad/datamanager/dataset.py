@@ -233,17 +233,14 @@ class AbstractDataset(Dataset):
         assert (test_dataset.y == anomaly_label).sum() > 0, "no anomalies found in test set, aborting"
         return train_dataset, test_dataset
 
-    def split_train_test_legacy(self,
-                                test_pct: float = .5,
-                                label: int = 0,
-                                holdout=0.00,
-                                contamination_rate=0.,
-                                validation_ratio: float = 0.,
-                                seed=None,
-                                debug=False) -> Tuple[Subset, Subset, Subset]:
+    def split_train_test_legacy(
+            self,
+            test_pct: float = .5,
+            label: int = 0,
+            seed=None,
+            debug=False
+    ) -> Tuple[Subset, Subset, Subset]:
         assert (label == 0 or label == 1)
-        assert 1 > holdout
-        assert 0 <= contamination_rate <= 1
 
         if seed:
             torch.manual_seed(seed)
@@ -269,35 +266,15 @@ class AbstractDataset(Dataset):
         normal_train_idx = normal_data_idx[shuffled_norm_idx[num_norm_train_sample:]]
         abnormal_data_idx = np.where(self.y == int(not label))[0]
 
-        if debug:
-            print(f"Dataset size\nPositive class: {len(abnormal_data_idx)}"
-                  f"\nNegative class: {len(normal_data_idx)}\n")
-
-        if holdout > 0:
-            # Generate test set by holding out a percentage [holdout] of abnormal data
-            # sample for a possible contamination
-            shuffled_abnorm_idx = torch.randperm(len(abnormal_data_idx)).long()
-            num_abnorm_test_sample = int(len(abnormal_data_idx) * (1 - holdout))
-
-            if contamination_rate > 0:
-                num_abnorm_to_inject = int(normal_train_idx.shape[0] * contamination_rate / (1 - contamination_rate))
-
-                assert num_abnorm_to_inject <= len(shuffled_abnorm_idx[num_abnorm_test_sample:])
-
-                normal_train_idx = np.concatenate([
-                    abnormal_data_idx[shuffled_abnorm_idx[
-                                      num_abnorm_test_sample:
-                                      num_abnorm_test_sample + num_abnorm_to_inject]],
-                    normal_train_idx
-                ])
-
         # Generate training set with contamination when applicable
         # Split the training set to train and validation
-        normal_train_idx, normal_val_idx = random_split_to_two(normal_train_idx, ratio=validation_ratio)
+        normal_train_idx, normal_val_idx = random_split_to_two(normal_train_idx)
 
         train_set = Subset(self, normal_train_idx)
         val_set = Subset(self, normal_val_idx)
         if debug:
+            print(f"Dataset size\nPositive class: {len(abnormal_data_idx)}"
+                  f"\nNegative class: {len(normal_data_idx)}\n")
             print(
                 f'Training set\n'
                 f'Contamination rate: '
@@ -394,14 +371,10 @@ class IDS2018Dataset(AbstractDataset):
                          test_pct: float = .5,
                          label: int = 0,
                          holdout: float = 0.,
-                         contamination_rate: float = 0.,
-                         validation_ratio: float = 0.,
                          seed=None,
                          debug=True,
                          corruption_label=None) -> Tuple[Subset, Subset, Subset]:
         assert (label == 0 or label == 1)
-        assert 0 <= holdout <= 1, "`holdout` should be inclusively between 0 and 1"
-        assert 0 <= contamination_rate <= 1
 
         if seed:
             torch.manual_seed(seed)
@@ -418,47 +391,10 @@ class IDS2018Dataset(AbstractDataset):
 
         abnormal_data_idx = np.where(self.y == int(not label))[0]
 
+        train_set = Subset(self, normal_train_idx)
         if debug:
             print(f"Dataset size\nPositive class :{len(abnormal_data_idx)}"
                   f"\nNegative class :{len(normal_data_idx)}\n")
-
-        if holdout > 0:
-            # Generate test set by holding out a percentage [holdout] of abnormal data
-            # sample for a possible contamination
-            shuffled_abnorm_idx = torch.randperm(len(abnormal_data_idx)).long()
-            num_abnorm_test_sample = int(len(abnormal_data_idx) * (1 - holdout))
-            abnorm_test_idx = abnormal_data_idx[shuffled_abnorm_idx[:num_abnorm_test_sample]]
-
-            if contamination_rate > 0:
-                holdout_ano_idx = abnormal_data_idx[shuffled_abnorm_idx[num_abnorm_test_sample:]]
-
-                # Injection of only specified type of attacks
-                if corruption_label:
-                    all_labels = np.char.lower(self.labels[holdout_ano_idx].astype('str'))
-                    corruption_label = corruption_label.lower()
-                    corruption_by_lbl_idx = np.char.startswith(all_labels,
-                                                               corruption_label)
-                    holdout_ano_idx = holdout_ano_idx[corruption_by_lbl_idx]
-
-                # Calculate the number of abnormal samples to inject
-                # according to the contamination rate
-                num_abnorm_to_inject = int(normal_train_idx.shape[0] * contamination_rate / (1 - contamination_rate))
-
-                assert num_abnorm_to_inject <= len(holdout_ano_idx)
-
-                normal_train_idx = np.concatenate([
-                    holdout_ano_idx[:num_abnorm_to_inject],
-                    normal_train_idx
-                ])
-
-        if validation_ratio > 0.:
-            # Generate training set with contamination when applicable
-            # Split the training set to train and validation
-            normal_train_idx, normal_val_idx = random_split_to_two(normal_train_idx, ratio=validation_ratio)
-            val_set = Subset(self, normal_val_idx)
-
-        train_set = Subset(self, normal_train_idx)
-        if debug:
             print(
                 f'Training set\n'
                 f'Contamination rate: '
@@ -467,7 +403,7 @@ class IDS2018Dataset(AbstractDataset):
         # Generate test set based on the remaining data and the previously filtered out labels
         remaining_idx = np.concatenate([
             normal_data_idx[shuffled_norm_idx[:num_norm_test_sample]],
-            abnorm_test_idx
+            abnormal_data_idx
         ])
         test_set = Subset(self, remaining_idx)
 

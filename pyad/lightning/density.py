@@ -209,7 +209,7 @@ class LitDAGMM(BaseLightningModel):
             hidden_dims=self.hparams.ae_hidden_dims
         )
 
-    def forward(self, X: torch.Tensor, return_gamma_hat=True, return_cosim=False):
+    def forward(self, X: torch.Tensor, return_gamma_hat=True):
         # computes the z vector of the original paper (p.4), that is
         # :math:`z = [z_c, z_r]` with
         #   - :math:`z_c = h(x; \theta_e)`
@@ -217,13 +217,10 @@ class LitDAGMM(BaseLightningModel):
         emb, X_hat = self.ae_net(X)
         rel_euc_dist = relative_euclidean_dist(X, X_hat)
         cosim = self.cosim(X, X_hat)
-        if return_cosim is False:
-            z = torch.cat(
-                [emb, rel_euc_dist.unsqueeze(-1), cosim.unsqueeze(-1)],
-                dim=1
-            ).to(self.device)
-        else:
-            z = cosim
+        z = torch.cat(
+            [emb, rel_euc_dist.unsqueeze(-1), cosim.unsqueeze(-1)],
+            dim=1
+        ).to(self.device)
         if return_gamma_hat:
             # compute gmm net output, that is
             #   - p = MLP(z, \theta_m) and
@@ -504,7 +501,7 @@ class LitSOMDAGMM(BaseLightningModel):
 
     def forward(self, X: torch.Tensor):
         # DAGMM's latent feature, the reconstruction error and gamma
-        emb, X_hat, z, _ = self.dagmm.forward(X, return_gamma_hat=False)
+        emb, X_hat, z_r, _ = self.dagmm.forward(X, return_gamma_hat=False)
 
         # Concatenate SOM's features with DAGMM's
         z_r_s = []
@@ -513,7 +510,7 @@ class LitSOMDAGMM(BaseLightningModel):
             z_s_i = [[x, y] for x, y in z_s_i]
             z_s_i = torch.from_numpy(np.array(z_s_i)).to(self.device)  # / (default_som_args.get('x')+1)
             z_r_s.append(z_s_i)
-        z_r_s.append(z)
+        z_r_s.append(z_r)
         Z = torch.cat(z_r_s, dim=1)
 
         # estimation network
@@ -546,9 +543,16 @@ class LitSOMDAGMM(BaseLightningModel):
         return rec_loss + sample_energy + penalty_term
 
     def score(self, X: torch.Tensor, y: torch.Tensor = None):
-        _, _, z, _ = self.forward(X)
-        energy, _ = self.dagmm.estimate_sample_energy(z, average_energy=False)
-        return energy
+        # _, _, Z, gamma_hat = self.forward(X)
+        # phi, mu, Sigma = self.compute_params(Z, gamma_hat)
+        # energy, _ = self.estimate_sample_energy(Z, phi, mu, Sigma, average_energy=False)
+
+        code, x_prime, z, gamma = self.forward(X)
+        phi, mu, cov_mat = self.compute_params(z, gamma)
+        sample_energy, pen_cov_mat = self.dagmm.estimate_sample_energy(
+            z, phi, mu, cov_mat, average_energy=False
+        )
+        return sample_energy
 
     def configure_optimizers(self):
         optimizer = torch.optim.Adam(

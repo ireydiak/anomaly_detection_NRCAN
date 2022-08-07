@@ -217,7 +217,6 @@ def train_cli(args):
         dataset_path=args.dataset_path,
         batch_size=args.batch_size,
         normal_size=args.normal_size,
-        corruption_ratio=args.rho,
         n_runs=args.n_runs,
         n_epochs=args.n_epochs,
         learning_rate=args.lr,
@@ -226,10 +225,6 @@ def train_cli(args):
         models_path=args.model_path,
         test_mode=args.test_mode,
         seed=args.seed,
-        holdout=args.hold_out,
-        contamination_r=args.rho,
-        drop_lastbatch=args.drop_lastbatch,
-        validation_ratio=args.val_ratio,
     )
 
 

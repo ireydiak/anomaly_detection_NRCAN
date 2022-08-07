@@ -9,7 +9,7 @@ from sklearn import metrics as sk_metrics
 from torch.utils.data.dataloader import DataLoader
 from torch import optim
 from tqdm import trange
-from pyad.model.base import BaseModel
+from pyad.legacy.model.base import BaseModel
 from pyad.utils import metrics
 
 

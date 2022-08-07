@@ -1,10 +1,14 @@
 import os
 import numpy as np
+import torch
+
 import pyad.lightning
 import pytorch_lightning as pl
 import pyad.datamanager.datamodule
 from pytorch_lightning.utilities.cli import LightningCLI, MODEL_REGISTRY, DATAMODULE_REGISTRY
 from pytorch_lightning import loggers as pl_loggers
+
+from pyad.legacy import bootstrap
 from pyad.utils.utils import store_results
 
 import warnings
@@ -28,6 +32,50 @@ class MyLightningCLI(LightningCLI):
         parser.add_argument("--save_dir", type=str, default=get_default_experiment_path())
         parser.add_argument("--n_runs", type=int, default=1, help="number of times the experiments are repeated")
 
+
+def train_legacy(cli, model, exp_fname):
+    # load legacy data classes
+    dataset_name = cli.datamodule.__class__.__name__.replace("DataModule", "")
+    dataset_cls = bootstrap.datasets_map[dataset_name]
+    dataset = dataset_cls(
+        path=cli.config.data.init_args.data_dir,
+        normal_size=cli.config.data.init_args.normal_size
+    )
+    anomaly_thresh = 1 - dataset.anomaly_ratio
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+
+    # train legacy model for a single run
+    res = bootstrap.train_model(
+        model_name=model.__class__.__name__,
+        model_params=dict(cli.config.model.init_args),
+        batch_size=cli.config.data.init_args.batch_size,
+        n_epochs=cli.config.trainer.max_epochs,
+        learning_rate=cli.config.model.init_args.lr,
+        weight_decay=cli.config.model.init_args.weight_decay,
+        test_mode=False,
+        seed=42,
+        device=device,
+        model_path=exp_fname,
+        dataset=dataset
+    )
+    print(res)
+    return res
+    # bootstrap.train(
+    #     model_name=model.__class__.__name__,
+    #     model_params=dict(cli.config.model.init_args),
+    #     dataset_name=dataset_name,
+    #     dataset_path=cli.config.data.init_args.data_dir,
+    #     batch_size=cli.config.data.init_args.batch_size,
+    #     normal_size=cli.config.data.init_args.normal_size,
+    #     n_runs=cli.config.n_runs,
+    #     n_epochs=cli.config.max_epochs,
+    #     learning_rate=cli.config.model.init_args.lr,
+    #     weight_decay=cli.config.model.init_args.weight_decay,
+    #     results_path=exp_fname,
+    #     models_path=exp_fname,
+    #     test_mode=False,
+    #     seed=42
+    # )
 
 def sk_train(cli, model):
     datamodule = cli.datamodule
@@ -122,7 +170,9 @@ def main(cli):
     for run in range(1, cli.config.n_runs + 1):
         # instead of resetting the weights, we simply create a fresh instance of the model at every run
         model_instance = init_model(cli)
-        if model_instance.is_nn:
+        if model_instance.is_legacy:
+            res = train_legacy(cli, model_instance, exp_fname)
+        elif model_instance.is_nn:
             # train neural network for `trainer.max_epochs` epochs
             res = nn_train(cli, model_instance, exp_fname)
         else:

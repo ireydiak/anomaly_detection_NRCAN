@@ -54,6 +54,7 @@ def layer_options_helper(in_features: int, max_layers: int = 4) -> Tuple[List[Li
 
 class BaseLightningModel(pl.LightningModule):
     is_nn = True
+    is_legacy = False
 
     def __init__(
             self,

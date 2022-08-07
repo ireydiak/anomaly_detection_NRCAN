@@ -1,0 +1,17 @@
+model:
+  class_path: pyad.lightning.legacy.DUAD
+  init_args:
+    r: 10
+    p0: 35.
+    p: 30
+    n_clusters: 8
+    act_fn: relu
+    n_layers: 1
+    compression_factor: 2
+    latent_dim: 2
+    lr: 1e-4
+trainer:
+    max_epochs: 5000
+data:
+  init_args:
+    batch_size: 128

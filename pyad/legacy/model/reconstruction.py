@@ -3,21 +3,11 @@ import math
 import numpy as np
 import torch
 from minisom import MiniSom
-from pytorch_lightning.utilities.cli import MODEL_REGISTRY
-from pytorch_lightning.utilities.types import STEP_OUTPUT
-from torch.optim.lr_scheduler import StepLR
-
-from pyad.loss.EntropyLoss import EntropyLoss
-from pyad.model.base import BaseModel
-from pyad.model.GMM import GMM
-from pyad.model.memory_module import MemoryUnit
-from pyad.model import utils
-from pyad.model.utils import activation_map
+from pyad.legacy.model.base import BaseModel
+from pyad.legacy.model.GMM import GMM
+from pyad.legacy.model import utils
+from pyad.legacy.model.utils import activation_map
 from torch import nn
-import pytorch_lightning as pl
-from typing import List, Any
-
-from pyad.utils import metrics
 
 
 def xavier_init(model):
@@ -43,9 +33,6 @@ def create_net_layers(in_dim, out_dim, hidden_dims, activation="relu", bias=True
         nn.Linear(hidden_dims[-1], out_dim, bias=bias)
     )
     return layers
-
-
-
 
 
 class AutoEncoder(BaseModel):
@@ -585,124 +572,3 @@ class SOMDAGMM(BaseModel):
             **parent_params
         )
 
-
-class MemAutoEncoder(BaseModel):
-    name = "MemAE"
-
-    def __init__(
-            self,
-            mem_dim: int,
-            latent_dim: int,
-            shrink_thres: float,
-            n_layers: int,
-            compression_factor: int,
-            alpha: float,
-            act_fn="relu",
-            **kwargs
-    ):
-        """
-        Implements model Memory AutoEncoder as described in the paper
-        `Memorizing Normality to Detect Anomaly: Memory-augmented Deep Autoencoder (MemAE) for Unsupervised Anomaly Detection`.
-        A few adjustments were made to train the model on tabular data instead of images.
-        This version is not meant to be trained on image datasets.
-
-        - Original github repo: https://github.com/donggong1/memae-anomaly-detection
-        - Paper citation:
-            @inproceedings{
-            gong2019memorizing,
-            title={Memorizing Normality to Detect Anomaly: Memory-augmented Deep Autoencoder for Unsupervised Anomaly Detection},
-            author={Gong, Dong and Liu, Lingqiao and Le, Vuong and Saha, Budhaditya and Mansour, Moussa Reda and Venkatesh, Svetha and Hengel, Anton van den},
-            booktitle={IEEE International Conference on Computer Vision (ICCV)},
-            year={2019}
-            }
-
-        Parameters
-        ----------
-        dataset_name: Name of the dataset (used to set the parameters)
-        in_features: Number of variables in the dataset
-        """
-        super(MemAutoEncoder, self).__init__(**kwargs)
-        self.alpha = alpha
-        self.latent_dim = latent_dim
-        self.act_fn = activation_map[act_fn]
-        self.shrink_thres = shrink_thres
-        self.n_layers = n_layers
-        self.compression_factor = compression_factor
-        self.mem_dim = mem_dim
-        self.encoder = None
-        self.decoder = None
-        self.mem_rep = None
-        self._build_network()
-
-    @staticmethod
-    def load_from_ckpt(ckpt):
-        model = MemAutoEncoder(
-            in_features=ckpt["in_features"],
-            n_instances=ckpt["n_instances"],
-            mem_dim=ckpt["mem_dim"],
-            latent_dim=ckpt["latent_dim"],
-            shrink_thres=ckpt["shrink_thres"],
-            n_layers=ckpt["n_layers"],
-            compression_factor=ckpt["compression_factor"],
-            alpha=ckpt["alpha"],
-            act_fn=ckpt["act_fn"],
-        )
-        model.load_state_dict(ckpt["model_state_dict"])
-        return model
-
-    @staticmethod
-    def get_args_desc():
-        return [
-            ("shrink_thres", float, 0.0025, "Shrink threshold for hard shrinking relu"),
-            ("latent_dim", int, 1, "Latent dimension of the AE network"),
-            ("mem_dim", int, 50, "Number of memory units"),
-            ("n_layers", int, 4, "Number of layers for the AE network"),
-            ("alpha", float, 2e-4, "Coefficient for the entropy loss"),
-            ("compression_factor", int, 2, "Compression factor for the AE network"),
-            ("act_fn", str, "relu", "Activation function of the AE network"),
-        ]
-
-    def _build_network(self):
-        # Create the ENCODER layers
-        enc_layers = []
-        in_features = self.in_features
-        compression_factor = self.compression_factor
-        for _ in range(self.n_layers - 1):
-            out_features = in_features // compression_factor
-            enc_layers.append(
-                [in_features, out_features, self.act_fn]
-            )
-            in_features = out_features
-        enc_layers.append(
-            [in_features, self.latent_dim, None]
-        )
-        # Create DECODER layers by simply reversing the encoder
-        dec_layers = [[b, a, c] for a, b, c in reversed(enc_layers)]
-        # Add and remove activation function from the first and last layer
-        dec_layers[0][-1] = self.act_fn
-        dec_layers[-1][-1] = None
-        # Create networks
-        self.encoder = utils.create_network(enc_layers)
-        self.decoder = utils.create_network(dec_layers)
-        self.mem_rep = MemoryUnit(self.mem_dim, self.latent_dim, self.shrink_thres).to(self.device)
-
-    def forward(self, x):
-        f_e = self.encoder(x)
-        f_mem, att = self.mem_rep(f_e)
-        f_d = self.decoder(f_mem)
-        return f_d, att
-
-    def get_params(self):
-        params = {
-            "latent_dim": self.latent_dim,
-            "shrink_thres": self.shrink_thres,
-            "compression_factor": self.compression_factor,
-            "n_layers": self.n_layers,
-            "mem_dim": self.mem_dim,
-            "alpha": self.alpha,
-            "act_fn": str(self.act_fn).lower().replace("()", "")
-        }
-        return dict(
-            **super(MemAutoEncoder, self).get_params(),
-            **params
-        )

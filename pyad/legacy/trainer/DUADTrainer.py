@@ -4,8 +4,8 @@ from torch.utils.data import DataLoader
 from tqdm import trange
 import torch
 import numpy as np
-from pyad.datamanager.DataManager import DataManager
-from pyad.model.DUAD import DUAD
+from pyad.legacy.datamanager.DataManager import DataManager
+from pyad.legacy.model.DUAD import DUAD
 from sklearn.mixture import GaussianMixture
 
 
@@ -283,31 +283,26 @@ class DUADTrainer:
         test_loader = self.dm.get_test_set()
         # Change the model to evaluation mode
         self.model.eval()
-        train_score = []
 
         with torch.no_grad():
-            # Calculate score using estimated parameters
-            test_score = []
-            test_labels = []
-            test_z = []
+            scores, y_true, labels = [], [], []
 
-            for data in test_loader:
-                test_inputs, label_inputs = data[0].float().to(self.device), data[1]
+            for row in test_loader:
+                X, y, label = row
+                X = X.to(self.device).float()
 
                 # forward pass
-                code, X_prime, h_x = self.model(test_inputs)
+                code, X_prime, h_x = self.model(X)
+                batch_scores = ((X - X_prime) ** 2).sum(axis=-1).squeeze()
 
-                test_score.append(((test_inputs - X_prime) ** 2).sum(axis=-1).squeeze().cpu().numpy())
-                test_z.append(code.cpu().numpy())
-                test_labels.append(label_inputs.numpy())
-
-            test_score = np.concatenate(test_score, axis=0)
-            test_labels = np.concatenate(test_labels, axis=0)
+                y_true.extend(y)
+                labels.extend(list(label))
+                scores.extend(batch_scores.cpu().numpy())
 
             # switch back to train mode
             self.model.train()
 
-            return test_score, test_labels
+            return np.array(scores), np.array(y_true), np.array(labels)
 
     def setDataManager(self, dm):
         self.dm = dm

@@ -1,20 +1,10 @@
 import argparse
 import os
 from collections import defaultdict
-from pyad.datamanager.DataManager import DataManager
-from pyad.datamanager.dataset import ArrhythmiaDataset, ThyroidDataset, IDS2017Dataset
-from pyad.model.DUAD import DUAD
-from pyad.trainer.DUADTrainer import DUADTrainer
-from pyad.trainer.adversarial import ALADTrainer
-from pyad.trainer.density import DSEBMTrainer
-from pyad.trainer.one_class import DeepSVDDTrainer, EdgeMLDROCCTrainer
-from pyad.trainer.reconstruction import AutoEncoderTrainer, MemAETrainer, DAGMMTrainer
-from pyad.trainer.transformers import NeuTraLADTrainer
-from pyad.model.adversarial import ALAD
-from pyad.model.density import DSEBM
-from pyad.model.one_class import DeepSVDD, DROCC
-from pyad.model.reconstruction import AutoEncoder, DAGMM, MemAutoEncoder
-from pyad.model.transformers import NeuTraLAD
+from pyad.legacy.datamanager.DataManager import DataManager
+from pyad.legacy.datamanager.dataset import ArrhythmiaDataset, ThyroidDataset, IDS2017Dataset
+from pyad.legacy.model.DUAD import DUAD
+from pyad.legacy.trainer.DUADTrainer import DUADTrainer
 from pyad.utils import metrics
 from pathlib import Path
 

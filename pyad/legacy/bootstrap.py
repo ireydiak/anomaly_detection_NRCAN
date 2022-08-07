@@ -5,40 +5,17 @@ import os
 from collections import defaultdict
 from datetime import datetime as dt
 
-from model.adversarial import ALAD
-from model.base import BaseModel
-from model.density import DSEBM
-from model.DUAD import DUAD
-from model.one_class import DeepSVDD, DROCC
-from model.transformers import GOAD, NeuTraLAD
-from model.reconstruction import AutoEncoder as AE, DAGMM, MemAutoEncoder as MemAE, SOMDAGMM
-from model.shallow import RecForest, OCSVM, LOF
-from trainer.adversarial import ALADTrainer
-from trainer.density import DSEBMTrainer
-from trainer.one_class import DeepSVDDTrainer, EdgeMLDROCCTrainer
-from trainer.reconstruction import AutoEncoderTrainer as AETrainer, DAGMMTrainer, MemAETrainer, SOMDAGMMTrainer
-from trainer.shallow import OCSVMTrainer, RecForestTrainer, LOFTrainer
-from trainer.transformers import GOADTrainer, NeuTraLADTrainer
-from trainer.DUADTrainer import DUADTrainer
-from utils import metrics
-from utils.utils import average_results
-from datamanager.DataManager import DataManager
-from datamanager.dataset import *
+from pyad.legacy.model.DUAD import DUAD
+from pyad.legacy.model.reconstruction import SOMDAGMM
+from pyad.legacy.trainer.reconstruction import SOMDAGMMTrainer
+from pyad.legacy.trainer.DUADTrainer import DUADTrainer
+from pyad.utils import metrics
+from pyad.utils.utils import average_results, ids_misclf_per_label
+from pyad.legacy.datamanager.DataManager import DataManager
+from pyad.legacy.datamanager.dataset import *
 
 available_models = [
-    AE,
-    ALAD,
-    DAGMM,
-    DeepSVDD,
-    DSEBM,
-    DROCC,
     DUAD,
-    GOAD,
-    LOF,
-    MemAE,
-    NeuTraLAD,
-    OCSVM,
-    RecForest,
     SOMDAGMM,
 ]
 
@@ -54,22 +31,8 @@ datasets_map = {
 }
 
 model_trainer_map = {
-    # Deep Models
-    "ALAD": (ALAD, ALADTrainer),
-    "AE": (AE, AETrainer),
-    "DAGMM": (DAGMM, DAGMMTrainer),
-    "DSEBM": (DSEBM, DSEBMTrainer),
-    "DROCC": (DROCC, EdgeMLDROCCTrainer),
     "DUAD": (DUAD, DUADTrainer),
-    "GOAD": (GOAD, GOADTrainer),
-    "MemAE": (MemAE, MemAETrainer),
-    "DeepSVDD": (DeepSVDD, DeepSVDDTrainer),
     "SOMDAGMM": (SOMDAGMM, SOMDAGMMTrainer),
-    "NeuTraLAD": (NeuTraLAD, NeuTraLADTrainer),
-    # Shallow Models
-    "OCSVM": (OCSVM, OCSVMTrainer),
-    "LOF": (LOF, LOFTrainer),
-    "RecForest": (RecForest, RecForestTrainer)
 }
 
 
@@ -111,7 +74,6 @@ def resolve_dataset(name: str, path: str, normal_size=1):
         path=path,
         normal_size=normal_size
     )
-    return dataset
 
 
 def resolve_model_trainer(
@@ -131,8 +93,6 @@ def resolve_model_trainer(
 
     model = model_cls(
         dataset_name=dataset.name,
-        in_features=dataset.in_features,
-        n_instances=dataset.n_instances,
         device=device,
         **model_params,
     )
@@ -161,11 +121,6 @@ def train_model(
         dataset,
         batch_size,
         seed,
-        contamination_rate,
-        holdout,
-        drop_lastbatch,
-        validation_ratio
-
 ):
     model, model_trainer = resolve_model_trainer(
         model_name=model_name,
@@ -181,43 +136,35 @@ def train_model(
     train_ldr, test_ldr, val_ldr = dataset.loaders(
         batch_size=batch_size,
         seed=seed,
-        contamination_rate=contamination_rate,
-        validation_ratio=validation_ratio,
-        holdout=holdout,
-        drop_last_batch=drop_lastbatch
     )
 
-    if test_mode:
-        for model_file_name in os.listdir(model_path):
-            model = BaseModel.load(f"{model_path}/{model_file_name}")
-            model = model.to(device)
-            model_trainer.model = model
-            print("Evaluating the model on test set")
-            # We test with the minority samples as the positive class
-            y_test_true, test_scores = model_trainer.test(test_ldr)
-            print("Evaluating model")
-            results = metrics.estimate_optimal_threshold(test_scores, y_test_true)
+    if model.name == "DUAD":
+        # DataManager for DUAD only
+        # split data in train and test sets
+        train_set, test_set, val_set = dataset.split_train_test(
+            test_pct=0.50,
+        )
+        dm = DataManager(train_set, test_set, batch_size=batch_size)
+        # we train only on the majority class
+        model_trainer.setDataManager(dm)
+        model_trainer.train(dataset=train_set)
     else:
-        if model.name == "DUAD":
-            # DataManager for DUAD only
-            # split data in train and test sets
-            train_set, test_set, val_set = dataset.split_train_test(
-                test_pct=0.50, contamination_rate=contamination_rate, holdout=holdout
-            )
-            dm = DataManager(train_set, test_set, batch_size=batch_size, drop_last=drop_lastbatch)
-            # we train only on the majority class
-            model_trainer.setDataManager(dm)
-            model_trainer.train(dataset=train_set)
-        else:
-            model_trainer.train(train_ldr)
-        print("Completed learning process")
-        print("Evaluating model on test set")
-        # We test with the minority samples as the positive class
-        if model.name == "DUAD":
-            test_scores, y_test_true = model_trainer.evaluate_on_test_set()
-        else:
-            y_test_true, test_scores, _ = model_trainer.test(test_ldr)
-        results, _ = metrics.score_recall_precision_w_threshold(test_scores, y_test_true)
+        model_trainer.train(train_ldr)
+    print("Completed learning process")
+    print("Evaluating model on test set")
+    # We test with the minority samples as the positive class
+    if model.name == "DUAD":
+        scores, y_true, labels = model_trainer.evaluate_on_test_set()
+    else:
+        scores, y_true, labels = model_trainer.test(test_ldr)
+
+    results, y_pred = metrics.estimate_optimal_threshold(scores, y_true)
+    if len(np.unique(labels)) > 2:
+        misclf_df = ids_misclf_per_label(y_pred, y_true, labels)
+        misclf_df = misclf_df.sort_values("Misclassified ratio", ascending=False)
+        for i, row in misclf_df.iterrows():
+            results[i] = row["Accuracy"]
+
     return results
 
 
@@ -304,7 +251,6 @@ def train(
         dataset_path: str,
         batch_size: int,
         normal_size: float,
-        corruption_ratio: float,
         n_runs: int,
         n_epochs: int,
         learning_rate: float,
@@ -313,10 +259,6 @@ def train(
         models_path: str,
         test_mode: bool,
         seed: int,
-        holdout=0.0,
-        contamination_r=0.0,
-        drop_lastbatch=False,
-        validation_ratio=0,
 ):
     # Dynamically load the Dataset instance
     dataset_cls = datasets_map[dataset_name]
@@ -350,10 +292,6 @@ def train(
             dataset=dataset,
             batch_size=batch_size,
             seed=seed,
-            contamination_rate=contamination_r,
-            holdout=holdout,
-            drop_lastbatch=drop_lastbatch,
-            validation_ratio=validation_ratio
         )
         for k, v in results.items():
             all_results[k].append(v)
@@ -362,8 +300,6 @@ def train(
     params = dict(
         {"BatchSize": batch_size,
          "Epochs": n_epochs,
-         "CorruptionRatio": corruption_ratio,
-         "HoldoutRatio": holdout,
          "Threshold": anomaly_thresh},
         **model_params
     )

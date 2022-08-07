@@ -72,7 +72,6 @@ class DataManager:
             self.current_train_set, self.batch_size, sampler=train_sampler, **self.kwargs
         )
         self.train_loader = DataLoader(self.current_train_set, self.batch_size, sampler=train_sampler, **self.kwargs)
-        self.validation_loader = DataLoader(self.train_set, self.batch_size, sampler=val_sampler, **self.kwargs)
         self.test_loader = DataLoader(test_dataset, batch_size, shuffle=True, **kwargs)
 
     def get_current_training_set(self):
@@ -95,11 +94,11 @@ class DataManager:
         self.train_selection_mask[selected_indices] = 1
         lbl_sample_idx = self.train_selection_mask.nonzero().squeeze()
         self.current_train_set = MySubset(self.train_set, lbl_sample_idx)
-        train_sampler, val_sampler = self.train_validation_split(len(self.current_train_set), self.validation,
-                                                                 self.seed)
+        train_sampler, val_sampler = self.train_validation_split(
+            len(self.current_train_set), self.validation, self.seed
+        )
         self.train_loader = DataLoader(self.current_train_set, self.batch_size, sampler=train_sampler, **self.kwargs)
-        self.validation_loader = DataLoader(self.current_train_set, self.batch_size, sampler=val_sampler, **self.kwargs)
-        return self.train_loader, self.validation_loader
+        return self.train_loader
 
     @staticmethod
     def train_validation_split(num_samples, validation_ratio, seed=0):
@@ -121,9 +120,6 @@ class DataManager:
 
     def get_train_set(self):
         return self.train_loader
-
-    def get_validation_set(self):
-        return self.validation_loader
 
     def get_test_set(self):
         return self.test_loader
