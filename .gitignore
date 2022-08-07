@@ -28,5 +28,3 @@ notebooks/sandbox/*
 # experiments checkpoints
 experiments/tuning/*
 experiments/training/*
-experiments/training/**/*.ckpt
-experiments/training/**/*.yaml

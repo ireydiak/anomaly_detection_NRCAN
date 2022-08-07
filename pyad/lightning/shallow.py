@@ -11,6 +11,7 @@ from pyad.utils.utils import ids_misclf_per_label
 
 class BaseLightningShallowModel(pl.LightningModule):
     is_nn = False
+    is_legacy = False
 
     def __init__(
             self,
