@@ -60,22 +60,7 @@ def train_legacy(cli, model, exp_fname):
     )
     print(res)
     return res
-    # bootstrap.train(
-    #     model_name=model.__class__.__name__,
-    #     model_params=dict(cli.config.model.init_args),
-    #     dataset_name=dataset_name,
-    #     dataset_path=cli.config.data.init_args.data_dir,
-    #     batch_size=cli.config.data.init_args.batch_size,
-    #     normal_size=cli.config.data.init_args.normal_size,
-    #     n_runs=cli.config.n_runs,
-    #     n_epochs=cli.config.max_epochs,
-    #     learning_rate=cli.config.model.init_args.lr,
-    #     weight_decay=cli.config.model.init_args.weight_decay,
-    #     results_path=exp_fname,
-    #     models_path=exp_fname,
-    #     test_mode=False,
-    #     seed=42
-    # )
+
 
 def sk_train(cli, model):
     datamodule = cli.datamodule
@@ -157,6 +142,7 @@ def init_model(cli):
     model_args["in_features"] = cli.datamodule.in_features
     model_args["n_instances"] = cli.datamodule.n_instances
     model_args["batch_size"] = cli.datamodule.batch_size
+    model_args["threshold"] = int(np.ceil((1 - cli.datamodule.anomaly_ratio) * 100))
     model_cls = MODEL_REGISTRY[cli.model.__class__.__name__]
     return model_cls(**model_args)
 

@@ -28,3 +28,4 @@ notebooks/sandbox/*
 # experiments checkpoints
 experiments/tuning/*
 experiments/training/*
+pyad/experiments/*

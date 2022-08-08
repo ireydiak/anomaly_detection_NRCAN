@@ -85,7 +85,7 @@ class BaseDataset(Dataset):
         if path.endswith(".npz"):
             data = np.load(path)
         elif path.endswith(".npy"):
-            data = np.load(path)
+            data = np.load(path, allow_pickle=True)
         elif path.endswith(".mat"):
             data = scio.loadmat(path)
             data = np.concatenate((data['X'], data['y']), axis=1)
@@ -154,16 +154,23 @@ class BaseDataModule(pl.LightningDataModule):
         assert np.isnan(self.dataset.X).sum() == 0, "detected nan values"
 
     def normalize(self, train_set, test_set) -> Tuple[SimpleDataset, SimpleDataset]:
-        # extract training/testing data and labels
+        # extract training data and labels
         train_data = train_set.dataset.dataset.X[train_set.indices]
-        train_y, train_labels = train_set.dataset.dataset.y[train_set.indices], train_set.dataset.dataset.labels[train_set.indices]
+        train_y = train_set.dataset.dataset.y[train_set.indices]
+        train_labels = train_set.dataset.dataset.labels[train_set.indices]
+        # extract testing data and labels
         test_data = test_set.dataset.dataset.X[test_set.indices]
-        test_y, test_labels = test_set.dataset.dataset.y[test_set.indices], test_set.dataset.dataset.labels[test_set.indices]
+        test_y = test_set.dataset.dataset.y[test_set.indices]
+        test_labels = test_set.dataset.dataset.labels[test_set.indices]
         # fit scaler on train set only (to avoid data leaks)
         self.scaler.fit(train_data)
         # transform the data
-        train_set = SimpleDataset(X=self.scaler.transform(train_data), y=train_y, labels=train_labels)
-        test_set = SimpleDataset(X=self.scaler.transform(test_data), y=test_y, labels=test_labels)
+        train_set = SimpleDataset(
+            X=self.scaler.transform(train_data), y=train_y, labels=train_labels
+        )
+        test_set = SimpleDataset(
+            X=self.scaler.transform(test_data), y=test_y, labels=test_labels
+        )
         return train_set, test_set
 
     def setup(self, stage: Optional[str] = None) -> None:

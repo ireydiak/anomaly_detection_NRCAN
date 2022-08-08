@@ -33,7 +33,7 @@ def df_stats(df: pd.DataFrame):
 
 
 def import_data():
-    base_url = "https://archive.ics.uci.edu/ml/machine-learning-databases/kddcup99-mld"
+    base_url = "http://kdd.ics.uci.edu/databases/kddcup99"
     url_data = f"{base_url}/kddcup.data_10_percent.gz"
     url_info = f"{base_url}/kddcup.names"
     df_info = pd.read_csv(url_info, sep=":", skiprows=1, index_col=False, names=["colname", "type"])
@@ -77,7 +77,9 @@ def preprocess(df: pd.DataFrame, stats: dict):
 
     assert df.isna().any(1).sum() == 0, "found nan values, aborting"
 
-    return df, stats
+    X = df.drop("Category", axis=1).to_numpy()
+
+    return df, X, stats
 
 
 def main():
@@ -85,7 +87,7 @@ def main():
     df = import_data()
     stats = df_stats(df)
 
-    df, stats = preprocess(df, stats)
+    df, X, stats = preprocess(df, stats)
     stats["Final n_instances"] = len(df)
     stats["Final n_features"] = df.shape[1] - 2
     stats["Anomaly Ratio"] = (df.label == 1).sum() / len(df)
@@ -94,6 +96,7 @@ def main():
 
     path = os.path.join(output_dir, "kdd10percent.csv")
     df.to_csv(path)
+    np.save(os.path.join(output_dir, "kdd10percent"), X.astype(np.float64))
 
 
 if __name__ == '__main__':

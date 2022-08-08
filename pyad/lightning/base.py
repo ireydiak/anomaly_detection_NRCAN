@@ -124,6 +124,9 @@ class BaseLightningModel(pl.LightningModule):
             labels = np.append(labels, output["labels"])
         # compute binary classification results
         results, y_pred = metrics.estimate_optimal_threshold(scores, y_true)
+        # results, y_pred = metrics.score_recall_precision_w_threshold(
+        #     scores, y_true, threshold=self.threshold
+        # )
         # evaluate multi-class if labels contain over two distinct values
         if len(np.unique(labels)) > 2:
             misclf_df = ids_misclf_per_label(y_pred, y_true, labels)
