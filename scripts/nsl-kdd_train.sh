@@ -1,5 +1,6 @@
-conda activate nrcan &&
 cd .. &&
+eval "$(conda shell.bash hook)" &&
+conda activate nrcan &&
 python -m pyad.lightning_cli --config models/NSL-KDD/_data.yaml --config models/NSL-KDD/_trainer.yaml --config models/NSL-KDD/alad.yaml --save_dir experiments/training --n_runs 5 &&
 python -m pyad.lightning_cli --config models/NSL-KDD/_data.yaml --config models/NSL-KDD/_trainer.yaml --config models/NSL-KDD/autoencoder.yaml --save_dir experiments/training --n_runs 5 &&
 python -m pyad.lightning_cli --config models/NSL-KDD/_data.yaml --config models/NSL-KDD/_trainer.yaml --config models/NSL-KDD/dagmm.yaml --save_dir experiments/training --n_runs 5 &&
