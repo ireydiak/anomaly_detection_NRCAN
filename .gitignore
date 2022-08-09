@@ -29,3 +29,5 @@ notebooks/sandbox/*
 experiments/tuning/*
 experiments/training/*
 pyad/experiments/*
+notebooks/experiments/*
+notebooks/lightning_logs/*
