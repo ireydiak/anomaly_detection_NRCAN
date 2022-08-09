@@ -29,6 +29,7 @@ class MyLightningCLI(LightningCLI):
     def add_arguments_to_parser(self, parser):
         parser.link_arguments("data.in_features", "model.init_args.in_features", apply_on="instantiate")
         parser.link_arguments("data.n_instances", "model.init_args.n_instances", apply_on="instantiate")
+        parser.link_arguments("data.normal_str_label", "model.init_args.normal_str_label", apply_on="instantiate")
         parser.add_argument("--save_dir", type=str, default=get_default_experiment_path())
         parser.add_argument("--n_runs", type=int, default=1, help="number of times the experiments are repeated")
 
@@ -91,8 +92,6 @@ def sk_train(cli, model):
 
 def nn_train(cli, model, exp_fname):
     datamodule = cli.datamodule
-    model_name = model.__class__.__name__
-    base_path = os.path.join(cli.config.save_dir, exp_fname)
 
     # logger
     tb_logger = pl_loggers.TensorBoardLogger(
@@ -127,11 +126,6 @@ def nn_train(cli, model, exp_fname):
         model=model,
         dataloaders=datamodule.test_dataloader()
     )[0]
-    # store per-class-accuracy results
-    if model.per_class_accuracy is not None:
-        model.per_class_accuracy.to_csv(
-            os.path.join(base_path, "{}_per_class_accuracy.csv".format(model_name.lower()))
-        )
     return res
 
 

@@ -116,6 +116,7 @@ class BaseDataModule(pl.LightningDataModule):
             label_col: str = None,
             normal_size: float = 1.,
             anomaly_label: int = 1,
+            normal_str_label: str = None,
             seed: int = 42
     ):
         super(BaseDataModule, self).__init__()
@@ -124,6 +125,7 @@ class BaseDataModule(pl.LightningDataModule):
         self.num_workers = num_workers
         self.label_col = label_col
         self.seed = seed
+        self.normal_str_label = normal_str_label
         self.dataset = BaseDataset(
             self.data_dir,
             label_col=label_col,
