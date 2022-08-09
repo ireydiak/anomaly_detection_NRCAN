@@ -5,3 +5,4 @@ data:
     data_dir: ./data/IDS2018/ids2018.csv
     scaler: minmax
     label_col: Category
+    normal_str_label: Benign

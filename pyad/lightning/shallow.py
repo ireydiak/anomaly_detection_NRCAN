@@ -46,7 +46,7 @@ class BaseLightningShallowModel(pl.LightningModule):
         assert np.isnan(scores).any().item() is False, "found NaN values in the final scores, aborting evaluation"
 
         # compute binary classification scores
-        #results, y_pred = metrics.score_recall_precision_w_threshold(scores, y_true, self.threshold)
+        # results, y_pred = metrics.score_recall_precision_w_threshold(scores, y_true, self.threshold)
         results, y_pred = metrics.estimate_optimal_threshold(scores, y_true)
 
         # evaluate multi-class if labels contain over two distinct values
@@ -58,6 +58,20 @@ class BaseLightningShallowModel(pl.LightningModule):
                 results[i] = row["Accuracy"]
 
         return results
+
+
+@MODEL_REGISTRY
+class NaiveRandomClassifier(BaseLightningShallowModel):
+    def __init__(self, p: float, **kwargs):
+        super(NaiveRandomClassifier, self).__init__(**kwargs)
+        assert 0. < p <= 1, "parameter `p` must be in the range (0, 1]"
+        self.p = p
+
+    def fit(self, X: np.ndarray, y: np.ndarray = None) -> None:
+        pass
+
+    def predict(self, X: np.ndarray):
+        return np.random.choice([0, 1], len(X), p=[self.p, 1 - self.p])
 
 
 @MODEL_REGISTRY

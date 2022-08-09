@@ -62,14 +62,14 @@ def estimate_optimal_threshold(test_score, y_test, pos_label=1, nq=100, ratio=No
     _, _, _, _, _, y_pred = compute_metrics(test_score, y_test, thresholds[arm], pos_label)
 
     return {
-        "Precision": p[arm],
-        "Recall": r[arm],
-        "F1-Score": f1[arm],
-        "AUPR": aupr[arm],
-        "AUROC": auc[arm],
-        "Thresh_star": thresholds[arm],
-        "Quantile_star": qis[arm]
-    }, y_pred
+       "Precision": p[arm],
+       "Recall": r[arm],
+       "F1-Score": f1[arm],
+       "AUPR": aupr[arm],
+       "AUROC": auc[arm],
+       "Thresh_star": thresholds[arm],
+       "Quantile_star": qis[arm]
+   }, y_pred
 
 
 def score_recall_precision_w_threshold(scores, y_true, threshold=None, pos_label=1) -> Tuple[dict, np.ndarray]:
@@ -93,3 +93,20 @@ def score_recall_precision_w_threshold(scores, y_true, threshold=None, pos_label
             "AUPR": sk_metrics.average_precision_score(y_true, scores) * 100,
             "Thresh": thresh
             }, y_pred
+
+
+def per_class_accuracy(y_true: np.ndarray, y_pred: np.ndarray, labels: np.ndarray, normal_label: str):
+    results = dict()
+    for label in np.unique(labels):
+        # select current label
+        mask = (labels == label)
+        n = mask.sum()
+        # normal data expect binary label 0
+        if label == normal_label:
+            c = ((y_true[mask]) == 0 & (y_pred[mask] == 0)).sum()
+        # abnormal data expect binary label 1
+        else:
+            c = ((y_true[mask]) == 1 & (y_pred[mask] == 1)).sum()
+        # compute per-class accuracy
+        results[label] = (c / n) * 100
+    return results

@@ -8,8 +8,6 @@ from torch import nn
 from typing import List, Tuple
 from pyad.lightning.utils import activation_map
 
-from pyad.utils.utils import ids_misclf_per_label
-
 
 def create_net_layers(in_dim, out_dim, hidden_dims, activation="relu", bias=True, dropout=0.):
     layers = []
@@ -64,6 +62,8 @@ class BaseLightningModel(pl.LightningModule):
             n_instances: int = -1,
             batch_size: int = -1,
             threshold: float = None,
+            normal_str_label: str = None,
+            **kwargs
     ):
         """
 
@@ -79,6 +79,8 @@ class BaseLightningModel(pl.LightningModule):
             number of instances/samples in the dataset
         threshold: float
             anomaly ratio in the dataset
+        normal_str_label: str
+            the normal label string representation (used to compute per-class accuracy during test)
         """
         super(BaseLightningModel, self).__init__()
         if threshold:
@@ -91,11 +93,12 @@ class BaseLightningModel(pl.LightningModule):
         # call this to save hyper-parameters to the checkpoint
         # will save children parameters as well
         self.save_hyperparameters(
-            ignore=["in_features", "n_instances", "threshold"]
+            ignore=["in_features", "n_instances", "threshold", "normal_str_label"]
         )
         # Performance metrics placeholder
         self.results = None
         self.per_class_accuracy = None
+        self.normal_str_label = normal_str_label
 
     def before_train(self, dataloader: DataLoader):
         """
@@ -129,11 +132,8 @@ class BaseLightningModel(pl.LightningModule):
         # )
         # evaluate multi-class if labels contain over two distinct values
         if len(np.unique(labels)) > 2:
-            misclf_df = ids_misclf_per_label(y_pred, y_true, labels)
-            misclf_df = misclf_df.sort_values("Misclassified ratio", ascending=False)
-            self.per_class_accuracy = misclf_df
-            for i, row in misclf_df.iterrows():
-                results[i] = row["Accuracy"]
+            pcacc = metrics.per_class_accuracy(y_true, y_pred, labels, normal_label="Benign")
+            results = dict(**results, **pcacc)
         # log results
         self.results = results
         self.log_dict(results)

@@ -15,3 +15,7 @@ model:
       - 24
       - 24
       - 24
+data:
+  init_args:
+    scaler: minmax
+    batch_size: 128
