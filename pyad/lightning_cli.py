@@ -65,21 +65,17 @@ def train_legacy(cli, model, exp_fname):
 
 def sk_train(cli, model):
     datamodule = cli.datamodule
-    dataset = datamodule.dataset
 
-    # train test split
-    train_idx, test_idx = dataset.train_test_split()
-    train_X, train_y, train_labels = dataset[train_idx]
-    test_X, test_y, test_labels = dataset[test_idx]
+    # train test split, normalize
+    datamodule.setup()
+    train_X, train_y = datamodule.train_data.X, datamodule.train_data.y
+    test_X, test_y, test_labels = datamodule.test_data.X, datamodule.test_data.y, datamodule.test_data.labels
 
     # sanity checks
     # normal or abnormal data only in training and mixed labels during testing
     assert len(np.unique(train_y)) == 1, "training set contains anomalies, aborting"
     assert len(np.unique(test_y)) == 2, "test set should contain only 0s and 1s, aborting"
     assert len(np.unique(test_labels)) >= 2, "test set contains less than two distinct labels, aborting"
-
-    # normalize
-    train_X, test_X = dataset.normalize(train_X, test_X)
 
     # fit on training set
     model.fit(train_X)
