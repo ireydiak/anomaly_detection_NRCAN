@@ -62,7 +62,7 @@ class BaseLightningModel(pl.LightningModule):
             n_instances: int = -1,
             batch_size: int = -1,
             threshold: float = None,
-            normal_str_label: str = None,
+            normal_str_label: str = "0",
             **kwargs
     ):
         """
@@ -97,7 +97,6 @@ class BaseLightningModel(pl.LightningModule):
         )
         # Performance metrics placeholder
         self.results = None
-        self.per_class_accuracy = None
         self.normal_str_label = normal_str_label
 
     def before_train(self, dataloader: DataLoader):

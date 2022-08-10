@@ -32,7 +32,6 @@ class BaseLightningShallowModel(pl.LightningModule):
         )
         # Performance metrics placeholder
         self.results = None
-        self.per_class_accuracy = None
 
     def fit(self, X: np.ndarray, y: np.ndarray = None) -> None:
         self.clf.fit(X)
@@ -51,11 +50,8 @@ class BaseLightningShallowModel(pl.LightningModule):
 
         # evaluate multi-class if labels contain over two distinct values
         if len(np.unique(labels)) > 2:
-            misclf_df = ids_misclf_per_label(y_pred, y_true, labels)
-            misclf_df = misclf_df.sort_values("Misclassified ratio", ascending=False)
-            self.per_class_accuracy = misclf_df
-            for i, row in misclf_df.iterrows():
-                results[i] = row["Accuracy"]
+            pcacc = metrics.per_class_accuracy(y_true, y_pred, labels, normal_label="Benign")
+            results = dict(**results, **pcacc)
 
         return results
 

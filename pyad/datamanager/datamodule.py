@@ -4,106 +4,67 @@ import pytorch_lightning as pl
 from typing import Optional, Tuple
 from pytorch_lightning.utilities.cli import DATAMODULE_REGISTRY
 import scipy.io as scio
-from torch.utils.data import DataLoader, Dataset, Subset
+from torch.utils.data import DataLoader
 import numpy as np
-from torch.utils.data.dataloader import T_co
 from pyad.datamanager.dataset import SimpleDataset, scaler_map
 
 
-class BaseDataset(Dataset):
-    def __init__(
-            self,
-            data_dir: str,
-            label_col: str = None,
-            normal_size: float = 1.,
-            anomaly_label: int = 1,
-            seed: int = 42,
-            scaler: str = None
-    ):
-        super(BaseDataset, self).__init__()
-        assert anomaly_label == 0 or anomaly_label == 1, "`anomaly_label` must be either `1` or `0`"
-        assert 0 <= normal_size <= 1., "`normal_size` must be inclusively between 0 and 1"
-        self.seed = seed
-        self.data_dir = data_dir
-        self.labels = None
-        self.normal_size = normal_size
-        self.normal_label = int(not bool(anomaly_label))
-        self.anomaly_label = anomaly_label
-        data = self._load_data(self.data_dir, label_col)
-        self.X = data[:, :-1]
-        self.y = data[:, -1]
-        assert np.isnan(self.X).sum() == 0, "detected nan values"
-        if self.labels is None or self.labels.size == 0:
-            self.labels = self.y
-        # set scaler
-        if scaler is not None and scaler != "none":
-            self.scaler = scaler_map[scaler]()
-        else:
-            self.scaler = None
-        self.n_instances = self.X.shape[0]
-        self.in_features = self.X.shape[1]
-        self.anomaly_ratio = (self.y == self.anomaly_label).sum() / len(self.X)
-        assert self.anomaly_ratio <= 0.50, "anomaly ratio should be below 50%, did you select the right anomaly label?"
+def train_test_split_normal_data(
+        X: np.ndarray,
+        y: np.ndarray,
+        labels: np.ndarray,
+        normal_size: float = 1.,
+        normal_str_repr: str = "0",
+        seed=None
+):
+    """
+    Split matrix into random train and test subsets.
 
-    def __getitem__(self, index) -> T_co:
-        return self.X[index], self.y[index], self.labels[index]
+    X: np.ndarray
+        Data matrix that will be split
 
-    def __len__(self):
-        return len(self.X)
+    y: np.ndarray
+        Binary labels (0, 1)
 
-    def train_test_split(self, test_size: float = 0.5) -> Tuple[np.ndarray, np.ndarray]:
-        # split between normal and abnormal samples
-        normal_idx = np.where(self.y == self.normal_label)[0]
-        abnormal_idx = np.where(self.y == self.anomaly_label)[0]
+    labels: np.ndarray
+        Text representation of the labels
 
-        # shuffle normal indexes for more randomness
-        np.random.shuffle(normal_idx)
+    normal_size: float
+        Optional argument to further subsample samples with where y == 0 (normal data)
 
-        # select training data
-        n_train_normal = int(len(normal_idx) * (1 - test_size))
-        train_idx = normal_idx[:n_train_normal]
-
-        # select test data
-        test_normal_idx = normal_idx[n_train_normal:]
-        test_idx = np.concatenate((
-            test_normal_idx,
-            abnormal_idx
-        ))
-
-        return train_idx, test_idx
-
-    def normalize(self, train_data, test_data) -> Tuple[np.ndarray, np.ndarray]:
-        if self.scaler:
-            # fit scaler on train set only (to avoid data leaks)
-            self.scaler.fit(train_data)
-            # transform data
-            train_data = self.scaler.transform(train_data)
-            test_data = self.scaler.transform(test_data)
-        return train_data, test_data
-
-    def _load_data(self, path: str, label_col: str = None) -> numpy.ndarray:
-        if path.endswith(".npz"):
-            data = np.load(path)
-        elif path.endswith(".npy"):
-            data = np.load(path, allow_pickle=True)
-        elif path.endswith(".mat"):
-            data = scio.loadmat(path)
-            data = np.concatenate((data['X'], data['y']), axis=1)
-        elif path.endswith(".csv"):
-            df = pd.read_csv(path)
-            if self.normal_size < 1.:
-                # Select `normal_size` percent of normal samples
-                normal_df = df[df.Label == self.normal_label].sample(frac=self.normal_size, random_state=self.seed)
-                df = pd.concat((
-                    normal_df, df[df.Label == self.anomaly_label]
-                ))
-            if label_col:
-                self.labels = df[label_col].to_numpy()
-                df = df.drop(["Category"], axis=1)
-            data = df.astype(np.float32).to_numpy()
-        else:
-            raise RuntimeError(f"Could not open {path}. Dataset can only read .npy, .csv and .mat files.")
-        return data
+    normal_str_repr: float
+        String representation of the label for normal samples (e.g. "Benign" or "normal")
+    """
+    assert 0. < normal_size <= 1., "`normal_size` parameter must be inclusively in the range (0, 1], got {:2.4f}".format(
+        normal_size)
+    if seed:
+        np.random.seed(seed)
+    # separate normal and abnormal data
+    normal_data = X[y == 0]
+    abnormal_data = X[y == 1]
+    # train, test split
+    n_normal = int((len(normal_data) * normal_size) // 2)
+    # shuffle normal data
+    np.random.shuffle(normal_data)
+    # train (normal only)
+    X_train = normal_data[:n_normal]
+    # test (normal + attacks)
+    X_test_normal = normal_data[n_normal:]
+    X_test = np.concatenate(
+        (X_test_normal, abnormal_data)
+    )
+    y_test = np.concatenate((
+        np.zeros(len(X_test_normal), dtype=np.int8),
+        np.ones(len(abnormal_data), dtype=np.int8)
+    ))
+    test_labels = np.concatenate((
+        np.array([normal_str_repr] * len(X_test_normal)),
+        labels[y == 1]
+    ))
+    # sanity check: no attack labels associated with 0s and no normal labels associated with 1s
+    for bin_y, label in zip(y_test, test_labels):
+        assert bin_y == 0 and label == normal_str_repr or bin_y == 1 and label != normal_str_repr
+    return X_train, X_test, y_test, test_labels
 
 
 class BaseDataModule(pl.LightningDataModule):
@@ -112,89 +73,84 @@ class BaseDataModule(pl.LightningDataModule):
             data_dir: str,
             batch_size: int,
             scaler: str = None,
-            num_workers: int = 0,
             label_col: str = None,
             normal_size: float = 1.,
             anomaly_label: int = 1,
-            normal_str_label: str = None,
-            seed: int = 42
-    ):
+            normal_str_label: str = "0",
+            seed: int = 42):
         super(BaseDataModule, self).__init__()
+        assert 0. < normal_size <= 1., "`normal_size` must be in the range (0, 1], got {:2.4f}".format(normal_size)
+        # load data
+        self.X, self.y, self.labels = self._load_data(data_dir, label_col)
+        # sanity checks (NaNs, INF, etc.)
+        self.sanity_check(self.X, self.y, self.labels)
         self.data_dir = data_dir
         self.batch_size = batch_size
-        self.num_workers = num_workers
-        self.label_col = label_col
-        self.seed = seed
-        self.normal_str_label = normal_str_label
-        self.dataset = BaseDataset(
-            self.data_dir,
-            label_col=label_col,
-            normal_size=normal_size,
-            anomaly_label=anomaly_label,
-            seed=seed,
-            scaler=scaler
-        )
+        self.train_data = None
+        self.test_data = None
+        self.in_features = self.X.shape[1]
+        self.n_instances = self.X.shape[0]
+        self.scaler = scaler_map[scaler]() if scaler is not None else None
         self.anomaly_label = anomaly_label
-        self.normal_label = int(not anomaly_label)
+        self.anomaly_ratio = (self.y == anomaly_label).sum() / self.n_instances
+        self.seed = seed
+        # used to subsample the normal data
         self.normal_size = normal_size
-        self.sanity_check()
-        self.in_features = self.dataset.in_features
-        self.n_instances = self.dataset.n_instances
-        self.trainset = None
-        self.testset = None
-        if scaler is not None and scaler != "none":
-            self.scaler = scaler_map[scaler]()
+        # used to the fetch the string labels
+        self.label_col = label_col
+        # used to compute per-class accuracy on the normal class
+        self.normal_str_label = normal_str_label
+
+    def _load_data(self, path: str, label_col=None) -> Tuple[numpy.ndarray, numpy.ndarray, numpy.ndarray]:
+        if path.endswith(".npy") or path.endswith(".npz"):
+            data = np.load(path, allow_pickle=True)
+            X, y = data[:, :-1], data[:, -1]
+            labels = data[:, label_col] if label_col else data[:, -1]
+        elif path.endswith(".mat"):
+            data = scio.loadmat(path)
+            data = np.concatenate((data['X'], data['y']), axis=1)
+            X, y = data[:, :-1], data[:, -1]
+            labels = data[:, label_col] if label_col else data[:, -1]
+        elif path.endswith(".csv"):
+            df = pd.read_csv(path)
+            y = df.loc[:, "Label"].to_numpy().astype(np.int8)
+            if label_col:
+                labels = df.loc[:, label_col].to_numpy()
+                df = df.drop(label_col, axis=1)
+            else:
+                labels = y
+            X = df.drop("Label", axis=1).astype(np.float32).to_numpy()
         else:
-            self.scaler = None
-        self.anomaly_ratio = self.dataset.anomaly_ratio
+            raise RuntimeError(f"Could not open {path}. Dataset can only read .npy, .csv and .mat files.")
+        return X, y, labels
 
-    def sanity_check(self) -> None:
-        """
-        Optional hook to run sanity checks (e.g. look for NaNs, INF and other invalid values)
-        prior to train any model
-        """
-        assert np.isnan(self.dataset.X).sum() == 0, "detected nan values"
+    def sanity_check(self, X: np.ndarray, y: np.ndarray, labels: np.ndarray):
+        assert np.isnan(X).sum() == 0, "found NaN values in the data"
 
-    def normalize(self, train_set, test_set) -> Tuple[SimpleDataset, SimpleDataset]:
-        # extract training data and labels
-        train_data = train_set.dataset.dataset.X[train_set.indices]
-        train_y = train_set.dataset.dataset.y[train_set.indices]
-        train_labels = train_set.dataset.dataset.labels[train_set.indices]
-        # extract testing data and labels
-        test_data = test_set.dataset.dataset.X[test_set.indices]
-        test_y = test_set.dataset.dataset.y[test_set.indices]
-        test_labels = test_set.dataset.dataset.labels[test_set.indices]
-        # fit scaler on train set only (to avoid data leaks)
-        self.scaler.fit(train_data)
-        # transform the data
-        train_set = SimpleDataset(
-            X=self.scaler.transform(train_data), y=train_y, labels=train_labels
+    def setup(self, stage: Optional[str] = None):
+        # Load and split data
+        X_train, X_test, y_test, test_labels = train_test_split_normal_data(
+            self.X, self.y, self.labels,
+            normal_size=self.normal_size,
+            normal_str_repr=self.normal_str_label,
+            seed=self.seed
         )
-        test_set = SimpleDataset(
-            X=self.scaler.transform(test_data), y=test_y, labels=test_labels
-        )
-        return train_set, test_set
-
-    def setup(self, stage: Optional[str] = None) -> None:
-        train_idx, test_idx = self.dataset.train_test_split()
-        trainset, testset = Subset(self, train_idx), Subset(self, test_idx)
-        assert trainset.dataset.dataset.y[trainset.indices].sum() == 0, "found anomalies in training data"
+        # normalize data
         if self.scaler:
-            trainset, testset = self.normalize(trainset, testset)
-            self.trainset = DataLoader(
-                trainset, batch_size=self.batch_size, num_workers=self.num_workers, pin_memory=True
-            )
-            self.testset = DataLoader(
-                testset, batch_size=self.batch_size, num_workers=self.num_workers, pin_memory=True
-            )
+            self.scaler.fit(X_train)
+            X_train = self.scaler.transform(X_train)
+            X_test = self.scaler.transform(X_test)
+        # convert numpy arrays to PyTorch Datasets
+        self.train_data = SimpleDataset(X=X_train, y=np.zeros(len(X_train)), labels=np.zeros(len(X_train)))
+        self.test_data = SimpleDataset(X=X_test, y=y_test, labels=test_labels)
 
-    def train_dataloader(self) -> DataLoader:
-        assert self.trainset is not None, "`self.trainset` is None, don't forget to call `datamodule.setup()` before trying to load the train loader"
-        return self.trainset
+    def train_dataloader(self):
+        assert self.train_data, "`train_data` undefined, did you forget to call `setup` first?"
+        return DataLoader(self.train_data, batch_size=self.batch_size)
 
-    def test_dataloader(self) -> DataLoader:
-        assert self.testset is not None, "`self.testset` is None, don't forget to call `datamodule.setup()` before trying to load the test loader"
-        return self.testset
+    def test_dataloader(self):
+        assert self.test_data, "`test_data` undefined, did you forget to call `setup` first?"
+        return DataLoader(self.test_data, batch_size=self.batch_size)
 
 
 @DATAMODULE_REGISTRY
@@ -209,31 +165,27 @@ class ArrhythmiaDataModule(BaseDataModule):
 
 @DATAMODULE_REGISTRY
 class KDD10DataModule(BaseDataModule):
-    def sanity_check(self):
-        X = self.dataset.X
-        super(KDD10DataModule, self).sanity_check()
+    def sanity_check(self, X: np.ndarray, y: np.ndarray, labels: np.ndarray):
+        super(KDD10DataModule, self).sanity_check(X, y, labels)
         assert X[X < 0].sum() == 0, "detected negative values"
 
 
 @DATAMODULE_REGISTRY
 class NSLKDDDataModule(BaseDataModule):
-    def sanity_check(self):
-        X = self.dataset.X
-        super(NSLKDDDataModule, self).sanity_check()
+    def sanity_check(self, X: np.ndarray, y: np.ndarray, labels: np.ndarray):
+        super(NSLKDDDataModule, self).sanity_check(X, y, labels)
         assert X[X < 0].sum() == 0, "detected negative values"
 
 
 @DATAMODULE_REGISTRY
 class IDS2017DataModule(BaseDataModule):
-    def sanity_check(self):
-        X = self.dataset.X
-        super(IDS2017DataModule, self).sanity_check()
+    def sanity_check(self, X: np.ndarray, y: np.ndarray, labels: np.ndarray):
+        super(IDS2017DataModule, self).sanity_check(X, y, labels)
         assert X[X < 0].sum() == 0, "detected negative values"
 
 
 @DATAMODULE_REGISTRY
 class IDS2018DataModule(BaseDataModule):
-    def sanity_check(self):
-        X = self.dataset.X
-        super(IDS2018DataModule, self).sanity_check()
+    def sanity_check(self, X: np.ndarray, y: np.ndarray, labels: np.ndarray):
+        super(IDS2018DataModule, self).sanity_check(X, y, labels)
         assert X[X < 0].sum() == 0, "detected negative values"
