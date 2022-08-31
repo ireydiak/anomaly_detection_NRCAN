@@ -5,7 +5,7 @@ from torch.utils.data import DataLoader
 from pyad.utils import metrics
 from ray import tune
 from torch import nn
-from typing import List, Tuple
+from typing import List, Tuple, Optional, Callable, Union
 from pyad.lightning.utils import activation_map
 
 
@@ -85,11 +85,14 @@ class BaseLightningModel(pl.LightningModule):
         super(BaseLightningModel, self).__init__()
         if threshold:
             assert 0. <= threshold <= 100., "`threshold` must be inclusively between 0 and 1"
+            self.threshold = threshold
         else:
             self.threshold = None
+        # number of features and instances of the dataset
+        # useful to build neural networks
         self.in_features = in_features
         self.n_instances = n_instances
-        self.threshold = threshold
+
         # call this to save hyper-parameters to the checkpoint
         # will save children parameters as well
         self.save_hyperparameters(
@@ -139,6 +142,11 @@ class BaseLightningModel(pl.LightningModule):
 
     def on_test_end(self):
         return self.results
+
+    def predict_step(self, batch, batch_idx: int, dataloader_idx: int = 0):
+        X, y, labels = batch
+        X = X.float()
+        return self.score(X, y).cpu().detach().numpy()
 
     def test_step(self, batch, batch_idx):
         X, y_true, labels = batch

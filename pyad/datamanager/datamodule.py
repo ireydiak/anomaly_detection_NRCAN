@@ -15,7 +15,8 @@ def train_test_split_normal_data(
         labels: np.ndarray,
         normal_size: float = 1.,
         normal_str_repr: str = "0",
-        seed=None
+        seed=None,
+        shuffle_normal: bool = True
 ):
     """
     Split matrix into random train and test subsets.
@@ -45,7 +46,8 @@ def train_test_split_normal_data(
     # train, test split
     n_normal = int((len(normal_data) * normal_size) // 2)
     # shuffle normal data
-    np.random.shuffle(normal_data)
+    if shuffle_normal:
+        np.random.shuffle(normal_data)
     # train (normal only)
     X_train = normal_data[:n_normal]
     # test (normal + attacks)
@@ -77,7 +79,7 @@ class BaseDataModule(pl.LightningDataModule):
             normal_size: float = 1.,
             anomaly_label: int = 1,
             normal_str_label: str = "0",
-            seed: int = 42):
+            seed: int = None):
         super(BaseDataModule, self).__init__()
         assert 0. < normal_size <= 1., "`normal_size` must be in the range (0, 1], got {:2.4f}".format(normal_size)
         # load data
@@ -146,11 +148,17 @@ class BaseDataModule(pl.LightningDataModule):
 
     def train_dataloader(self):
         assert self.train_data, "`train_data` undefined, did you forget to call `setup` first?"
-        return DataLoader(self.train_data, batch_size=self.batch_size)
+        return DataLoader(self.train_data, batch_size=self.batch_size, shuffle=False)
+
+    def train_y(self):
+        return self.train_data.y
+
+    def test_y(self):
+        return self.test_data.y
 
     def test_dataloader(self):
         assert self.test_data, "`test_data` undefined, did you forget to call `setup` first?"
-        return DataLoader(self.test_data, batch_size=self.batch_size)
+        return DataLoader(self.test_data, batch_size=self.batch_size, shuffle=False)
 
 
 @DATAMODULE_REGISTRY

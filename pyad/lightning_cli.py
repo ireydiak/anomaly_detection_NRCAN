@@ -10,6 +10,7 @@ from pytorch_lightning import loggers as pl_loggers
 
 from pyad.legacy import bootstrap
 from pyad.utils.utils import store_results
+from pyad.utils.fsystem import get_default_experiment_path
 
 import warnings
 
@@ -17,12 +18,6 @@ warnings.filterwarnings("ignore", ".*does not have many workers.*")
 
 MODEL_REGISTRY.register_classes(pyad.lightning, pl.LightningModule)
 DATAMODULE_REGISTRY.register_classes(pyad.datamanager.datamodule, pl.LightningDataModule)
-
-
-def get_default_experiment_path():
-    return os.path.join(
-        os.path.abspath(__file__), "../experiments/training"
-    )
 
 
 class MyLightningCLI(LightningCLI):
@@ -63,7 +58,7 @@ def train_legacy(cli, model, exp_fname):
     return res
 
 
-def sk_train(cli, model):
+def sk_train(cli, model, exp_fname):
     datamodule = cli.datamodule
 
     # train test split, normalize
@@ -132,9 +127,22 @@ def init_model(cli):
     model_args["in_features"] = cli.datamodule.in_features
     model_args["n_instances"] = cli.datamodule.n_instances
     model_args["batch_size"] = cli.datamodule.batch_size
-    model_args["threshold"] = int(np.ceil((1 - cli.datamodule.anomaly_ratio) * 100))
+    model_args["threshold"] = (1 - cli.datamodule.anomaly_ratio) * 100
     model_cls = MODEL_REGISTRY[cli.model.__class__.__name__]
     return model_cls(**model_args)
+
+
+def resolve_training_fn(model_instance):
+    if model_instance.is_legacy:
+        # train legacy models (SOM-DAGMM, DUAD)
+        fn = train_legacy
+    elif model_instance.is_nn:
+        # train pytorch lightning module
+        fn = nn_train
+    else:
+        # train sklearn (shallow) model
+        fn = sk_train
+    return fn
 
 
 def main(cli):
@@ -146,14 +154,8 @@ def main(cli):
     for run in range(1, cli.config.n_runs + 1):
         # instead of resetting the weights, we simply create a fresh instance of the model at every run
         model_instance = init_model(cli)
-        if model_instance.is_legacy:
-            res = train_legacy(cli, model_instance, exp_fname)
-        elif model_instance.is_nn:
-            # train neural network for `trainer.max_epochs` epochs
-            res = nn_train(cli, model_instance, exp_fname)
-        else:
-            # train sklearn (shallow) model
-            res = sk_train(cli, model_instance)
+        training_fn = resolve_training_fn(model_instance)
+        res = training_fn(cli, model_instance, exp_fname)
         # keep the results in a dictionary
         if all_results is None:
             all_results = {k: [v] for k, v in res.items()}

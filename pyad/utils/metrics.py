@@ -1,7 +1,6 @@
-from random import shuffle
-from typing import Tuple
-
 import numpy as np
+
+from typing import Tuple, List
 from sklearn import metrics as sk_metrics
 
 
@@ -32,11 +31,11 @@ def compute_metrics(test_score, y_test, thresh, pos_label=1):
     return precision, recall, f_score, roc, avgpr, y_pred
 
 
-def estimate_optimal_threshold(test_score, y_test, pos_label=1, nq=100, ratio=None):
-    ratio = ratio or 100 * sum(y_test == 0) / len(y_test)
+def estimate_optimal_threshold(scores, y_true, ratio=None, pos_label=1, nq=100):
+    ratio = ratio or 100 * sum(y_true == 0) / len(y_true)
     print(f"Ratio of normal data:{ratio}")
     q = np.linspace(ratio - 5, min(ratio + 5, 100), nq)
-    thresholds = np.percentile(test_score, q)
+    thresholds = np.percentile(scores, q)
 
     f1 = np.zeros(shape=nq)
     r = np.zeros(shape=nq)
@@ -48,7 +47,7 @@ def estimate_optimal_threshold(test_score, y_test, pos_label=1, nq=100, ratio=No
     for i, (thresh, qi) in enumerate(zip(thresholds, q)):
         # print(f"Threshold :{thresh:.3f}--> {qi:.3f}")
         # Prediction using the threshold value
-        precision, recall, f_score, roc, avgpr, y_pred = compute_metrics(test_score, y_test, thresh, pos_label)
+        precision, recall, f_score, roc, avgpr, y_pred = compute_metrics(scores, y_true, thresh, pos_label)
 
         # print(f"qi:{qi:.3f} ==> p:{precision:.3f}  r:{recall:.3f}  f1:{f_score:.3f}")
         f1[i] = f_score * 100
@@ -59,25 +58,22 @@ def estimate_optimal_threshold(test_score, y_test, pos_label=1, nq=100, ratio=No
         qis[i] = qi
 
     arm = np.argmax(f1)
-    _, _, _, _, _, y_pred = compute_metrics(test_score, y_test, thresholds[arm], pos_label)
+    _, _, _, _, _, y_pred = compute_metrics(scores, y_true, thresholds[arm], pos_label)
 
     return {
-       "Precision": p[arm],
-       "Recall": r[arm],
-       "F1-Score": f1[arm],
-       "AUPR": aupr[arm],
-       "AUROC": auc[arm],
-       "Thresh_star": thresholds[arm],
-       "Quantile_star": qis[arm]
-   }, y_pred
+               "Precision": p[arm],
+               "Recall": r[arm],
+               "F1-Score": f1[arm],
+               "AUPR": aupr[arm],
+               "AUROC": auc[arm],
+               "Thresh": thresholds[arm],
+               "Quantile_star": qis[arm]
+           }, y_pred
 
 
-def score_recall_precision_w_threshold(scores, y_true, threshold=None, pos_label=1) -> Tuple[dict, np.ndarray]:
-    if threshold is None:
-        anomaly_ratio = (y_true == pos_label).sum() / len(y_true)
-        threshold = threshold or int(np.ceil((1 - anomaly_ratio) * 100))
-    thresh = np.percentile(scores, threshold)
-
+def score_recall_precision_w_threshold(scores, y_true, ratio=None, pos_label=1) -> Tuple[dict, np.ndarray]:
+    ratio = ratio or ((y_true == 0).sum() / len(y_true)) * 100
+    thresh = np.percentile(scores, ratio)
     # Prediction using the threshold value
     y_pred = (scores >= thresh).astype(int)
     y_true = y_true.astype(int)
@@ -110,3 +106,25 @@ def per_class_accuracy(y_true: np.ndarray, y_pred: np.ndarray, labels: np.ndarra
         # compute per-class accuracy
         results[label] = (c / n) * 100
     return results
+
+
+class AggregatorDict(dict):
+    def __init__(self, keys: List[str]):
+        super(AggregatorDict, self).__init__()
+        self.keys = keys
+        for key in keys:
+            super().__setitem__(key, [])
+
+    def __setitem__(self, __k, __v) -> None:
+        self[__k].append(__v)
+
+    def add(self, __d) -> None:
+        for k, v in __d.items():
+            if k in set(self.keys):
+                self.__setitem__(k, v)
+
+    def aggregate(self) -> dict:
+        new_dict = {}
+        for k, v in self.items():
+            new_dict[k] = "{:2.4f} ({:2.4f})".format(np.mean(v), np.std(v))
+        return new_dict

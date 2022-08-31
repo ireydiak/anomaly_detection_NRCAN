@@ -6,7 +6,7 @@ model:
     enc_hidden_dims:
       - 10
     shrink_thresh: 0.0025
-    alpha: 2e-4
+    alpha: 0.0002
     activation: relu
     weight_decay: 1e-4
     lr: 1e-4

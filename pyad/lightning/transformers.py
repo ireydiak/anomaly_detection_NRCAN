@@ -317,7 +317,7 @@ class LitGOAD(BaseLightningModel):
         score = -torch.diagonal(logp_sz, 0, 1, 2).sum(dim=1)
         return score
 
-    def test_step(self, batch, batch_idx):
+    def predict_step(self, batch, batch_idx: int, dataloader_idx: int = 0):
         X, y_true, labels = batch
         X = X.float()
         # Apply affine transformations
@@ -329,6 +329,11 @@ class LitGOAD(BaseLightningModel):
         zs = zs.permute(0, 2, 1)
         # Compute anomaly score
         scores = self.score(zs)
+        return scores.detach().cpu().numpy()
+
+    def test_step(self, batch, batch_idx):
+        _, y_true, labels = batch
+        scores = self.predict_step(batch, batch_idx)
 
         if type(labels) == torch.Tensor:
             labels = labels.cpu().detach().numpy()
@@ -370,7 +375,6 @@ class LitGOAD(BaseLightningModel):
         ce_loss = self.ce_loss(logits, labels)
         tc_loss = self.tc_loss(tc_zs)
         loss = self.hparams.lamb * tc_loss + ce_loss
-        self.log(mode + "_loss", loss)
         return loss
 
     def on_train_epoch_start(self) -> None:

@@ -202,7 +202,8 @@ class LitAutoEncoder(BaseLightningModel):
     def configure_optimizers(self):
         optimizer = torch.optim.Adam(
             self.parameters(),
-            lr=self.hparams.lr
+            lr=self.hparams.lr,
+            weight_decay=self.hparams.weight_decay
         )
         scheduler = StepLR(optimizer, step_size=20, gamma=0.9)
         return [optimizer], [scheduler]
