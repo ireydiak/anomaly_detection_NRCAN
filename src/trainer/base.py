@@ -28,7 +28,7 @@ class BaseTrainer(ABC):
         self.optimizer = self.set_optimizer(self.weight_decay)
 
     @abstractmethod
-    def train_iter(self, sample: torch.Tensor):
+    def train_iter(self, sample: torch.Tensor, **kwargs):
         pass
 
     @abstractmethod
@@ -50,7 +50,7 @@ class BaseTrainer(ABC):
     def set_optimizer(self, weight_decay):
         return optim.Adam(self.model.parameters(), lr=self.lr, weight_decay=weight_decay)
 
-    def train(self, train_loader: DataLoader, val_loader: DataLoader = None):
+    def train(self, train_loader: DataLoader, val_loader: DataLoader = None, **kwargs):
         self.model.train()
 
         self.before_training(train_loader)
@@ -73,7 +73,7 @@ class BaseTrainer(ABC):
                     # Reset gradient
                     self.optimizer.zero_grad()
 
-                    loss = self.train_iter(X)
+                    loss = self.train_iter(X, **kwargs)
 
                     # Backpropagation
                     loss.backward()

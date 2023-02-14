@@ -110,9 +110,9 @@ class AutoEncoder(nn.Module):
         :param x: input
         :return: output of the model
         """
-        output = self.encoder(x)
-        output = self.decoder(output)
-        return x, output
+        z = self.encoder(x)
+        output = self.decoder(z)
+        return z, output
 
     def get_params(self) -> dict:
         return {

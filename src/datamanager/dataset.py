@@ -36,7 +36,7 @@ class AbstractDataset(Dataset):
                  X[normal_idx[:int(len(normal_idx) * pct)]])
             )
 
-            if self.labels:
+            if not self.labels is None:
                 self.labels = np.concatenate(
                     (self.labels[anomaly_idx[:int(len(anomaly_idx) * pct)]],
                      self.labels[normal_idx[:int(len(normal_idx) * pct)]])

@@ -12,11 +12,23 @@ class AutoEncoderTrainer(BaseTrainer):
         _, X_prime = self.model(sample)
         return ((sample - X_prime) ** 2).sum(axis=1)
 
-    def train_iter(self, X):
+    def train_iter(self, X, **kwargs):
         code, X_prime = self.model(X)
         l2_z = code.norm(2, dim=1).mean()
         reg = 0.5
         loss = ((X - X_prime) ** 2).sum(axis=-1).mean() + reg * l2_z
+
+        if True:
+            l2_z = code.norm(2, dim=1)
+            loss_n = ((X - X_prime) ** 2).sum(axis=-1) + reg * l2_z
+            loss_a = 1/((X - X_prime) ** 2).sum(axis=-1) + reg * 1/l2_z
+
+            scores = loss_n - loss_a
+            _, idx_n = torch.topk(scores,  int(X.shape[0] * (1 - kwargs['contamination_rate'])), largest=False, sorted=False)
+            _, idx_a = torch.topk(scores, int(X.shape[0] * (kwargs['contamination_rate'])), largest=True, sorted=False)
+
+            loss = torch.cat([loss_n[idx_n], loss_a[idx_a]], dim=0)
+            loss = loss.mean()
 
         return loss
 

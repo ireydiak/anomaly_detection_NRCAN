@@ -215,7 +215,7 @@ def train_model(
                 model_trainer.setDataManager(dm)
                 model_trainer.train()
             else:
-                _ = model_trainer.train(train_ldr, val_ldr)
+                _ = model_trainer.train(train_ldr, val_ldr, contamination_rate=contamination_rate)
             print("Completed learning process")
             print("Evaluating model on test set")
             # We test with the minority samples as the positive class
